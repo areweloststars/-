@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>김민욱 진로 탐색 — 가치 중심 평가</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+       background:#f5f3ee;color:#2a2a2a;line-height:1.6;padding:16px}
+  .app{max-width:780px;margin:0 auto}
+  header{background:#3b4d3a;color:#fff;padding:22px 24px;border-radius:12px 12px 0 0}
+  header h1{font-size:21px;margin-bottom:6px}
+  header p{font-size:13px;opacity:.88}
+  .verse{font-size:12px;font-style:italic;opacity:.75;margin-top:8px;border-left:3px solid #c9a961;padding-left:10px}
+  .progress-wrap{background:#fff;padding:14px 24px;border-bottom:1px solid #e5e5e0}
+  .progress-bar{height:8px;background:#ecece5;border-radius:4px;overflow:hidden}
+  .progress-fill{height:100%;background:#3b4d3a;transition:width .4s}
+  .progress-text{font-size:12px;color:#666;margin-top:6px}
+  main{background:#fff;padding:26px 24px;border-radius:0 0 12px 12px;
+       box-shadow:0 2px 8px rgba(0,0,0,.05);min-height:420px}
+  .stage-label{display:inline-block;background:#e8eee5;color:#3b4d3a;padding:4px 10px;
+       border-radius:4px;font-size:12px;font-weight:600;margin-bottom:12px}
+  .stage-label.faith{background:#f4e9d0;color:#8b6f1f}
+  .question{font-size:18px;font-weight:600;margin-bottom:8px;color:#1a1a1a}
+  .helper{font-size:14px;color:#666;margin-bottom:18px}
+  .options{display:flex;flex-direction:column;gap:10px}
+  .option{background:#fafaf5;border:2px solid #e5e5e0;border-radius:8px;padding:14px 16px;
+       cursor:pointer;transition:all .15s;font-size:15px;text-align:left;width:100%;font-family:inherit}
+  .option:hover{border-color:#3b4d3a;background:#f0f3ec}
+  .option.selected{border-color:#3b4d3a;background:#e8eee5;font-weight:600}
+  .option.multi.selected::before{content:"✓ ";color:#3b4d3a}
+  textarea,input[type=text],input[type=number]{width:100%;border:2px solid #e5e5e0;border-radius:8px;
+       padding:12px;font-size:15px;font-family:inherit;resize:vertical}
+  textarea:focus,input:focus{outline:none;border-color:#3b4d3a}
+  .nav{display:flex;justify-content:space-between;margin-top:26px;gap:10px;flex-wrap:wrap}
+  .btn{background:#3b4d3a;color:#fff;border:none;padding:12px 22px;border-radius:8px;
+       font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn:hover{background:#2c3a2c}
+  .btn:disabled{background:#b0b0a8;cursor:not-allowed}
+  .btn-secondary{background:#fff;color:#3b4d3a;border:2px solid #3b4d3a}
+  .btn-secondary:hover{background:#f0f3ec}
+  .btn-small{padding:8px 14px;font-size:13px}
+  .rank-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;
+       background:#fafaf5;padding:10px 12px;border-radius:6px}
+  .rank-row span{flex:1;font-size:14px}
+  .rank-row input{width:60px;text-align:center}
+  .weight-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .weight-row label{flex:1;font-size:14px}
+  .weight-row input{width:70px;text-align:center}
+  .weight-total{font-weight:600;text-align:right;margin-top:8px;font-size:14px}
+  .weight-total.bad{color:#b94a3c}
+  .weight-total.good{color:#3b4d3a}
+  .save-status{font-size:12px;color:#888;text-align:center;margin-top:10px}
+  .result-section{margin-bottom:26px;padding-bottom:18px;border-bottom:1px solid #ecece5}
+  .result-section h2{font-size:18px;color:#3b4d3a;margin-bottom:10px}
+  .faith-banner{background:#f4e9d0;border-left:4px solid #c9a961;padding:14px 16px;
+       border-radius:4px;margin-bottom:18px;font-size:14px}
+  .job-card{background:#fafaf5;border-left:4px solid #3b4d3a;padding:14px 18px;
+       margin-bottom:12px;border-radius:4px;position:relative}
+  .job-card.rank1{border-left-color:#c9a961;background:#fdf9ec}
+  .job-card.rank3{border-left-color:#888}
+  .rank-badge{display:inline-block;font-size:11px;background:#3b4d3a;color:#fff;
+       padding:2px 8px;border-radius:3px;margin-right:6px;font-weight:600}
+  .job-card.rank1 .rank-badge{background:#c9a961;color:#5a4815}
+  .job-card.rank3 .rank-badge{background:#888}
+  .job-card h3{font-size:16px;display:inline-block}
+  .score-box{float:right;text-align:right}
+  .score-main{font-weight:700;font-size:18px;color:#3b4d3a}
+  .job-card.rank1 .score-main{color:#8b6f1f}
+  .score-detail{font-size:11px;color:#888;margin-top:2px}
+  .meta{font-size:13px;color:#666;margin:8px 0;clear:right}
+  .reason{font-size:14px;margin-top:8px}
+  .action{background:#fff;border-radius:4px;padding:8px 10px;margin-top:8px;font-size:13px;color:#444}
+  .roadmap-step{display:flex;gap:14px;margin-bottom:14px}
+  .roadmap-num{flex-shrink:0;width:34px;height:34px;background:#3b4d3a;color:#fff;
+       border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .roadmap-content{flex:1;padding-top:3px}
+  .roadmap-content h4{font-size:15px;margin-bottom:3px}
+  .roadmap-content p{font-size:14px;color:#555}
+  .warning-box{background:#fff8e7;border:1px solid #f0c674;padding:12px 14px;
+       border-radius:6px;font-size:14px;margin:12px 0}
+  .info-box{background:#eaf3f8;border:1px solid #93c5d9;padding:12px 14px;
+       border-radius:6px;font-size:14px;margin:12px 0}
+  .actions-bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  details{margin-top:8px;font-size:13px}
+  summary{cursor:pointer;color:#3b4d3a;font-weight:600}
+  details>div{padding:8px 0 0 0;color:#555}
+  @media print{body{background:#fff}.nav,.actions-bar,header{display:none}main{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>김민욱 진로 탐색 앱</h1>
+    <p>기독교적 가치관을 최상위 기준으로 둔 가중치 평가 시스템</p>
+    <div class="verse">"네 마음을 다하고 목숨을 다하고 뜻을 다하여 주 너의 하나님을 사랑하라… 네 이웃을 네 자신 같이 사랑하라" — 마태복음 22:37-39</div>
+  </header>
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-text" id="progressText">시작 전 · 답변은 자동 저장됩니다</div>
+  </div>
+  <main id="main"></main>
+</div>
+
+<script>
+const questions = [
+  { stage:0, label:"0단계 · 신앙적 기준 (최상위)", faith:true, id:"q0_calling", type:"single",
+    question:"이 일을 통해 하나님이 본인을 어디로 부르신다고 느끼시나요?",
+    helper:"정답이 없습니다. 본인이 가장 자연스럽게 끄덕이는 답을 고르세요.",
+    options:[
+      {val:"poor",text:"가난하고 약한 이웃을 직접 섬기는 자리 (마 25:40)"},
+      {val:"steward",text:"맡겨진 자원·재능을 정직하게 청지기로 관리하는 자리 (마 25:14-30)"},
+      {val:"justice",text:"공의를 행하고 불의한 구조를 바로잡는 자리 (미 6:8)"},
+      {val:"witness",text:"세상 속에서 빛과 소금이 되는 일반 직업 자리 (마 5:13-16)"},
+      {val:"discern",text:"아직 분별 중 — 여러 가능성을 열어두고 싶음"}
+    ]},
+  { stage:0, label:"0단계 · 신앙적 기준 (최상위)", faith:true, id:"q0_redline", type:"multi",
+    question:"양심상 절대 일할 수 없는 영역은? (모두 선택)",
+    helper:"기관 자동 필터링에 사용됩니다.",
+    options:[
+      {val:"gambling",text:"사행성·도박·복권"},
+      {val:"alcohol",text:"주류 제조·판매"},
+      {val:"tobacco",text:"담배"},
+      {val:"cosmetic_surgery",text:"미용 성형"},
+      {val:"weapons",text:"무기·군수"},
+      {val:"usury",text:"고금리 대부업·사채"},
+      {val:"adult",text:"성인·유흥 산업"},
+      {val:"deception",text:"기만적 마케팅이 본질인 업종"}
+    ]},
+  { stage:0, label:"0단계 · 신앙적 기준 (최상위)", faith:true, id:"q0_honesty", type:"single",
+    question:"직장에서 정직·공정 기준이 흔들리는 상황을 마주한다면?",
+    helper:"본인의 마지노선을 확인하기 위한 질문입니다.",
+    options:[
+      {val:"strict",text:"단 한 번도 양보 못 함 — 손해 보더라도 즉시 문제 제기"},
+      {val:"voice",text:"내부에서 정중히 문제 제기, 변화 없으면 떠남"},
+      {val:"endure",text:"본인 일만 정직하게, 조직 전체는 어쩔 수 없음"},
+      {val:"flex",text:"상황에 따라 유연하게 판단"}
+    ]},
+  { stage:0, label:"0단계 · 신앙적 기준 (최상위)", faith:true, id:"q0_faith_org", type:"single",
+    question:"기독교 정체성이 명시된 단체에서 일하는 것을 어떻게 보시나요?",
+    helper:"본인 성향을 고르세요.",
+    options:[
+      {val:"prefer",text:"강하게 선호 — 같은 신앙 공동체에서 일하고 싶음"},
+      {val:"open",text:"열려 있음 — 신앙 단체도 일반 공공기관도 OK"},
+      {val:"public",text:"공공기관·세속 단체 선호 — 일터에서 신앙은 개인적으로 지킴"},
+      {val:"avoid_church",text:"교계 내부 정치·이슈가 부담스러움 — 신앙 단체는 신중"}
+    ]},
+  { stage:1, label:"1단계 · 일하는 환경", id:"q1_commute", type:"single",
+    question:"거주지 이동 가능 범위는?",
+    helper:"평촌(안양) 기준.",
+    options:[
+      {val:"anyang",text:"평촌 통근 1시간 이내만"},
+      {val:"metro",text:"평촌 통근 1시간 30분까지 (서울 전역, 수원·성남)"},
+      {val:"gyeonggi",text:"평택·인천 등 단신 거주 가능"},
+      {val:"anywhere",text:"진천·세종 등 지방 단신 거주도 가능"}
+    ]},
+  { stage:1, label:"1단계 · 일하는 환경", id:"q2_study", type:"single",
+    question:"시험 공부 가능 기간은 솔직히?",
+    helper:"공기업 NCS 필기는 3~6개월 준비 필요.",
+    options:[
+      {val:"1m",text:"1개월 이내 — 인턴·서류면접 트랙만"},
+      {val:"3m",text:"2~3개월 — 한국사·OPIc 등 단기 자격"},
+      {val:"6m",text:"6개월 가능 — NCS 필기 포함"}
+    ]},
+  { stage:1, label:"1단계 · 일하는 환경", id:"q3_employment", type:"single",
+    question:"고용 형태 우선순위는?",
+    options:[
+      {val:"regular",text:"정규직만 (기다려서라도)"},
+      {val:"intern_ok",text:"6개월~1년 인턴이라도 OK, 경험 우선"},
+      {val:"any",text:"계약직이라도 흥미·가치 맞으면 OK"}
+    ]},
+  { stage:2, label:"2단계 · 일의 내용", id:"q5_focus", type:"text",
+    question:"지난 6개월 직무 중 시간 가는 줄 모르고 한 작업 3가지는?",
+    helper:"답이 어렵다면 '잘 모르겠음'이라고 적어도 됩니다." },
+  { stage:2, label:"2단계 · 일의 내용", id:"q6_avoid", type:"text",
+    question:"5분도 집중 안 됐던 작업 3가지는?",
+    helper:"신용장·채권회수 외에 또 무엇이 있었는지." },
+  { stage:2, label:"2단계 · 일의 내용", id:"q7_rank", type:"rank",
+    question:"다음 4가지 일을 흥미 순으로 1~4위 매기세요",
+    helper:"각 칸에 1~4 입력. 가장 끌리면 1.",
+    items:[
+      {val:"research",text:"A. 외국 기업·기관 정보를 조사해 한국어 보고서로 정리"},
+      {val:"matching",text:"B. 한국 기업의 해외 진출 파트너·바이어 연결"},
+      {val:"planning",text:"C. 새로운 정책·사업 아이디어를 기획서로 작성"},
+      {val:"data",text:"D. 사업 운영 데이터를 분석해 성과 보고"}
+    ]},
+  { stage:2, label:"2단계 · 일의 내용", id:"q8_helping", type:"single",
+    question:"'누구를 직접 돕는다'는 감각이 필요한가요?",
+    helper:"이웃 사랑(마 22:39) 실천 방식과 직결됩니다.",
+    options:[
+      {val:"direct",text:"반드시 필요 — 소상공인·취약계층 직접 응대"},
+      {val:"indirect",text:"간접적이어도 OK — 기업·기관 지원 통한 기여"},
+      {val:"no",text:"상관없음 — 공익성·정직성만 확보되면"}
+    ]},
+  { stage:3, label:"3단계 · AI·IT 활용 수준", id:"q10_skills", type:"multi",
+    question:"직접 해본 것을 모두 선택",
+    helper:"객관적 IT 수준 진단.",
+    options:[
+      {val:"ai_basic",text:"ChatGPT/Claude로 문서 요약·번역·초안 작성"},
+      {val:"research_ai",text:"Perplexity·Genspark로 웹 리서치"},
+      {val:"doc_auto",text:"Notion AI·Copilot으로 문서·표 자동화"},
+      {val:"excel",text:"엑셀 함수·피벗테이블 활용"},
+      {val:"viz",text:"Power BI·태블로 등 시각화"},
+      {val:"nocode",text:"Make·Zapier 등 노코드 자동화"},
+      {val:"code",text:"파이썬·SQL 코드 작성"},
+      {val:"api",text:"GPT API 호출, 프롬프트 엔지니어링 체계화"}
+    ]},
+  { stage:3, label:"3단계 · AI·IT 활용 수준", id:"q11_it_invest", type:"single",
+    question:"앞으로 6개월 IT 학습 투자 의향은?",
+    options:[
+      {val:"no_invest",text:"없음 — 현재 능력으로 승부"},
+      {val:"5h",text:"주 5시간 — 도구 활용 심화"},
+      {val:"10h",text:"주 10시간 이상 — 코딩·데이터 학습 포함"}
+    ]},
+  { stage:4, label:"4단계 · 본인 강점", id:"q15_strengths", type:"multi",
+    question:"'상위 30%'라고 자신 있는 강점 모두 선택",
+    helper:"선택 안 한 항목은 자기소개서에서 강조하지 않는 게 안전.",
+    options:[
+      {val:"eng_read",text:"영어 읽기·쓰기"},
+      {val:"eng_speak",text:"영어 회화"},
+      {val:"trade_knowledge",text:"무역 실무 지식"},
+      {val:"research",text:"해외 기업 리서치"},
+      {val:"b2b",text:"B2B 고객 응대"},
+      {val:"ai_output",text:"AI 도구로 업무 산출물 만들기"},
+      {val:"doc",text:"문서·자료 정리"},
+      {val:"presentation",text:"발표·기획서 작성"}
+    ]},
+  { stage:5, label:"5단계 · 우선순위 가중치", id:"q17_weights", type:"weight",
+    question:"기관 평가 기준에 100점을 나눠 배분하세요",
+    helper:"신앙 기준이 최상위라면 '신앙·윤리 정합도'에 가장 많은 점수를.",
+    items:[
+      {val:"faith",text:"신앙·윤리 정합도 (정직·공익·이웃 사랑)",default:35},
+      {val:"interest",text:"직무 흥미 (영어·AI·해외 활용)",default:20},
+      {val:"commute",text:"통근·정착 편의성",default:15},
+      {val:"stability",text:"고용 안정성·연봉",default:10},
+      {val:"feasibility",text:"합격 가능성",default:10},
+      {val:"helping",text:"남을 돕는다는 감각",default:10}
+    ]}
+];
+
+const orgs = [
+  { id:"kotra_intern", name:"KOTRA 청년인턴(체험형)", type:"공공기관 · 인턴", location:"서울 서초",
+    commute:"metro", studyLevel:"1m", employment:"intern_ok", industry:["trade","public"], avoidFlags:[],
+    scores:{ faith:75, interest:85, commute:80, stability:60, feasibility:70, helping:60 },
+    faithDetail:"공공기관 회계감사·alio 공시 의무. 한국 중소기업 해외 진출 지원이라는 공익적 미션. 사행성·기만 없음.",
+    fitFor:["steward","witness","discern"],
+    desc:"한국 기업 해외 진출 지원, 80개국 무역관, 시장조사·바이어 매칭. 영어·무역·해외경험 활용도 최상.",
+    schedule:"수시 채용 풀 방식. 2026년 3기 공고 5~7월 예상. kotra.applyin.co.kr 알림 설정.",
+    salary:"월 약 216만원",
+    why:"본인 무역학·영어·해외영업·AI 강점 모두 매칭. 진입장벽(서류+면접) 낮아 6개월 경력으로 도전 가능.",
+    cautions:"신용장 등 무역금융은 일부 부서에 한정. 본사 행정 인턴이라면 거의 노출 없음." },
+  { id:"kita_intern", name:"한국무역협회(KITA) 미래내일 일경험 인턴", type:"법정민간단체 · 인턴", location:"서울 강남(삼성동)",
+    commute:"metro", studyLevel:"1m", employment:"intern_ok", industry:["trade"], avoidFlags:[],
+    scores:{ faith:70, interest:80, commute:80, stability:55, feasibility:75, helping:55 },
+    faithDetail:"법정 비영리, 외부 회계감사. 회원사 회비 기반 운영. 정치적 중립.",
+    fitFor:["steward","witness","discern"],
+    desc:"수출기업 지원, 무역통상정보 제공, 무역아카데미 운영. 강남 코엑스 본사로 평촌에서 통근 가능.",
+    schedule:"청년일경험 포털(yw.work24.go.kr) 통해 분기별 모집.",
+    salary:"월 약 230만원 (시급 15,000원 기준)",
+    why:"평촌→강남 통근 가능. 무역영어·수출마스터 자격이 직무와 직결. 정규 공채는 9월 예정.",
+    cautions:"수료 후 정규직 전환은 별도 공채. 인턴은 보조업무 비중 큼." },
+  { id:"happiness", name:"행복한나눔 (기아대책 사회적기업)", type:"기독교 사회적기업 · 정규직", location:"서울",
+    commute:"metro", studyLevel:"1m", employment:"regular", industry:["nonprofit","resource"], avoidFlags:[],
+    scores:{ faith:95, interest:65, commute:75, stability:65, feasibility:60, helping:95 },
+    faithDetail:"기독교 NGO 기아대책 자회사. SVI 인증. 자원순환·취약계층 일자리 미션. 마 25:40 직접 실천.",
+    fitFor:["poor","justice","steward","witness"],
+    desc:"기업 재고품 기증받아 친환경 나눔가게에서 판매, 수익으로 취약계층 자립 지원.",
+    schedule:"수시 채용. m.kfhi.or.kr/about/news/notice 또는 sharinghappiness.or.kr 모니터링.",
+    salary:"월 220~260만원 추정",
+    why:"본인이 처음부터 끌렸던 미션. 기독교 정체성·자원순환·이웃 사랑 결합. 신앙적 동기를 자연스럽게 쓸 수 있음.",
+    cautions:"경력 2년 이상 우대 공고가 많음. 신입은 매장 운영·물류 보조부터." },
+  { id:"givingplus", name:"기빙플러스 (밀알복지재단)", type:"기독교 사회복지법인 · 정규직", location:"서울 (영등포 등)",
+    commute:"metro", studyLevel:"1m", employment:"regular", industry:["nonprofit","resource"], avoidFlags:[],
+    scores:{ faith:95, interest:65, commute:80, stability:65, feasibility:65, helping:95 },
+    faithDetail:"밀알복지재단(기독교) 산하 친환경 나눔가게. 외부 회계감사. 장애인·취약계층 자립 지원.",
+    fitFor:["poor","justice","steward","witness"],
+    desc:"기업 기증품 친환경 매장 운영, 장애인 일자리 창출. 네트워크팀·매장 매니저 등 채용.",
+    schedule:"recruit.miral.org에서 수시 공고. 2026년 4~5월 네트워크팀 팀장 등 채용 진행.",
+    salary:"월 220~250만원",
+    why:"행복한나눔과 함께 본인 가치관에 가장 부합. 신입 매니저 도전 가능.",
+    cautions:"매장 매니저는 현장 운영 비중 큼." },
+  { id:"goodneighbors", name:"굿네이버스 (사회복지법인)", type:"기독교 NGO · 정규직/인턴", location:"서울 영등포",
+    commute:"metro", studyLevel:"1m", employment:"regular", industry:["nonprofit"], avoidFlags:[],
+    scores:{ faith:90, interest:70, commute:80, stability:70, feasibility:55, helping:95 },
+    faithDetail:"한국 기독교 정신 기반 NGO. 가이드스타 최고등급. ODA YP 운영.",
+    fitFor:["poor","justice","witness"],
+    desc:"국내 아동복지·해외 ODA 사업. ODA YP는 영어·해외사업 경험자 선호.",
+    schedule:"신입 공채 연 1~2회. ODA YP 12월. goodneighbors.recruiter.co.kr.",
+    salary:"신입 월 약 230만원",
+    why:"영어·해외경험·신앙이 ODA YP와 정합.",
+    cautions:"경쟁률 높음. 사회복지 봉사·인턴 경험 있으면 유리." },
+  { id:"worldvision", name:"한국월드비전", type:"기독교 NGO · 정규직", location:"서울 여의도",
+    commute:"metro", studyLevel:"3m", employment:"regular", industry:["nonprofit"], avoidFlags:[],
+    scores:{ faith:95, interest:70, commute:75, stability:75, feasibility:50, helping:95 },
+    faithDetail:"명시적 기독교 정체성. 전 세계 기독교 NGO 네트워크. 투명경영 페이지 운영.",
+    fitFor:["poor","witness"],
+    desc:"국내외 아동·재난 구호. 후원 개발·국제사업·홍보 등 다양한 직군.",
+    schedule:"worldvision.or.kr 채용 페이지에서 수시·정기 채용 확인.",
+    salary:"신입 월 약 250만원",
+    why:"기독교 신앙 + 영어 + 국제사업 결합. 가치관 정합도 최상.",
+    cautions:"경쟁률 매우 높음." },
+  { id:"compassion", name:"한국컴패션", type:"기독교 어린이 양육 NGO · 정규직", location:"서울",
+    commute:"metro", studyLevel:"3m", employment:"regular", industry:["nonprofit"], avoidFlags:[],
+    scores:{ faith:98, interest:65, commute:75, stability:70, feasibility:50, helping:95 },
+    faithDetail:"명시적 기독교 정체성 가장 뚜렷. 전 직원이 신앙고백 공유. 어린이 1:1 양육 미션.",
+    fitFor:["poor","witness"],
+    desc:"빈곤국 어린이 1:1 후원 양육 사업. 후원자 관계·홍보·운영 직군.",
+    schedule:"compassion.or.kr 채용 페이지 모니터링.",
+    salary:"신입 월 약 240만원",
+    why:"신앙 정체성이 가장 명확. 같은 신앙 공동체를 강하게 선호한다면 1순위.",
+    cautions:"경쟁률 매우 높음." },
+  { id:"gto", name:"경기관광공사 (사무직 6급)", type:"지방공기업 · 정규직", location:"수원",
+    commute:"metro", studyLevel:"6m", employment:"regular", industry:["public","tourism"], avoidFlags:[],
+    scores:{ faith:75, interest:80, commute:75, stability:85, feasibility:50, helping:55 },
+    faithDetail:"경기도 산하 지방공기업. 회계감사·alio 공시 의무.",
+    fitFor:["steward","witness"],
+    desc:"경기도 관광 마케팅, 외국인 관광객 유치, MICE.",
+    schedule:"경기도 통합채용 연 2회(상반기 3월·하반기 9~10월).",
+    salary:"신입 월 약 260만원",
+    why:"영어·해외 마케팅·AI 활용이 직무와 직결.",
+    cautions:"NCS 필기 필요. 한국사 2급 가산점. 모집 인원 적어 경쟁률 매우 높음." },
+  { id:"gh", name:"경기주택도시공사(GH) 행정직(상경)", type:"지방공기업 · 정규직", location:"수원 광교",
+    commute:"metro", studyLevel:"6m", employment:"regular", industry:["public","housing"], avoidFlags:[],
+    scores:{ faith:80, interest:50, commute:75, stability:90, feasibility:65, helping:70 },
+    faithDetail:"공공기관, 회계감사·공시 강제. 저소득·취약계층 주거안정 미션 명시.",
+    fitFor:["justice","steward","witness"],
+    desc:"공공주택 공급·도시개발·주거복지. 행정직(상경) 18명 모집(상반기 기준).",
+    schedule:"경기도 통합채용 또는 자체 공채. gh.recruiter.co.kr.",
+    salary:"신입 월 약 280만원",
+    why:"모집 인원 가장 많아 합격 확률 상대적으로 높음. 공익성 명확.",
+    cautions:"본인 영어·해외경험 강점이 차별화되지 않음. NCS 필기 6개월 준비 필요." },
+  { id:"anyang", name:"안양도시공사", type:"지방공기업 · 정규직", location:"안양 (평촌 인접)",
+    commute:"anyang", studyLevel:"6m", employment:"regular", industry:["public"], avoidFlags:[],
+    scores:{ faith:75, interest:45, commute:100, stability:85, feasibility:70, helping:60 },
+    faithDetail:"공공기관 회계감사·공시. 안양시민 시설 운영 공익 미션.",
+    fitFor:["steward","witness"],
+    desc:"안양시 공공시설 운영. 일반행정·시설관리 직군.",
+    schedule:"auc.or.kr/base/board에서 자체 공고. 연 2~3회 직원 공채.",
+    salary:"신입 월 약 260만원",
+    why:"통근 부담 0. 안정성 최상. 거주지에서 가장 가까움.",
+    cautions:"영어·AI·무역 강점이 직무와 거의 무관." },
+  { id:"nipa_intern", name:"NIPA 체험형 청년인턴", type:"준정부기관 · 인턴", location:"진천 (충북)",
+    commute:"anywhere", studyLevel:"1m", employment:"intern_ok", industry:["public","ai"], avoidFlags:[],
+    scores:{ faith:75, interest:85, commute:30, stability:55, feasibility:70, helping:55 },
+    faithDetail:"과기정통부 산하, 공공 회계 투명성. AI·SW 산업 진흥 공익 미션.",
+    fitFor:["steward","witness"],
+    desc:"AI·SW 글로벌 진출 지원, 디지털 전환. 인턴은 행정·기획 보조.",
+    schedule:"2026년 하반기(7~12월) 인턴 5~6월 공고 예상. nipa.kr/home/2-4.",
+    salary:"월 약 219만원",
+    why:"AI·영어·해외 강점 결합 가능한 드문 자리.",
+    cautions:"진천 본사, 평촌에서 단신 거주 필요. 평촌 기반 신앙 공동체 활동 중단." },
+  { id:"koica_yp", name:"KOICA / 협력기관 YP (영프로페셔널)", type:"국제개발협력 · 인턴", location:"성남·서울 등",
+    commute:"metro", studyLevel:"1m", employment:"intern_ok", industry:["public","oda"], avoidFlags:[],
+    scores:{ faith:85, interest:85, commute:65, stability:55, feasibility:60, helping:90 },
+    faithDetail:"공적개발원조(ODA) 공익. 기아대책 등 기독교 NGO 협력기관 통한 지원도 가능.",
+    fitFor:["poor","justice","witness"],
+    desc:"개도국 ODA 사업 운영·보고서 작성. 영어 필수.",
+    schedule:"연 2회 모집. 협력기관별 공고. KOICA YP 페이지(koica.go.kr/koica_kr/949).",
+    salary:"월 약 230만원",
+    why:"영어 강점 + 공익·이웃 사랑 + 신앙 협력기관 선택 가능.",
+    cautions:"이전 KOICA YP 경험자는 지원 불가. 단기 계약(보통 1년)." },
+  { id:"kita_regular", name:"한국무역협회(KITA) 정규 신입공채", type:"법정민간단체 · 정규직", location:"서울 강남",
+    commute:"metro", studyLevel:"6m", employment:"regular", industry:["trade"], avoidFlags:[],
+    scores:{ faith:75, interest:85, commute:80, stability:85, feasibility:40, helping:60 },
+    faithDetail:"법정 비영리, 외부 감사. 무역업계 공익 지원.",
+    fitFor:["steward","witness"],
+    desc:"수출지원·정책연구·무역아카데미 등. 매년 9월 공채.",
+    schedule:"2026년 신입 공채 9월 마감 예상. kita.net 공지.",
+    salary:"신입 월 약 320만원",
+    why:"본인 강점 모두 매칭. 평촌 통근 가능.",
+    cautions:"경쟁률 매우 높음. 경력 6개월·공백 7개월은 큰 약점." }
+];
+
+const STORAGE_KEY = "career_app_v2";
+let state = { current: -1, answers: {} };
+
+function load() { try { const s = localStorage.getItem(STORAGE_KEY); if (s) state = JSON.parse(s); } catch(e){} }
+function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){} }
+function reset() {
+  if (confirm("정말 처음부터 다시 시작하시겠어요? 모든 답변이 사라집니다.")) {
+    state = { current: -1, answers: {} }; save(); render();
+  }
+}
+
+function render() {
+  const main = document.getElementById("main");
+  const total = questions.length;
+  if (state.current === -1) { renderStart(main); updateProgress(0, total); return; }
+  if (state.current >= total) { renderResult(main); updateProgress(total, total); return; }
+  renderQuestion(main, questions[state.current]);
+  updateProgress(state.current, total);
+}
+
+function updateProgress(cur, total) {
+  document.getElementById("progressFill").style.width = (cur/total*100) + "%";
+  if (cur === 0) document.getElementById("progressText").textContent = "시작 · 답변은 자동 저장";
+  else if (cur >= total) document.getElementById("progressText").textContent = "완료 · 결과 확인";
+  else document.getElementById("progressText").textContent = cur + " / " + total + " 문항 · 자동 저장됨";
+}
+
+function renderStart(main) {
+  const answered = Object.keys(state.answers).length;
+  main.innerHTML = '<div class="stage-label faith">시작 화면</div>'
+    + '<h2 style="font-size:22px;margin-bottom:12px">진로 탐색을 시작하시겠어요?</h2>'
+    + '<p style="margin-bottom:14px">총 <b>' + questions.length + '개 문항</b>입니다. 6단계로 구성되어 있어요.</p>'
+    + '<div class="info-box"><b>설계 원칙</b><br>이 앱은 본인의 기독교적 가치관(하나님 사랑·이웃 사랑·정직·공정)을 진로 선택의 <b>최상위 기준</b>으로 둡니다. 0단계 4개 문항이 기준점을 잡고, 이후 환경·흥미·강점 답변과 결합해 13개 후보 기관에 대한 가중치 점수를 계산합니다.</div>'
+    + '<div class="info-box"><b>진행 방식</b><br>• 한 번에 다 답하지 않으셔도 됩니다. 답변은 브라우저에 자동 저장됩니다.<br>• 어려운 질문은 비워두거나 \'잘 모르겠음\'이라고 적어도 됩니다.<br>• 마지막에 적합 기관 순위, 준비 로드맵, 자기소개서 방향이 자동 생성됩니다.</div>'
+    + (answered > 0 ? '<div class="warning-box">이전에 답하신 ' + answered + '개 문항이 저장되어 있습니다.</div>' : "")
+    + '<div class="nav"><button class="btn-secondary btn" onclick="reset()">처음부터</button>'
+    + '<button class="btn" onclick="state.current=0;save();render()">' + (answered > 0 ? "이어서 시작" : "시작하기") + '</button></div>';
+}
+
+function renderQuestion(main, q) {
+  const v = state.answers[q.id];
+  let body = "";
+  if (q.type === "single") {
+    body = '<div class="options">' + q.options.map(o =>
+      '<button class="option ' + (v===o.val?"selected":"") + '" onclick="selectSingle(\''+q.id+'\',\''+o.val+'\')">' + o.text + '</button>'
+    ).join("") + '</div>';
+  } else if (q.type === "multi") {
+    const arr = Array.isArray(v) ? v : [];
+    body = '<div class="options">' + q.options.map(o =>
+      '<button class="option multi ' + (arr.includes(o.val)?"selected":"") + '" onclick="toggleMulti(\''+q.id+'\',\''+o.val+'\')">' + o.text + '</button>'
+    ).join("") + '</div>';
+  } else if (q.type === "text") {
+    body = '<textarea rows="6" placeholder="자유롭게 적어주세요..." oninput="setText(\''+q.id+'\',this.value)">' + (v||"") + '</textarea>';
+  } else if (q.type === "rank") {
+    const obj = v || {};
+    body = q.items.map(it =>
+      '<div class="rank-row"><span>' + it.text + '</span>'
+      + '<input type="number" min="1" max="' + q.items.length + '" value="' + (obj[it.val]||"") + '"'
+      + ' onchange="setRank(\''+q.id+'\',\''+it.val+'\',this.value)"></div>'
+    ).join("");
+  } else if (q.type === "weight") {
+    const obj = v || {};
+    let total = 0;
+    body = q.items.map(it => {
+      const cur = obj[it.val] !== undefined ? obj[it.val] : it.default;
+      total += Number(cur)||0;
+      return '<div class="weight-row"><label>' + it.text + '</label>'
+        + '<input type="number" min="0" max="100" value="' + cur + '"'
+        + ' onchange="setWeight(\''+q.id+'\',\''+it.val+'\',this.value)"> 점</div>';
+    }).join("");
+    body += '<div class="weight-total ' + (total===100?"good":"bad") + '" id="weightTotal">합계: ' + total + ' / 100점</div>';
+  }
+  const isFaith = q.faith ? "faith" : "";
+  main.innerHTML = '<div class="stage-label ' + isFaith + '">' + q.label + '</div>'
+    + '<div class="question">' + q.question + '</div>'
+    + '<div class="helper">' + (q.helper||"") + '</div>'
+    + body
+    + '<div class="nav"><button class="btn btn-secondary" ' + (state.current===0?"disabled":"") + ' onclick="prev()">이전</button>'
+    + '<button class="btn" onclick="next()">' + (state.current===questions.length-1?"결과 보기":"다음") + '</button></div>'
+    + '<div class="save-status">자동 저장됨 · 언제든 닫고 다시 오셔도 됩니다</div>';
+}
+
+function selectSingle(id, val) { state.answers[id] = val; save(); render(); }
+function toggleMulti(id, val) {
+  if (!Array.isArray(state.answers[id])) state.answers[id] = [];
+  const idx = state.answers[id].indexOf(val);
+  if (idx >= 0) state.answers[id].splice(idx,1); else state.answers[id].push(val);
+  save(); render();
+}
+function setText(id, val) { state.answers[id] = val; save(); }
+function setRank(id, key, val) { if (!state.answers[id]) state.answers[id] = {}; state.answers[id][key] = Number(val); save(); }
+function setWeight(id, key, val) {
+  if (!state.answers[id]) state.answers[id] = {};
+  state.answers[id][key] = Number(val); save();
+  const q = questions.find(qq => qq.id === id);
+  let total = 0;
+  q.items.forEach(it => {
+    const cur = state.answers[id][it.val] !== undefined ? state.answers[id][it.val] : it.default;
+    total += Number(cur)||0;
+  });
+  const el = document.getElementById("weightTotal");
+  if (el) { el.textContent = "합계: " + total + " / 100점"; el.className = "weight-total " + (total===100?"good":"bad"); }
+}
+function prev() { if (state.current > 0) { state.current--; save(); render(); window.scrollTo(0,0); } }
+function next() { state.current++; save(); render(); window.scrollTo(0,0); }
+
+function computeResults() {
+  const a = state.answers;
+  const calling = a.q0_calling || "discern";
+  const faithOrgPref = a.q0_faith_org || "open";
+  const honesty = a.q0_honesty || "voice";
+  const commute = a.q1_commute || "metro";
+  const study = a.q2_study || "3m";
+  const employment = a.q3_employment || "intern_ok";
+  const helping = a.q8_helping || "indirect";
+  const skills = a.q10_skills || [];
+  const itInvest = a.q11_it_invest || "5h";
+  const strengths = a.q15_strengths || [];
+
+  const wRaw = a.q17_weights || {};
+  const w = {};
+  questions.find(q => q.id === "q17_weights").items.forEach(it => {
+    w[it.val] = wRaw[it.val] !== undefined ? wRaw[it.val] : it.default;
+  });
+  const wSum = Object.values(w).reduce((s,v) => s + (Number(v)||0), 0) || 100;
+  Object.keys(w).forEach(k => w[k] = (Number(w[k])||0) / wSum);
+
+  const commuteOK = { anyang:["anyang"], metro:["anyang","metro"],
+    gyeonggi:["anyang","metro","gyeonggi"], anywhere:["anyang","metro","gyeonggi","anywhere"] }[commute];
+  const studyOK = { "1m":["1m"], "3m":["1m","3m"], "6m":["1m","3m","6m"] }[study];
+
+  const ranked = orgs.map(org => {
+    let blocked = false; let blockReason = "";
+    if (!commuteOK.includes(org.commute)) { blocked = true; blockReason = "통근 거리 초과"; }
+    if (org.employment === "regular" && !studyOK.includes(org.studyLevel)) { blocked = true; blockReason = "필기시험 준비 시간 부족"; }
+
+    let callingBonus = 0;
+    if (org.fitFor.includes(calling)) callingBonus = 8;
+    let faithOrgBonus = 0;
+    if (faithOrgPref === "prefer" && org.industry.includes("nonprofit") && org.scores.faith >= 90) faithOrgBonus = 10;
+    if (faithOrgPref === "public" && org.industry.includes("public")) faithOrgBonus = 5;
+    if (faithOrgPref === "avoid_church" && org.industry.includes("nonprofit") && org.scores.faith >= 90) faithOrgBonus = -8;
+    let helpingBonus = 0;
+    if (helping === "direct" && org.scores.helping >= 85) helpingBonus = 5;
+    if (helping === "no" && org.scores.helping >= 85 && org.scores.interest < 70) helpingBonus = -3;
+    let strengthBonus = 0;
+    if (strengths.includes("eng_read") || strengths.includes("eng_speak")) {
+      if (["kotra_intern","kita_intern","kita_regular","gto","worldvision","compassion","koica_yp","goodneighbors"].includes(org.id)) strengthBonus += 4;
+    }
+    if (strengths.includes("ai_output") && ["nipa_intern","kotra_intern","kita_intern"].includes(org.id)) strengthBonus += 4;
+
+    const base = org.scores.faith*w.faith + org.scores.interest*w.interest + org.scores.commute*w.commute
+      + org.scores.stability*w.stability + org.scores.feasibility*w.feasibility + org.scores.helping*w.helping;
+    const total = blocked ? 0 : Math.round(base + callingBonus + faithOrgBonus + helpingBonus + strengthBonus);
+    return { org, total, blocked, blockReason, faith: org.scores.faith, interest: org.scores.interest };
+  }).sort((a,b) => b.total - a.total);
+
+  return { ranked, calling, faithOrgPref, honesty, commute, study, employment, helping, skills, itInvest, strengths, w };
+}
+
+function renderResult(main) {
+  const r = computeResults();
+  const top = r.ranked.filter(x => !x.blocked).slice(0, 5);
+  const blocked = r.ranked.filter(x => x.blocked);
+  const callingText = { poor:"가난하고 약한 이웃을 직접 섬김 (마 25:40)",
+    steward:"맡겨진 자원을 정직하게 관리하는 청지기 (마 25:14-30)",
+    justice:"공의를 행하고 구조를 바로잡음 (미 6:8)",
+    witness:"세상 속에서 빛과 소금이 되는 일반 직업 (마 5:13-16)",
+    discern:"아직 분별 중" }[r.calling];
+
+  let html = '<div class="faith-banner"><b>본인의 부르심:</b> ' + callingText
+    + '<br><b>가중치 우선순위:</b> 신앙·윤리(' + Math.round(r.w.faith*100) + '점) 〉 흥미(' + Math.round(r.w.interest*100)
+    + ') 〉 통근(' + Math.round(r.w.commute*100) + ') 〉 안정(' + Math.round(r.w.stability*100)
+    + ') 〉 가능성(' + Math.round(r.w.feasibility*100) + ') 〉 도움(' + Math.round(r.w.helping*100) + ')</div>'
+    + '<div class="result-section"><h2>적합 기관 Top 5 (가중 점수순)</h2>';
+
+  top.forEach((item, idx) => {
+    const o = item.org;
+    const rankClass = idx===0 ? "rank1" : (idx<3 ? "rank2" : "rank3");
+    html += '<div class="job-card ' + rankClass + '">'
+      + '<div class="score-box"><div class="score-main">' + item.total + '점</div>'
+      + '<div class="score-detail">신앙 ' + item.faith + ' · 흥미 ' + item.interest + '</div></div>'
+      + '<span class="rank-badge">' + (idx+1) + '순위</span>'
+      + '<h3>' + o.name + '</h3>'
+      + '<div class="meta">' + o.type + ' · ' + o.location + ' · ' + o.salary + '</div>'
+      + '<div class="reason"><b>왜 이 기관:</b> ' + o.why + '</div>'
+      + '<details><summary>가치 정합도 상세</summary><div>' + o.faithDetail + '</div></details>'
+      + '<details><summary>업무 내용</summary><div>' + o.desc + '</div></details>'
+      + '<div class="action">📅 <b>채용 일정:</b> ' + o.schedule + '</div>'
+      + '<div class="action">⚠️ <b>주의:</b> ' + o.cautions + '</div></div>';
+  });
+  html += '</div>';
+
+  if (blocked.length) {
+    html += '<div class="result-section"><h2>제외된 기관 (조건 미충족)</h2>'
+      + '<div style="font-size:13px;color:#666">통근·공부 시간 제약으로 자동 제외:</div>'
+      + '<ul style="margin-top:8px;padding-left:20px;font-size:14px;color:#666">'
+      + blocked.map(b => '<li>' + b.org.name + ' — ' + b.blockReason + '</li>').join("")
+      + '</ul></div>';
+  }
+
+  html += renderRoadmap(r, top);
+  html += renderEssayGuide(r, top);
+  html += renderDiscernment(r);
+
+  html += '<div class="actions-bar">'
+    + '<button class="btn btn-secondary btn-small" onclick="state.current=0;save();render()">처음부터 다시 답하기</button>'
+    + '<button class="btn btn-secondary btn-small" onclick="window.print()">결과 인쇄·PDF 저장</button>'
+    + '<button class="btn btn-secondary btn-small" onclick="exportAnswers()">답변 내보내기</button>'
+    + '<button class="btn btn-small" onclick="reset()">전체 초기화</button></div>';
+
+  main.innerHTML = html;
+}
+
+function renderRoadmap(r, top) {
+  const top1 = top[0] && top[0].org;
+  const top2 = top[1] && top[1].org;
+  if (!top1) return "";
+  const needsOpic = top.some(t => ["kotra_intern","kita_regular","koica_yp"].includes(t.org.id));
+  const needsHistory = top.some(t => ["gto","gh","anyang"].includes(t.org.id));
+
+  const steps = [];
+  steps.push({ title:"이번 주 — 신앙·환경 결정 확정",
+    body:"0단계 답변을 다시 보고, 본인 부르심·레드라인이 명확한지 점검. 가족·교회 멘토와 함께 짧게 기도하며 분별." });
+  steps.push({ title:"1~2주차 — 1순위 기관 자기소개서 초안",
+    body: top1.name + "의 채용공고·직무기술서를 다운로드해 정독. 본인 경험(파라텍 UAE 조사·엘렉스 시장조사·AI 활용)을 직무 키워드와 매칭해 1차 초안 작성." });
+  if (needsOpic) steps.push({ title:"1~2개월차 — OPIc IH 준비",
+    body:"온라인 강의 1~2개 수강, 매일 30분 답변 녹음. 시험 매주 시행, 6주 준비로 IH 가능." });
+  if (needsHistory) steps.push({ title:"한국사능력검정 2급 응시",
+    body:"연 6회 시행(historyexam.go.kr). 1~2개월 준비. 공기업 가산점 확보." });
+  steps.push({ title:"병행 — 경력 공백(2025-07~2026-01) 정리",
+    body:"AI 학습·자격증·교회 활동·외국인 회화 모임 등 실제 활동을 사실 기반으로 표 정리." });
+  steps.push({ title: (top2 ? top2.name : "2순위 기관") + " 병행 모니터링",
+    body:"주 1회 채용 페이지 확인, 알림 설정. 1순위 합격까지 백업 옵션 유지." });
+  steps.push({ title:"장기 — 6개월~1년 인턴 후 정규직 도전",
+    body:"현재 경력 6개월·공백 7개월은 정규 공채에 약점. 인턴 경험을 추가해 재도전이 현실적." });
+
+  let html = '<div class="result-section"><h2>준비 로드맵</h2>';
+  steps.forEach((s,i) => {
+    html += '<div class="roadmap-step"><div class="roadmap-num">' + (i+1) + '</div>'
+      + '<div class="roadmap-content"><h4>' + s.title + '</h4><p>' + s.body + '</p></div></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderEssayGuide(r, top) {
+  if (!top[0]) return "";
+  const top1 = top[0].org;
+  const isChristian = top1.scores.faith >= 90 && top1.industry.includes("nonprofit");
+  let html = '<div class="result-section"><h2>자기소개서 방향 (1순위 기준)</h2>';
+  if (isChristian) {
+    html += '<div class="info-box"><b>' + top1.name + '은 기독교 정체성이 명시된 단체</b>이므로, 신앙적 동기를 자연스럽게 드러내도 좋습니다. 단, \'열정·헌신\' 같은 추상어 대신 구체적 경험으로 표현하세요.</div>';
+    html += '<p><b>핵심 메시지:</b> "마 22:39의 이웃 사랑이 추상적 감정이 아니라 정직한 일터에서의 실천이라고 믿습니다. 무역·해외영업·AI 활용 경험을 ' + top1.name + '의 ' + (top1.fitFor.includes("poor")?"취약계층 자립":"공익 미션") + '에 직접 연결하고 싶습니다."</p>';
+  } else {
+    html += '<div class="info-box"><b>' + top1.name + '은 공공기관/일반 단체</b>이므로, 자기소개서에 직접적인 신앙 언어는 자제. 대신 정직·공정·공익이라는 가치 언어로 번역해 표현.</div>';
+    html += '<p><b>핵심 메시지:</b> "정직한 공익 운영을 중요하게 여기며, 무역·영어·AI 활용 경험을 ' + top1.name + '의 미션에 기여하고 싶습니다."</p>';
+  }
+  html += '<p style="margin-top:10px"><b>구조 권장:</b></p>'
+    + '<ol style="padding-left:20px;font-size:14px;color:#444">'
+    + '<li>지원동기 — 본인 가치관과 기관 미션의 접점 (구체적 사례 1개)</li>'
+    + '<li>경험·역량 — 파라텍 또는 엘렉스 사례 1개를 STAR 기법으로 (수치 포함)</li>'
+    + '<li>입사 후 포부 — 직무기술서 키워드를 활용한 6개월·1년 계획</li></ol>'
+    + '<p style="margin-top:10px;font-size:13px;color:#666"><b>금지 표현:</b> "영어를 매우 잘 합니다", "전문가입니다", "열정으로 헌신하겠습니다", "최고가 되겠습니다" — 본인 실제 수준과 맞지 않거나 검증 어려운 표현은 면접에서 무너집니다.</p>'
+    + '<p style="margin-top:6px;font-size:13px;color:#666"><b>권장 동사:</b> 수행, 정리, 검토, 조사, 활용, 대응, 기여, 진행 — 사실 기반의 차분한 어조.</p>';
+
+  if (r.strengths.length > 0) {
+    html += '<p style="margin-top:14px"><b>본인이 자신 있다고 한 강점을 자기소개서에 우선 배치:</b></p>'
+      + '<ul style="padding-left:20px;font-size:14px;color:#444">'
+      + r.strengths.map(s => '<li>' + strengthLabel(s) + '</li>').join("") + '</ul>';
+  } else {
+    html += '<div class="warning-box">강점 항목을 하나도 선택하지 않으셨습니다. 자기소개서에서 무엇을 차별화 포인트로 쓸지 다시 점검 필요.</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function strengthLabel(val) {
+  const map = {
+    eng_read:"영어 읽기·쓰기 — 영문 자료 조사·요약 사례로 활용",
+    eng_speak:"영어 회화 — OPIc 점수 확보 시 강점 명시",
+    trade_knowledge:"무역 실무 지식 — 무역영어 1급·수출마스터 2급 인용",
+    research:"해외 기업 리서치 — 파라텍 UAE 조사 사례 구체화",
+    b2b:"B2B 고객 응대 — 인도 바이어 응대·의전 경험",
+    ai_output:"AI 도구로 산출물 — 시간 절감 수치(%·시간)로 표현",
+    doc:"문서·자료 정리 — 카탈로그·보고서 정량화",
+    presentation:"발표·기획서 — 구체 사례와 결과 명시"
+  };
+  return map[val] || val;
+}
+
+function renderDiscernment(r) {
+  let html = '<div class="result-section"><h2>분별 가이드 (기도·점검 질문)</h2>'
+    + '<div class="faith-banner">결과 점수가 높다고 하나님이 그곳으로 부르셨다는 뜻은 아닙니다. 이 앱은 본인의 답을 정리한 도구일 뿐이며, 최종 분별은 기도·말씀·신뢰하는 공동체와 함께 하시기 바랍니다.</div>';
+  const top1 = r.ranked.filter(x => !x.blocked)[0];
+  if (top1) {
+    html += '<p style="margin-bottom:10px"><b>1순위 ' + top1.org.name + '에 대한 점검 질문 5가지:</b></p>'
+      + '<ol style="padding-left:20px;font-size:14px;color:#444;line-height:1.9">'
+      + '<li>이 일을 5년 동안 한다고 상상할 때, 마음에 평안이 있는가? 불안이 있는가?</li>'
+      + '<li>이 자리가 정직·공정 기준에 흔들리지 않을 환경인가?</li>'
+      + '<li>이 일이 \'이웃을 내 몸 같이 사랑하는\' 구체적 통로가 되는가?</li>'
+      + '<li>가족·교회 멘토에게 이 선택을 설명할 때 부끄러움 없이 말할 수 있는가?</li>'
+      + '<li>본인 강점이 이곳에서 자라날 수 있는 환경인가?</li></ol>';
+  }
+  const callingGuide = {
+    poor:"마 25:40의 부르심을 따른다면, 점수가 다소 낮더라도 행복한나눔·기빙플러스·굿네이버스를 우선 고려해 볼 가치가 있습니다.",
+    steward:"청지기 부르심을 따른다면, KOTRA·KITA·공기업처럼 공적 자원을 정직하게 운영하는 자리가 정합.",
+    justice:"공의의 부르심을 따른다면, 구조적 불의를 다루는 자리(공공기관 정책 부서, 인권·노동 NGO)를 추가로 탐색해 볼 가치 있음.",
+    witness:"빛과 소금의 부르심은 어디든 갈 수 있다는 뜻이지만, \'아무 데나\'는 아닙니다. 점수 상위 기관 중 본인 강점이 자라는 곳을 고르세요.",
+    discern:"아직 분별 중이라면 인턴 트랙을 우선 추천. 6개월 짧게 경험하면서 부르심이 또렷해지는 경우가 많습니다."
+  };
+  if (callingGuide[r.calling]) html += '<div class="info-box" style="margin-top:14px"><b>부르심별 추가 안내:</b> ' + callingGuide[r.calling] + '</div>';
+
+  const warnings = [];
+  if (r.itInvest === "no_invest" && r.skills.length < 3)
+    warnings.push("AI·IT 강점을 어필하시려면 도구 활용 사례를 더 축적할 필요. 학습 의향 \'없음\' + 경험 적음 조합은 자기소개서 차별화 어려움.");
+  if (!r.strengths.includes("eng_speak") && r.ranked.filter(x => !x.blocked).slice(0,3).some(t => ["kotra_intern","kita_regular","koica_yp"].includes(t.org.id)))
+    warnings.push("영어 회화 자신감이 낮은 상태에서 KOTRA/KITA/KOICA 계열은 면접 시 불리. OPIc IH 또는 회화 모임 지속 권장.");
+  if (r.honesty === "flex")
+    warnings.push("정직 기준에 \'상황에 따라 유연\' 답변은 처음 강조한 신앙 가치(정직·공정)와 다소 어긋납니다. 0단계 답변을 다시 보실 것을 권합니다.");
+  if (warnings.length) {
+    html += '<div class="warning-box" style="margin-top:14px"><b>점검 필요 사항:</b><ul style="margin-top:6px;padding-left:18px">'
+      + warnings.map(w => '<li style="margin-bottom:4px">' + w + '</li>').join("") + '</ul></div>';
+  }
+
+  html += '<div style="margin-top:18px;padding:14px;background:#f4e9d0;border-radius:6px;font-size:14px;font-style:italic;color:#5a4815">"사람이 마음으로 자기의 길을 계획할지라도 그의 걸음을 인도하시는 이는 여호와시니라" — 잠언 16:9</div></div>';
+  return html;
+}
+
+function exportAnswers() {
+  const data = { exported_at: new Date().toISOString(), answers: state.answers };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "career_answers_" + new Date().toISOString().slice(0,10) + ".json";
+  a.click(); URL.revokeObjectURL(url);
+}
+
+load();
+render();
+</script>
+</body>
+  </html>
