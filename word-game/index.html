@@ -4137,7 +4137,7 @@ function ocrWorker() {
     const [kor, eng2] = await Promise.all([ocrLang('kor'), ocrLang('eng')]);
     const [w, we] = await Promise.all([Tesseract.createWorker([kor], 1, ocrOpts()), Tesseract.createWorker([eng2], 1, ocrOpts())]);
     // 11 = 흩어진 글자 찾기: 표·두 단 쪽에서도 낱말을 빠짐없이 찾고, 줄·칸은 위치로 앱이 다시 짬
-    await w.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+    await w.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: window.__psmK || '11' });
     await we.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11', tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'-~.,()/ " });
     OCR.worker = w; OCR.eng = we; return w;
   })().catch(e => { OCR.loading = null; throw (e && e.code ? e : { code: 'ocr_load' }); });
@@ -5142,7 +5142,7 @@ const Esp = (() => {
    글자 → (eSpeak NG) 발음기호 → (ONNX Runtime) 목소리. 모두 이 기기의 백그라운드 일꾼(Worker)에서 돌아서 화면이 멈추지 않아요.
    처음 한 번 약 60MB를 받아 기기에 저장해 두고, 다음부터는 바로 써요. API·토큰 없음. */
 const VOICE_WORKER = `
-let ort = null, E = null, espWasm = null, cfg = null, base = '';
+let O = null, E = null, espWasm = null, cfg = null, base = '';
 const sess = {};
 const idb = () => new Promise((ok, no) => { const r = indexedDB.open('voca-voice', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
 async function cget(k) { try { const db = await idb(); return await new Promise(ok => { const q = db.transaction('f').objectStore('f').get(k); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); } catch (e) { return null; } }
@@ -5172,7 +5172,7 @@ async function model(lang) {
     const parts = await Promise.all(Array.from({ length: v.parts }, (_, i) => file(name + '.' + i + '.wasm')));
     const all = new Uint8Array(parts.reduce((a, p) => a + p.byteLength, 0)); let o = 0;
     for (const p of parts) { all.set(new Uint8Array(p), o); o += p.byteLength; }
-    return ort.InferenceSession.create(all, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+    return O.InferenceSession.create(all, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
   })();
   sess[lang].catch(() => { delete sess[lang]; });
   return sess[lang];
@@ -5180,8 +5180,8 @@ async function model(lang) {
 async function init(b) {
   base = b;
   importScripts(base + 'ort.wasm.min.js');
-  ort = self.ort;
-  ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false; ort.env.wasm.wasmPaths = base;
+  O = self.ort;
+  O.env.wasm.numThreads = 1; O.env.wasm.proxy = false; O.env.wasm.wasmPaths = base;
   cfg = await (await fetch(base + 'voices.json')).json();
   const [m, w] = await Promise.all([import(base + 'espeak-ng.js'), file('espeak-ng-gz.wasm', true).then(b => WebAssembly.compile(b))]);
   E = m.default; espWasm = w;
@@ -5214,11 +5214,11 @@ let ready = null;
 onmessage = async e => {
   const m = e.data;
   try {
-    if (m.t === 'init') { ready = ready || init(m.base); await ready; await model('ko'); postMessage({ t: 'ready', lang: 'ko' }); model('en').then(() => postMessage({ t: 'ready', lang: 'en' }), () => { }); return; }
+    if (m.t === 'init') { ready = ready || init(m.base); ready.catch(() => { ready = null; }); await ready; await model('ko'); postMessage({ t: 'ready', lang: 'ko' }); model('en').then(() => postMessage({ t: 'ready', lang: 'en' }), () => { }); return; }
     await ready;
     const v = cfg[m.lang], s = await model(m.lang);
     const x = ids(await ipa(m.text, m.lang), v);
-    const r = await s.run({ input: new ort.Tensor('int64', BigInt64Array.from(x.map(BigInt)), [1, x.length]), input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(x.length)]), [1]), scales: new ort.Tensor('float32', Float32Array.from([0.667, v.len / (m.rate || 1), 0.8]), [3]) });
+    const r = await s.run({ input: new O.Tensor('int64', BigInt64Array.from(x.map(BigInt)), [1, x.length]), input_lengths: new O.Tensor('int64', BigInt64Array.from([BigInt(x.length)]), [1]), scales: new O.Tensor('float32', Float32Array.from([0.667, v.len / (m.rate || 1), 0.8]), [3]) });
     const out = r.output.data, w = wav(out, 22050);
     postMessage({ t: 'wav', id: m.id, wav: w }, [w]);
   } catch (err) { postMessage({ t: 'err', id: m.id, msg: String(err && err.message || err) }); }
@@ -5235,6 +5235,7 @@ const Voice = (() => {
         const m = e.data;
         if (m.t === 'prog') { prog = m.p; listeners.forEach(f => f()); }
         else if (m.t === 'ready') { if (m.lang === 'ko') readyKo = true; else readyEn = true; prog = 1; listeners.forEach(f => f()); }
+        else if (m.t === 'err' && m.id == null) { failed = true; listeners.forEach(f => f()); } // 준비 실패: 기기 목소리·eSpeak로
         else if (m.t === 'wav' || m.t === 'err') {
           const p = pend.get(m.id); if (!p) return; pend.delete(m.id);
           if (m.t === 'wav') p.ok(URL.createObjectURL(new Blob([m.wav], { type: 'audio/wav' }))); else { if (/fetch|init|session/i.test(m.msg) && !readyKo) failed = true; p.no(new Error(m.msg)); }
@@ -5273,6 +5274,9 @@ let ttsTok = 0;
 async function tts(text, lang, rate) {
   if (!text) throw new Error('no tts');
   const my = ++ttsTok;
+  // 고품질 목소리를 불러오는 중이면 잠깐(최대 4초) 기다림. 기기에 저장돼 있으면 보통 2~3초면 준비돼요
+  for (let i = 0; i < 20 && Voice.loading && !Voice.ready(lang) && my === ttsTok; i++) await sleep(200);
+  if (my !== ttsTok) throw { name: 'AbortError' };
   if (Voice.ready(lang)) {
     try {
       const u = await Voice.synth(text, lang, rate);
