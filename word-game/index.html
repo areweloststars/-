@@ -4154,13 +4154,13 @@ async function ocrImage(file) {
   try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) { src = null; }
   if (!src) src = await new Promise((ok, no) => { const im = new Image(); url = URL.createObjectURL(file); im.onload = () => ok(im); im.onerror = () => no({ code: 'image_rejected' }); im.src = url; });
   const w0 = src.naturalWidth || src.width, h0 = src.naturalHeight || src.height, big = Math.max(w0, h0);
-  const k = Math.min(window.__up || 2.2, 2600 / big); // 긴 쪽을 약 2600px로: 작은 글자는 키우고 너무 큰 사진은 줄임
+  const k = Math.min(1.3, 2600 / big); // 작은 글자는 조금 키우고(너무 키우면 흐려짐) 너무 큰 사진은 긴 쪽 2600px로 줄임
   const W = Math.max(1, Math.round(w0 * k)), H = Math.max(1, Math.round(h0 * k));
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H); g.drawImage(src, 0, 0, W, H);
   if (src.close) src.close();
   if (url) URL.revokeObjectURL(url);
-  if (!window.__noPre) try {
+  try {
     // 배경 밝기: 아주 작게 줄였다 키운 그림 (글자는 사라지고 그림자·조명만 남음)
     const s = document.createElement('canvas'), sw = Math.max(8, Math.round(W / 24)), sh = Math.max(8, Math.round(H / 24));
     s.width = sw; s.height = sh; const sg = s.getContext('2d'); sg.imageSmoothingQuality = 'high'; sg.drawImage(c, 0, 0, sw, sh);
@@ -4175,15 +4175,13 @@ async function ocrImage(file) {
     const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const bgg = bg.getContext('2d', { willReadFrequently: true });
     bgg.imageSmoothingQuality = 'high'; bgg.drawImage(s, 0, 0, W, H);
     const id = g.getImageData(0, 0, W, H), d = id.data, b = bgg.getImageData(0, 0, W, H).data;
-    const hist = new Uint32Array(256), out = new Uint8ClampedArray(W * H);
+    const out = new Uint8ClampedArray(W * H);
     for (let i = 0, j = 0; i < d.length; i += 4, j++) {
       const v = 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2], bv = Math.max(40, b[i]);
-      const n = Math.min(255, v / bv * 255); out[j] = n; hist[n | 0]++;
+      out[j] = Math.min(255, v / bv * 255);
     }
-    // 어두운 1% ~ 밝은 쪽 끝으로 명암 넓히기
-    let acc = 0, lo = 0; const N = W * H; for (; lo < 255 && (acc += hist[lo]) < N * 0.01; lo++);
-    if (window.__lo != null) lo = window.__lo;
-    const hi = 245, span = Math.max(30, hi - lo);
+    // 밝은 쪽 끝(종이)만 하얗게 맞춤. 어두운 쪽은 늘리지 않음(굵은 글자가 뭉개지지 않게)
+    const lo = 0, hi = 245, span = hi - lo;
     for (let i = 0, j = 0; i < d.length; i += 4, j++) { const v = clamp((out[j] - lo) / span * 255, 0, 255); d[i] = d[i + 1] = d[i + 2] = v; }
     g.putImageData(id, 0, 0);
   } catch (e) { /* 다듬기가 안 되면 원래 사진으로 */ }
@@ -4845,7 +4843,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');
-    if (canEsp && !(hasSS && ssHas('ko'))) Esp.warm();
+    Voice.start(); // 게임을 열기 전에 목소리를 미리 받아 둠
     // 만드는 동안 다른 화면에 가 있었으면 다 됐다고 알려 줌
     if ($('#make').hidden) toast(`‘${deck.name}’ 단어장이 완성됐어요! 홈 위 단어장 단추에서 골라요`);
   } catch (e) {
@@ -5074,7 +5072,7 @@ const Sound = (() => {
 function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) { } }
 const hasSS = 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
 const canEsp = typeof WebAssembly === 'object' && typeof DecompressionStream === 'function' && typeof Blob === 'function';
-const canSpeak = hasSS || canEsp;
+const canSpeak = hasSS || canEsp || typeof Worker === 'function';
 // 기기에 그 언어 목소리가 있는지 (앱 안 화면은 목록이 비어 있는 경우가 많아요)
 let ssVoices = [];
 const ssLoad = () => { try { ssVoices = speechSynthesis.getVoices() || []; } catch (e) { ssVoices = []; } };
@@ -5139,16 +5137,156 @@ const Esp = (() => {
   }
   return { speak, stop() { tok++; }, warm() { load().catch(() => { }); } };
 })();
-// 미리 만든 음성이 없는 단어장(사진으로 만든 단어장)은 기기 목소리 → 없으면 eSpeak 목소리로 읽어 줌
+/* ---------- 고품질 목소리: 기기 안 신경망 음성(VITS) ----------
+   한국어: Mimic 3 KSS 목소리(기본 단어장 이야기와 같은 목소리, KSS 데이터는 비상업 라이선스) / 영어: Piper Joe 목소리(CC0)
+   글자 → (eSpeak NG) 발음기호 → (ONNX Runtime) 목소리. 모두 이 기기의 백그라운드 일꾼(Worker)에서 돌아서 화면이 멈추지 않아요.
+   처음 한 번 약 60MB를 받아 기기에 저장해 두고, 다음부터는 바로 써요. API·토큰 없음. */
+const VOICE_WORKER = `
+let ort = null, E = null, espWasm = null, cfg = null, base = '';
+const sess = {};
+const idb = () => new Promise((ok, no) => { const r = indexedDB.open('voca-voice', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+async function cget(k) { try { const db = await idb(); return await new Promise(ok => { const q = db.transaction('f').objectStore('f').get(k); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); } catch (e) { return null; } }
+async function cput(k, v) { try { const db = await idb(); await new Promise(ok => { const t = db.transaction('f', 'readwrite'); t.objectStore('f').put(v, k); t.oncomplete = ok; t.onerror = ok; }); } catch (e) { } }
+let doneBytes = 0;
+const TOTAL = 60e6;
+async function file(name, gz) {
+  const key = 'v1/' + name;
+  let buf = await cget(key);
+  if (!buf) {
+    const r = await fetch(base + name);
+    if (!r.ok) throw new Error('fetch ' + name);
+    let body = r.body;
+    if (gz) body = body.pipeThrough(new DecompressionStream('gzip'));
+    const rd = body.getReader(), parts = []; let n = 0;
+    for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; if (!gz) { doneBytes += value.length; postMessage({ t: 'prog', p: Math.min(0.99, doneBytes / TOTAL) }); } }
+    buf = new Uint8Array(n); let o = 0; for (const p of parts) { buf.set(p, o); o += p.length; }
+    buf = buf.buffer;
+    cput(key, buf);
+  } else { doneBytes += buf.byteLength; postMessage({ t: 'prog', p: Math.min(0.99, doneBytes / TOTAL) }); }
+  return buf;
+}
+async function model(lang) {
+  if (sess[lang]) return sess[lang];
+  sess[lang] = (async () => {
+    const v = cfg[lang], name = lang === 'ko' ? 'ko-kss' : 'en-joe';
+    const parts = await Promise.all(Array.from({ length: v.parts }, (_, i) => file(name + '.' + i + '.wasm')));
+    const all = new Uint8Array(parts.reduce((a, p) => a + p.byteLength, 0)); let o = 0;
+    for (const p of parts) { all.set(new Uint8Array(p), o); o += p.byteLength; }
+    return ort.InferenceSession.create(all, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+  })();
+  sess[lang].catch(() => { delete sess[lang]; });
+  return sess[lang];
+}
+async function init(b) {
+  base = b;
+  importScripts(base + 'ort.wasm.min.js');
+  ort = self.ort;
+  ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false; ort.env.wasm.wasmPaths = base;
+  cfg = await (await fetch(base + 'voices.json')).json();
+  const [m, w] = await Promise.all([import(base + 'espeak-ng.js'), file('espeak-ng-gz.wasm', true).then(b => WebAssembly.compile(b))]);
+  E = m.default; espWasm = w;
+}
+async function ipa(text, lang) {
+  const m = await E({ arguments: ['-q', '--ipa', '-v', lang === 'ko' ? 'ko' : 'en-us', '--phonout', 'p.txt', ' ' + text],
+    instantiateWasm(imports, done) { WebAssembly.instantiate(espWasm, imports).then(i => done(i)); return {}; }, print() { }, printErr() { } });
+  return m.FS.readFile('p.txt', { encoding: 'utf8' }).split('\\n').map(s => s.trim()).filter(Boolean);
+}
+function ids(lines, v) {
+  const out = [v.map['^'], v.map['_']];
+  lines.forEach((l, i) => {
+    if (i) out.push(...v.sep);
+    for (const ch of l) { const id = v.map[ch]; if (id != null) out.push(id, v.map['_']); }
+  });
+  out.push(...v.end, v.map['$']);
+  return out;
+}
+function wav(f, sr) {
+  let peak = 0; for (let i = 0; i < f.length; i++) peak = Math.max(peak, Math.abs(f[i]));
+  const g = peak > 0.01 ? Math.min(3, 0.9 / peak) : 1;
+  const b = new ArrayBuffer(44 + f.length * 2), d = new DataView(b);
+  const s = (o, t) => { for (let i = 0; i < t.length; i++) d.setUint8(o + i, t.charCodeAt(i)); };
+  s(0, 'RIFF'); d.setUint32(4, 36 + f.length * 2, true); s(8, 'WAVEfmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+  d.setUint32(24, sr, true); d.setUint32(28, sr * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); s(36, 'data'); d.setUint32(40, f.length * 2, true);
+  for (let i = 0; i < f.length; i++) d.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f[i] * g)) * 32767, true);
+  return b;
+}
+let ready = null;
+onmessage = async e => {
+  const m = e.data;
+  try {
+    if (m.t === 'init') { ready = ready || init(m.base); await ready; await model('ko'); postMessage({ t: 'ready', lang: 'ko' }); model('en').then(() => postMessage({ t: 'ready', lang: 'en' }), () => { }); return; }
+    await ready;
+    const v = cfg[m.lang], s = await model(m.lang);
+    const x = ids(await ipa(m.text, m.lang), v);
+    const r = await s.run({ input: new ort.Tensor('int64', BigInt64Array.from(x.map(BigInt)), [1, x.length]), input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(x.length)]), [1]), scales: new ort.Tensor('float32', Float32Array.from([0.667, v.len / (m.rate || 1), 0.8]), [3]) });
+    const out = r.output.data, w = wav(out, 22050);
+    postMessage({ t: 'wav', id: m.id, wav: w }, [w]);
+  } catch (err) { postMessage({ t: 'err', id: m.id, msg: String(err && err.message || err) }); }
+};`;
+const Voice = (() => {
+  let w = null, seq = 0, readyKo = false, readyEn = false, failed = false, prog = 0, chain = Promise.resolve();
+  const pend = new Map(), cache = new Map(), listeners = [];
+  const ok = typeof Worker === 'function' && typeof WebAssembly === 'object' && typeof DecompressionStream === 'function' && typeof indexedDB === 'object';
+  function start() {
+    if (w || failed || !ok) return;
+    try {
+      w = new Worker(URL.createObjectURL(new Blob([VOICE_WORKER], { type: 'text/javascript' })));
+      w.onmessage = e => {
+        const m = e.data;
+        if (m.t === 'prog') { prog = m.p; listeners.forEach(f => f()); }
+        else if (m.t === 'ready') { if (m.lang === 'ko') readyKo = true; else readyEn = true; prog = 1; listeners.forEach(f => f()); }
+        else if (m.t === 'wav' || m.t === 'err') {
+          const p = pend.get(m.id); if (!p) return; pend.delete(m.id);
+          if (m.t === 'wav') p.ok(URL.createObjectURL(new Blob([m.wav], { type: 'audio/wav' }))); else { if (/fetch|init|session/i.test(m.msg) && !readyKo) failed = true; p.no(new Error(m.msg)); }
+        }
+      };
+      w.onerror = () => { failed = true; for (const p of pend.values()) p.no(new Error('voice worker')); pend.clear(); listeners.forEach(f => f()); };
+      w.postMessage({ t: 'init', base: new URL('tts/', location.href).href });
+    } catch (e) { failed = true; }
+  }
+  // 문장 하나 → wav 주소. 같은 문장은 한 번만 만들고, 만들기는 한 줄로 차례차례 (먼저 부른 것부터)
+  function synth(text, lang, rate = 1) {
+    const L = /^ko/i.test(lang) ? 'ko' : 'en', key = L + '|' + rate + '|' + text;
+    if (cache.has(key)) return cache.get(key);
+    start();
+    const p = new Promise((res, rej) => {
+      chain = chain.then(() => new Promise(done => {
+        if (failed) { rej(new Error('voice off')); done(); return; }
+        const id = ++seq;
+        pend.set(id, { ok: u => { res(u); done(); }, no: e => { rej(e); done(); } });
+        w.postMessage({ id, text: String(text).slice(0, 300), lang: L, rate });
+      }));
+    });
+    p.catch(() => cache.delete(key));
+    cache.set(key, p);
+    return p;
+  }
+  return {
+    start, synth, onChange(f) { listeners.push(f); },
+    ready: lang => !failed && (/^ko/i.test(lang) ? readyKo : readyEn),
+    get failed() { return failed || !ok; }, get progress() { return prog; }, get loading() { return !!w && !readyKo && !failed; }
+  };
+})();
+
+// 미리 만든 음성이 없는 단어장(사진으로 만든 단어장): 고품질 목소리 → (준비 전이면) 기기 목소리 → eSpeak 목소리
+let ttsTok = 0;
 async function tts(text, lang, rate) {
   if (!text) throw new Error('no tts');
+  const my = ++ttsTok;
+  if (Voice.ready(lang)) {
+    try {
+      const u = await Voice.synth(text, lang, rate);
+      if (my !== ttsTok) throw { name: 'AbortError' };
+      return await Narr.playUrl(u);
+    } catch (e) { if (e && e.name === 'AbortError') throw e; }
+  }
   await ssWait();
   if (hasSS && ssHas(lang)) return ssSpeak(text, lang, rate);
   if (canEsp) return Esp.speak(text, lang, rate);
   if (hasSS) return ssSpeak(text, lang, rate);
   throw new Error('no tts');
 }
-function ttsStop() { if (hasSS) try { speechSynthesis.cancel(); } catch (e) { } Esp.stop(); Narr.stop(); }
+function ttsStop() { ttsTok++; if (hasSS) try { speechSynthesis.cancel(); } catch (e) { } Esp.stop(); Narr.stop(); }
 // 단어 발음: 미리 만든 음성 → 없으면 기기 음성
 const wordClip = id => Narr.has('w:' + id) ? 'w:' + id : null;
 const meanClip = id => DECK.builtin && Narr.has('m:' + id) ? 'm:' + id : null;
@@ -5573,7 +5711,10 @@ function buildPlayer() {
     <div class="vsub" id="vsub" aria-live="polite"></div>
   </div>`);
   SV.on = false; SV.busy = false; SV.i = 0; SV.ended = false; SV.narrFail = !DECK.builtin && !canSpeak && M.kind === 'scene';
-  if (!DECK.builtin && canEsp && !(hasSS && ssHas('ko'))) Esp.warm(); // 목소리 엔진을 미리 받아 둠
+  if (!DECK.builtin) { // 고품질 목소리를 준비하고, 이야기 문장을 미리 만들어 둠 (읽는 중간에 끊기지 않게)
+    if (!Voice.failed && !Voice.ready('ko')) { Voice.start(); toast('고품질 목소리를 준비하고 있어요 · 처음 한 번만 약 60MB를 받아요'); }
+    voicePrefetch();
+  }
   if (!scene) setSub('<p>아래 단어를 누르면 그림 속 장면을 보여 줘요</p>');
   svCtl();
 }
@@ -5710,6 +5851,19 @@ function svTTS(L, ms, after) {
     .then(() => { if (live()) after(); })
     .catch(e => { if (!live()) return; if (!(e && e.name === 'AbortError')) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
 }
+// 이야기 전체 문장과 단어 발음을 순서대로 미리 만들어 둠
+function voicePrefetch() {
+  if (DECK.builtin || !Voice.ready('ko') || !SV.lines || !SV.lines.length) return;
+  for (const L of SV.lines) {
+    if (L.recap) { if (L.word && WORDS[L.word]) Voice.synth(WORDS[L.word].m.replace(/\([^)]*\)/g, ''), 'ko-KR', SAVE.rate).catch(() => { }); }
+    else if (L.plain) Voice.synth(L.plain, 'ko-KR', SAVE.rate).catch(() => { });
+    if (L.word && Voice.ready('en')) Voice.synth(WORDS[L.word] && WORDS[L.word].say || shortW(L.word), 'en-US', Math.min(SAVE.rate, 1) * .85).catch(() => { });
+  }
+}
+Voice.onChange(() => {
+  if (Voice.ready('ko') && !Voice._told) { Voice._told = true; if (!DECK.builtin && !$('#story').hidden) toast('고품질 목소리가 준비됐어요'); }
+  if (!$('#story').hidden) voicePrefetch();
+});
 // 복습: 영어 발음 → 잠깐 쉼 → 한국어 뜻
 function svRecap(L, ms, after) {
   const tok = SV.tok, t0 = Date.now(), m = meanClip(L.word);
