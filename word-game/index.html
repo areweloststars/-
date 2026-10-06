@@ -4136,8 +4136,8 @@ function ocrWorker() {
     ocrDict();
     const [kor, eng2] = await Promise.all([ocrLang('kor'), ocrLang('eng')]);
     const [w, we] = await Promise.all([Tesseract.createWorker([kor], 1, ocrOpts()), Tesseract.createWorker([eng2], 1, ocrOpts())]);
-    // 11 = 흩어진 글자 찾기: 표·두 단 쪽에서도 낱말을 빠짐없이 찾고, 줄·칸은 위치로 앱이 다시 짬
-    await w.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: window.__psmK || '11' });
+    // 영어 전용 읽기는 11 = 흩어진 글자 찾기: 표·두 단 쪽에서도 영어 낱말을 빠짐없이 찾고, 줄·칸은 위치로 앱이 다시 짬
+    await w.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '4' }); // 4 = 세로로 이어진 글줄: 한글 뜻을 문맥으로 더 정확히
     await we.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11', tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'-~.,()/ " });
     OCR.worker = w; OCR.eng = we; return w;
   })().catch(e => { OCR.loading = null; throw (e && e.code ? e : { code: 'ocr_load' }); });
@@ -4365,7 +4365,7 @@ async function mkRead() {
     await ocrWorker();
     const dict = await ocrDict();
     if (MK.run !== run) return;
-    const lines = [];
+    const lines = []; let raw = '';
     for (let i = 0; i < OCR.n; i++) {
       OCR.i = i; OCR.pass = 0; ocrShow(`사진 ${i + 1}/${OCR.n} 읽는 중`, 0.3 + 0.7 * i / OCR.n);
       const c = await ocrImage(MK.images[i].file);
@@ -4375,6 +4375,7 @@ async function mkRead() {
       OCR.pass = 1;
       const r2 = await OCR.eng.recognize(c, {}, { blocks: true });
       if (MK.run !== run) return;
+      raw += ((r1.data && r1.data.text) || '') + '\n' + ((r2.data && r2.data.text) || '') + '\n';
       const pairs = ocrPairs(ocrMerge(ocrWords(r1.data), ocrWords(r2.data), dict), dict, ocrSlope(r1.data, r2.data));
       // 위치로 짝을 못 지으면 글자만으로
       lines.push(...(pairs.length ? pairs : ocrTidy((r1.data && r1.data.text) || '').split('\n')));
@@ -4382,7 +4383,7 @@ async function mkRead() {
     const tidy = ocrTidy(lines.join('\n'));
     const parsed = mkParse(tidy).map(r => Object.assign(r, { ko: ocrKo(r.ko) })), rows = mkDedupe(parsed.filter(ocrRowOk));
     MK.paste = tidy;
-    const day = tidy.match(/\b(day|unit|lesson)\s*0*(\d{1,3})\b/i);
+    const day = (raw + '\n' + tidy).match(/\b(day|unit|lesson)\s*0*(\d{1,3})\b/i);
     if (day && !mkCleanKo(MK.name)) MK.name = day[1][0].toUpperCase() + day[1].slice(1).toLowerCase() + ' ' + day[2].padStart(2, '0');
     if (!rows.length) {
       MK.step = 'pick'; MK.pasteOpen = true;
