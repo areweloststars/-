@@ -585,6 +585,14 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mkpick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .mkbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 92px; text-align: center; }
 .mkbtn svg { width: 32px; height: 32px; }
+.mkbtn { position: relative; overflow: hidden; }
+.mkfile { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 0; z-index: 1; }
+.mkdrop { margin-top: 10px; min-height: 48px; padding: 12px 14px; border: 2px dashed var(--line); border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 13.5px; line-height: 1.5; outline: none; caret-color: transparent; }
+.mkdrop:empty::before { content: attr(data-ph); }
+.mkdrop:focus { border-color: var(--meaning); }
+.mkhelp { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.mkhelp summary { cursor: pointer; font-weight: 700; padding: 8px 2px; color: var(--fg); }
+.mkhelp ol { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 6px; }
 .mkbtn:focus-within { outline: 3px solid var(--meaning); outline-offset: 2px; }
 .mkimgs { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; }
 .mkimg { position: relative; flex: none; width: 92px; height: 120px; border: 2px solid var(--frame); border-radius: 10px; overflow: hidden; background: var(--surface2); }
@@ -3977,9 +3985,17 @@ function mkPickHTML() {
   return `
     <ol class="mksteps"><li><b>사진</b> 단어장 쪽을 찍어요</li><li><b>확인</b> 읽은 단어와 뜻을 고쳐요</li><li><b>완성</b> 그림·미션이 바로 생겨요</li></ol>
     <div class="mkpick">
-      <label class="btn good mkbtn">${ICON.camera}<span>사진 찍기</span><input type="file" accept="image/*" capture="environment" data-mkfile="1" hidden></label>
-      <label class="btn mkbtn">${ICON.pic}<span>앨범에서 고르기</span><input type="file" accept="image/*" multiple data-mkfile="1" hidden></label>
+      <label class="btn good mkbtn">${ICON.camera}<span>사진 찍기</span><input class="mkfile" type="file" accept="image/*" capture="environment" data-mkfile="1" aria-label="사진 찍기"></label>
+      <label class="btn mkbtn">${ICON.pic}<span>앨범에서 고르기</span><input class="mkfile" type="file" accept="image/*" multiple data-mkfile="1" aria-label="앨범에서 고르기"></label>
     </div>
+    <div class="mkdrop" id="mkdrop" contenteditable="true" role="textbox" aria-label="사진 붙여넣기" data-ph="사진 붙여넣기: 갤러리에서 사진을 ‘복사’한 뒤 여기를 길게 눌러 ‘붙여넣기’"></div>
+    <details class="mkhelp"><summary>사진 버튼이 안 열려요</summary>
+      <ol>
+        <li><b>Claude 앱 안</b>에서는 휴대폰에 따라 사진 고르기 창이 안 열릴 수 있어요. 맨 위 <b>공유</b> 단추로 링크를 복사해 <b>Chrome·삼성 인터넷</b>에서 열면 잘 돼요.</li>
+        <li>갤러리에서 사진을 <b>복사</b>해 위 점선 칸에 <b>붙여넣기</b> 해도 돼요.</li>
+        <li>갤러리(구글 렌즈·삼성 ‘텍스트 추출’)로 사진 속 글자를 <b>복사</b>한 뒤, 아래 <b>단어 직접 입력·붙여넣기</b> 칸에 붙여넣어도 바로 단어장이 돼요.</li>
+      </ol>
+    </details>
     ${MK.images.length ? `<div class="mkimgs">${thumbs}</div><p class="mksmall">사진 ${MK.images.length}장 · 한 번에 ${OCR_MAX}장까지</p><button type="button" class="startbtn" data-mk="read">${ICON.play}사진 속 단어 읽기</button>` : '<p class="mksmall">‘영어 단어 + 한글 뜻’이 한 줄씩 나란히 있는 쪽을 <b>똑바로, 밝게</b> 찍으면 가장 잘 읽어요. 사진은 이 기기 안에서 읽고, 따로 API나 로그인이 필요 없어요.</p>'}
     <details class="mkpaste"${MK.pasteOpen ? ' open' : ''}><summary>${ICON.pen}단어 직접 입력·붙여넣기</summary>
       <p class="mksmall">한 줄에 하나씩 <b>영어 - 뜻</b> 모양으로 써요. 뜻이 여러 개면 쉼표로 나눠요.<br>예) implement - 시행하다, 실행하다</p>
@@ -4577,6 +4593,16 @@ function bindMake() {
     else if (e.target.id === 'aremo' && MK.art && MK.art.spec && e.target.value.trim()) { const sp = genNormalize({ subject: { kind: 'emoji', emoji: e.target.value } }); if (sp.subject.emoji !== '⭐' || e.target.value.includes('⭐')) { MK.art.spec.subject = sp.subject; arPreview(); } }
   });
   el.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('mkpaste')) MK.pasteOpen = e.target.open; }, true);
+  // 사진 붙여넣기 (파일 고르기 창이 안 열리는 앱 화면에서도 됨)
+  el.addEventListener('paste', e => {
+    if (MK.step !== 'pick' || e.target.id === 'mkpaste') return;
+    const files = Array.from((e.clipboardData && e.clipboardData.files) || []).filter(f => /^image\//.test(f.type));
+    if (!files.length) { if (e.target.id === 'mkdrop') { const t = e.clipboardData && e.clipboardData.getData('text'); e.preventDefault(); if (t && t.trim()) { MK.paste = (MK.paste ? MK.paste + '\n' : '') + t.trim(); MK.pasteOpen = true; renderMake(); toast('붙여넣은 글자를 아래 입력 칸에 넣었어요'); } else toast('사진을 찾지 못했어요. 갤러리에서 사진을 ‘복사’한 뒤 붙여넣어 주세요'); } return; }
+    e.preventDefault();
+    for (const file of files) { if (MK.images.length >= OCR_MAX) break; MK.images.push({ file, url: URL.createObjectURL(file) }); }
+    MK.err = ''; renderMake(); toast(`사진 ${files.length}장을 넣었어요`);
+  });
+  el.addEventListener('beforeinput', e => { if (e.target.id === 'mkdrop' && !/paste/i.test(e.inputType || '')) e.preventDefault(); });
   el.addEventListener('change', e => {
     const f = e.target.closest('[data-mkfile]'); if (!f) return;
     const max = OCR_MAX;
