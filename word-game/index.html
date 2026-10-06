@@ -4294,6 +4294,95 @@ function mkAutoPanel(en, ko, pos, i) {
   return spec;
 }
 
+/* ---------- 이야기 자동 만들기: Claude 없이, 이야기 틀 + 단어 종류(동사·형용사·부사·명사)별 문장 틀로 ---------- */
+const jong = s => { const c = String(s).trim().slice(-1).charCodeAt(0); return c >= 0xAC00 && c <= 0xD7A3 ? (c - 0xAC00) % 28 : 0; };
+const J = (w, a, b) => w + (jong(w) ? a : b); // 받침에 맞는 조사: J('기사', '이', '가') → '기사가'
+const SF = [
+  { title: '용과 기사 레오', H: '기사 레오', F: '꼬마 공주', V: '배고픈 용', P: '하늘 성', bg: 'sky', hero: { kind: 'person', hat: 'helm', outfit: 'grey', hair: 'short' },
+    intro: ['옛날 옛적 {P}에 {H}{이가} 살았어요.', '어느 날 {V}{이가} 성 앞에 나타났어요!'], outro: ['결국 {V}{은는} 떡볶이를 얻어먹고 친구가 됐답니다.'] },
+  { title: '거북이 토토의 역전승', H: '거북이 토토', F: '다람쥐 응원단', V: '잘난 척 토끼', P: '숲속 운동장', bg: 'mint', hero: { kind: 'tortoise' },
+    intro: ['{P}에서 달리기 대회가 열렸어요.', '{V}{은는} "이번에도 내가 1등!"이라며 웃었죠.'], outro: ['결승선! {H}{이가} 또 이겼어요. 꾸준함이 최고예요!'] },
+  { title: '막내 돼지의 튼튼한 집', H: '막내 돼지', F: '첫째 형', V: '심술쟁이 늑대', P: '언덕 마을', bg: 'warm', hero: { kind: 'pig' },
+    intro: ['{P}에 돼지 삼형제가 살았어요.', '{H}{은는} 벽돌로 집을 짓기로 했어요.'], outro: ['후~ 불어도 끄떡없는 집! {V}{은는} 콧물만 흘리고 돌아갔어요.'] },
+  { title: '알라딘과 수다쟁이 지니', H: '알라딘', F: '램프 요정 지니', V: '욕심쟁이 대신', P: '사막 왕국', bg: 'sand', hero: { kind: 'person', hat: 'turban', outfit: 'purple', hair: 'short', skin: 1 },
+    intro: ['{P}의 골목에서 {H}{이가} 낡은 램프를 주웠어요.', '쓱쓱 문지르자 {F}{이가} 펑! 나타났어요.'], outro: ['마지막 소원은 "모두 함께 간식 파티!" 왕국이 들썩였어요.'] },
+  { title: '마법 학교의 루나', H: '견습 마법사 루나', F: '부엉이 선생님', V: '장난꾸러기 유령', P: '구름 위 마법 학교', bg: 'lavender', hero: { kind: 'person', hat: 'pointy', extra: 'robe', outfit: 'purple', hair: 'long' },
+    intro: ['{P}에 첫 수업 종이 울렸어요.', '{H}{은는} 오늘 주문 시험을 봐야 했죠.'], outro: ['시험 합격! {V}마저 박수를 쳤답니다.'] },
+  { title: '우주비행사 민의 모험', H: '우주비행사 민', F: '로봇 삐삐', V: '장난꾸러기 외계인', P: '달 기지', bg: 'night', hero: { kind: 'person', hat: 'helm', outfit: 'white', hair: 'short' },
+    intro: ['카운트다운 3, 2, 1! 로켓이 {P}로 날아갔어요.', '그런데 {V}{이가} 기지 문을 잠가 버렸어요!'], outro: ['{V}{와과} 화해한 {H}, 이제 우주 친구가 생겼어요.'] },
+  { title: '해적 선장 해나', H: '선장 해나', F: '수다쟁이 앵무새', V: '졸린 바다 괴물', P: '보물섬', bg: 'sea', hero: { kind: 'person', hat: 'cap', outfit: 'red', hair: 'pony' },
+    intro: ['{H}{이가} 보물 지도를 펼쳤어요.', '목적지는 바로 {P}!'], outro: ['보물 상자 안에는… 단어 카드가 가득! 진짜 보물이었어요.'] },
+  { title: '탐정 셜리의 사건 수첩', H: '탐정 셜리', F: '강아지 조수 왓슨', V: '괴도 X', P: '안개 낀 도시', bg: 'grey', hero: { kind: 'person', extra: 'glasses', outfit: 'brown', hat: 'cap', hair: 'bob' },
+    intro: ['{P}에서 케이크가 사라졌어요!', '{H}{은는} 돋보기를 꺼냈어요.'], outro: ['범인은 배고팠던 {F}! 모두 웃으며 케이크를 나눠 먹었어요.'] }
+];
+// 단어 종류별 문장 틀. {W}는 {영어|뜻 표현} 자리, {H}{F}{V}{P}는 이야기 인물·장소
+const ST = {
+  hada: [s => `{H}{이가} 드디어 계획을 {W:${s}했어요}!`, s => `"이번엔 꼭 {W:${s}할} 거야!" {H}{이가} 외쳤어요.`, s => `{F}{이가} {H}에게 {W:${s}하라고} 귓속말했어요.`, s => `{V}{은는} 몰래 {W:${s}하려다} 딱 걸렸어요.`],
+  verb: [m => `{H}의 수첩 첫 줄: "오늘의 미션은 {W:${m}}!"`, m => `{F}{이가} 소리쳤어요. "지금이야, {W:${m}}!"`, m => `{V}{은는} 절대 {W:${m}} 싫다며 버텼어요.`],
+  adj: [m => `{H}{은는} 정말 {W:${m}} 표정을 지었어요.`, m => `{F}{이가} 가져온 건 아주 {W:${m}} 소식이었어요.`, m => `{V}{은는} {W:${m}} 눈빛으로 쳐다봤어요.`],
+  adv: [m => `{H}{은는} {W:${m}} 한 걸음 내디뎠어요.`, m => `{F}{은는} 모든 걸 {W:${m}} 해냈어요.`, m => `{V}조차 {W:${m}} 고개를 끄덕였어요.`],
+  noun: [m => `{H}{은는} 길에서 {W:${m}}${jong(m) ? '을' : '를'} 발견했어요.`, m => `{P} 게시판에 ‘{W:${m}}’ 공고가 붙었어요.`, m => `{F}{은는} {W:${m}}에 대해 신나게 떠들었어요.`, m => `{V}{이가} 가장 무서워하는 건 바로 {W:${m}}!`]
+};
+// 뜻 하나 → 단어 종류
+function mkKind(m, pos) {
+  if (/하다$/.test(m) && m.length > 2) return 'hada';
+  if (/(게|히|이|로|으로)$/.test(m) && (pos === 'd' || /(하게|스럽게|롭게|적으로|히)$/.test(m))) return 'adv';
+  if (/(는|은|ㄴ|한|운|적인|던|의|러운|스러운)$/.test(m) || pos === 'a') return /다$/.test(m) ? 'verb' : 'adj';
+  if (/다$/.test(m) || pos === 'v') return 'verb';
+  return 'noun';
+}
+// 접두사·접미사로 만드는 암기 팁
+// 접두사·접미사로 만드는 암기 팁 (뜻과 맞을 때만: 'reluctant'를 re-(다시)로 풀지 않게)
+const AFFIX = [
+  [/^un[a-z]{3,}/, 'un-(아닌)', m => /않|없|못|불|비|무/.test(m)], [/^mis[a-z]{3,}/, 'mis-(잘못)', m => /잘못|오/.test(m)],
+  [/^pre[a-z]{3,}/, 'pre-(미리)', m => /미리|사전|예|전/.test(m)], [/^inter[a-z]{3,}/, 'inter-(사이)', m => /사이|상호|국제|간/.test(m)],
+  [/^trans[a-z]{3,}/, 'trans-(가로질러, 옮겨)', m => /옮|전|교통|번역|변/.test(m)], [/^over[a-z]{3,}/, 'over-(넘치게)', m => /과|넘|지나/.test(m)],
+  [/^[a-z]{3,}tion$/, '-tion(~하는 것)', m => !/다$/.test(m)], [/^[a-z]{3,}ful$/, '-ful(가득한)', () => true], [/^[a-z]{3,}less$/, '-less(없는)', m => /없|않/.test(m)],
+  [/^[a-z]{3,}able$/, '-able(~할 수 있는)', () => true], [/^[a-z]{3,}ly$/, '-ly(~하게)', m => /(게|히|이)$/.test(m)], [/^[a-z]{3,}ness$/, '-ness(~함, 상태)', m => !/다$/.test(m)]
+];
+function mkTip(en, m) {
+  const w = en.toLowerCase();
+  if (/\s/.test(w)) return `${w.split(/\s+/).join(' + ')} → 한 덩어리로 외워요: ${m}`;
+  const hits = AFFIX.filter(([re, , ok]) => re.test(w) && ok(m)).map(a => a[1]).slice(0, 2);
+  return hits.length ? `${hits.join(' + ')} → ${m}` : '';
+}
+// 에피소드 하나: 이야기 자막 + 단어마다 그림 칸·그림 설명·팁
+function mkStory(epWords, rows, n) {
+  const f = SF[((n % SF.length) + SF.length) % SF.length];
+  const fill = t => t.replace(/\{([HFVP])\}(\{(이가|은는|을를|와과)\})?/g, (all, k, j, jj) => {
+    const nm = f[k]; if (!jj) return nm;
+    const [a, b] = { 이가: ['이', '가'], 은는: ['은', '는'], 을를: ['을', '를'], 와과: ['과', '와'] }[jj];
+    return J(nm, a, b);
+  });
+  const lines = f.intro.map(fill), words = {}, used = {};
+  epWords.forEach((id, i) => {
+    const r = rows[id], m = (r.ko.split(/\s*,\s*/)[0] || r.ko).replace(/\([^)]*\)/g, '').replace(/^~\s*/, '').trim() || r.ko;
+    const kind = mkKind(m, r.pos), list = ST[kind];
+    const k = used[kind] = (used[kind] || 0); used[kind]++;
+    const arg = kind === 'hada' ? m.replace(/하다$/, '') : m;
+    let line = fill(list[(k + n) % list.length](arg));
+    line = line.replace(/\{W:([^}]+)\}/, (all, t) => `{${id}|${t}}`);
+    lines.push(line);
+    const hit = AUTO_PIC.find(([re]) => re.test(r.ko));
+    const h = hit ? hit[1] : {};
+    let panel;
+    if (h.e) panel = { subject: { kind: 'emoji', emoji: h.e } };
+    else {
+      const sj = Object.assign({}, f.hero);
+      if (sj.kind === 'person') { sj.pose = h.p || AUTO_POSE[i % AUTO_POSE.length]; if (h.face) sj.face = h.face; }
+      else sj.pose = h.p === 'run' || h.p === 'sleep' ? h.p : ['wave', 'cheer', 'hold'][i % 3];
+      panel = { subject: sj };
+      if (h.hold) panel.hold = h.hold;
+      else if (!h.p && i % 2) panel.hold = AUTO_EMO[i % AUTO_EMO.length];
+    }
+    Object.assign(panel, { bg: f.bg, sign: shortW(id).slice(0, 18), signStyle: panel.subject.kind === 'emoji' ? 'board' : 'bubble', mark: h.mark || (i % 3 ? 'none' : 'exclaim') });
+    const plain = line.replace(/\{[^|}]+\|([^}]+)\}/g, '$1');
+    words[id] = { panel, pic: plain.slice(0, 120), tip: mkTip(id, m) };
+  });
+  f.outro.forEach(o => lines.push(fill(o)));
+  return { title: f.title, lines, words };
+}
+
 /* ---------- 3) 그림 꾸미기: 단어마다 그림 칸을 눌러서 고르기만 하면 돼요 ---------- */
 const AR_EMO = ['📘', '📚', '✏️', '💡', '🔑', '🎯', '⏰', '💰', '📈', '📉', '🔧', '⚖️', '🚌', '💼', '🏥', '🍱', '🏠', '🌳', '🌊', '🔍', '🎁', '✉️', '📱', '💻', '🎤', '⭐', '✨', '🚀', '🏁', '🛡️', '💪', '🔄', '❤️', '👍', '👎', '❓', '🎉', '😀', '😢', '😡', '😱', '🤔', '😴', '🐶', '🐱', '🍎', '☀️', '🌧️', '🔥', '🏆'];
 const AR_HOLD = ['', '📄', '📚', '🎤', '🎁', '💰', '☕', '🍎', '🔑', '📱', '🌹', '⚽', '🔨', '🧪'];
@@ -4482,6 +4571,7 @@ async function mkMake() {
     renderMake(); return;
   }
   MK.err = ''; MK.log = []; MK.step = 'making'; MK.saveNote = ''; mkPicN = 0;
+  const storySeed = Math.floor(Math.random() * SF.length);
   const ctl = MK.ctl = new AbortController(), id = 'u' + Date.now().toString(36);
   const rows = Object.create(null); for (const r of rows0) rows[r.en] = r;
   // Claude를 더 부를 수 없는 오류(허락 안 됨·로그인 끝남·사용량 초과)가 나면 남은 에피소드는 부르지 않고 간단하게
@@ -4562,7 +4652,9 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
       }
       if (!res) {
         // Claude 없이: 단어마다 한 줄, 그림 칸에는 뜻 힌트
-        res = { lines: [`${ep.title}! 단어를 하나씩 만나 봐요.`, ...ep.words.map(w => `{${w}|${rows[w].ko.split(',')[0].trim() || rows[w].ko}} — ${rows[w].ko}`)], words: {} };
+        // Claude 없이: 이야기 틀로 바로 (에피소드마다 다른 이야기)
+        res = mkStory(ep.words, rows, storySeed + k);
+        ep.title = res.title;
       }
       const out = mkEpisode(key, ep.title, ep.words, rows, res);
       deck.scenes.push(out.scene); Object.assign(deck.words, out.words); deck.panels[key] = out.specs;
@@ -4570,10 +4662,11 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     deck.scenes = deck.scenes.filter(sc => sc.words.length);
     if (!deck.scenes.length) throw { code: 'empty_completion' };
     const saved = await DeckStore.put(deck);
-    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') + (MK.useAI ? '' : '그림은 뜻을 보고 자동으로 골랐어요. ‘그림 꾸미기’에서 바꿀 수 있어요. ') +
+    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') + (MK.useAI ? '' : '이야기와 그림은 이 기기에서 바로 만들었어요. 그림은 ‘그림 꾸미기’에서 바꿀 수 있어요. ') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');
+    if (canEsp && !(hasSS && ssHas('ko'))) Esp.warm();
     // 만드는 동안 다른 화면에 가 있었으면 다 됐다고 알려 줌
     if ($('#make').hidden) toast(`‘${deck.name}’ 단어장이 완성됐어요! 홈 위 단어장 단추에서 골라요`);
   } catch (e) {
@@ -4800,15 +4893,18 @@ const Sound = (() => {
   };
 })();
 function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) { } }
-const canSpeak = 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
-function say(text) {
-  if (!canSpeak) return;
-  try { const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; u.rate = .85; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { }
-}
-// 미리 만든 음성이 없는 단어장(사진으로 만든 단어장)은 기기 음성으로 읽어 줌 (지원하는 브라우저에서만)
-function tts(text, lang, rate) {
+const hasSS = 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
+const canEsp = typeof WebAssembly === 'object' && typeof DecompressionStream === 'function' && typeof Blob === 'function';
+const canSpeak = hasSS || canEsp;
+// 기기에 그 언어 목소리가 있는지 (앱 안 화면은 목록이 비어 있는 경우가 많아요)
+let ssVoices = [];
+const ssLoad = () => { try { ssVoices = speechSynthesis.getVoices() || []; } catch (e) { ssVoices = []; } };
+if (hasSS) { ssLoad(); try { speechSynthesis.addEventListener('voiceschanged', ssLoad); } catch (e) { } }
+const ssHas = lang => ssVoices.some(v => String(v.lang || '').replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2)));
+async function ssWait() { if (!hasSS || ssVoices.length) return; for (let i = 0; i < 6 && !ssVoices.length; i++) { await sleep(120); ssLoad(); } }
+function say(text) { tts(text, 'en-US', .85).catch(() => { }); }
+function ssSpeak(text, lang, rate) {
   return new Promise((res, rej) => {
-    if (!canSpeak || !text) { rej(new Error('no tts')); return; }
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = rate;
@@ -4821,7 +4917,59 @@ function tts(text, lang, rate) {
     } catch (e) { rej(e); }
   });
 }
-function ttsStop() { if (canSpeak) try { speechSynthesis.cancel(); } catch (e) { } }
+/* 기기 목소리가 없을 때: 앱 옆에 올려 둔 eSpeak NG(WASM, GPL-3.0)로 이 기기 안에서 목소리를 만들어요. API·토큰 없음.
+   처음 한 번 약 9MB를 받고, 한 문장은 보통 1초 안에 만들어져요. */
+const Esp = (() => {
+  let ready = null, tok = 0;
+  const cache = new Map();
+  function load() {
+    if (!ready) ready = (async () => {
+      const [mod, wasm] = await Promise.all([
+        import(new URL('tts/espeak-ng.js', location.href).href),
+        (async () => {
+          const r = await fetch(new URL('tts/espeak-ng-gz.wasm', location.href).href);
+          if (!r.ok) throw new Error('esp fetch');
+          const buf = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+          return WebAssembly.compile(buf);
+        })()
+      ]);
+      return { E: mod.default, wasm };
+    })().catch(e => { ready = null; throw e; });
+    return ready;
+  }
+  async function wav(text, lang, rate) {
+    const key = lang + '|' + rate + '|' + text;
+    if (cache.has(key)) return cache.get(key);
+    const { E, wasm } = await load();
+    const v = /^ko/i.test(lang) ? 'ko' : 'en-us';
+    const m = await E({
+      arguments: ['-v', v, '-s', String(Math.round((v === 'ko' ? 165 : 140) * clamp(rate, .5, 2))), '-w', 'o.wav', ' ' + text.replace(/\s+/g, ' ').slice(0, 400)],
+      instantiateWasm(imports, done) { WebAssembly.instantiate(wasm, imports).then(inst => done(inst)); return {}; },
+      print() { }, printErr() { }
+    });
+    const url = URL.createObjectURL(new Blob([m.FS.readFile('o.wav')], { type: 'audio/wav' }));
+    if (cache.size > 60) { const [k0, u0] = cache.entries().next().value; URL.revokeObjectURL(u0); cache.delete(k0); }
+    cache.set(key, url);
+    return url;
+  }
+  async function speak(text, lang, rate) {
+    const my = ++tok;
+    const url = await wav(text, lang, rate);
+    if (my !== tok) throw { name: 'AbortError' };
+    return Narr.playUrl(url);
+  }
+  return { speak, stop() { tok++; }, warm() { load().catch(() => { }); } };
+})();
+// 미리 만든 음성이 없는 단어장(사진으로 만든 단어장)은 기기 목소리 → 없으면 eSpeak 목소리로 읽어 줌
+async function tts(text, lang, rate) {
+  if (!text) throw new Error('no tts');
+  await ssWait();
+  if (hasSS && ssHas(lang)) return ssSpeak(text, lang, rate);
+  if (canEsp) return Esp.speak(text, lang, rate);
+  if (hasSS) return ssSpeak(text, lang, rate);
+  throw new Error('no tts');
+}
+function ttsStop() { if (hasSS) try { speechSynthesis.cancel(); } catch (e) { } Esp.stop(); Narr.stop(); }
 // 단어 발음: 미리 만든 음성 → 없으면 기기 음성
 const wordClip = id => Narr.has('w:' + id) ? 'w:' + id : null;
 const meanClip = id => DECK.builtin && Narr.has('m:' + id) ? 'm:' + id : null;
@@ -4861,7 +5009,7 @@ const Narr = (() => {
   }
   function stop() { const c = cur; cur = null; if (c) c(); }
   function setRate(r) { try { if (el) el.playbackRate = r; if (src) src.playbackRate.value = r; } catch (e) { } }
-  function playEl(k, rate) {
+  function playEl(k, rate, src0) {
     return new Promise((res, rej) => {
       el = el || new Audio();
       let done = false, guard = 0;
@@ -4870,12 +5018,12 @@ const Narr = (() => {
       cur = stopper;
       el.onended = () => fin(true);
       el.onerror = () => fin(false, new Error('media error'));
-      el.muted = false; el.src = url(k);
+      el.muted = false; el.src = src0 || url(k);
       try { el.preservesPitch = true; el.webkitPreservesPitch = true; } catch (e) { }
       el.defaultPlaybackRate = rate; el.playbackRate = rate;
       const p = el.play();
       if (p && p.catch) p.catch(err => fin(false, err));
-      guard = setTimeout(() => fin(true), ((AUDIO_DUR[k] || 6) / rate) * 1000 + 4000);
+      guard = setTimeout(() => fin(true), src0 ? 40000 : ((AUDIO_DUR[k] || 6) / rate) * 1000 + 4000);
     });
   }
   async function playWA(k, rate) {
@@ -4903,7 +5051,9 @@ const Narr = (() => {
     }
     await playWA(k, rate);
   }
-  return { unlock, play, stop, setRate, has };
+  // 기기 안에서 만든 목소리(wav 주소) 재생
+  function playUrl(u, rate = 1) { stop(); return playEl(null, rate, u); }
+  return { unlock, play, playUrl, stop, setRate, has };
 })();
 
 /* ---------- 확대되는 그림 패널 ----------
@@ -5244,6 +5394,7 @@ function buildPlayer() {
     <div class="vsub" id="vsub" aria-live="polite"></div>
   </div>`);
   SV.on = false; SV.busy = false; SV.i = 0; SV.ended = false; SV.narrFail = !DECK.builtin && !canSpeak && M.kind === 'scene';
+  if (!DECK.builtin && canEsp && !(hasSS && ssHas('ko'))) Esp.warm(); // 목소리 엔진을 미리 받아 둠
   if (!scene) setSub('<p>아래 단어를 누르면 그림 속 장면을 보여 줘요</p>');
   svCtl();
 }
