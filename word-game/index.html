@@ -4096,9 +4096,12 @@ function mkDedupe(rows) {
   return out;
 }
 
-/* ---------- 1) 사진 속 단어 읽기: 이 기기 안에서 글자 인식(Tesseract, 한국어+영어). 따로 연결할 API나 열쇠가 없어요 ---------- */
+/* ---------- 1) 사진 속 단어 읽기: 이 기기 안에서 글자 인식(Tesseract). 따로 연결할 API나 열쇠가 없어요
+   ① 사진 다듬기(그림자·명암 고르게) ② 한국어+영어로 한 번, 영어 전용으로 한 번 읽기 → 영어 단어는 영어 전용 결과를 믿음
+   ③ 글자 위치로 줄·칸을 다시 짜서 '영어 → 오른쪽이나 바로 아래 한글 뜻'으로 짝짓기 (두 단(칸) 쪽, 한 줄에 두 단어도)
+   ④ 영어 사전(SCOWL 약 11만 단어)으로 잘못 읽은 글자 고치기 ---------- */
 const OCR_MAX = 10;
-const OCR = { worker: null, loading: null, i: 0, n: 1, ready: false };
+const OCR = { worker: null, eng: null, loading: null, i: 0, n: 1, dict: null };
 const ocrURL = p => new URL(p, location.href).href;
 function ocrShow(label, pct) {
   const bar = $('#ocrbar'), lab = $('#ocrlab');
@@ -4109,49 +4112,217 @@ function ocrLog(m) {
   if (!m || MK.step !== 'reading') return;
   const p = typeof m.progress === 'number' ? m.progress : 0, st = String(m.status || '');
   if (/core/.test(st)) ocrShow('글자 읽는 도구 준비 중', 0.05 + p * 0.1);
-  else if (/traineddata/.test(st)) ocrShow('한국어·영어 글자 사전 여는 중', 0.15 + p * 0.15);
-  else if (/recogniz/.test(st)) ocrShow(`사진 ${OCR.i + 1}/${OCR.n} 읽는 중`, 0.3 + 0.7 * (OCR.i + p) / OCR.n);
+  else if (/recogniz/.test(st)) ocrShow(`사진 ${OCR.i + 1}/${OCR.n} 읽는 중`, 0.3 + 0.7 * (OCR.i + p * 0.5 + (OCR.pass ? 0.5 : 0)) / OCR.n);
 }
 // 글자 사전(압축 파일)은 앱 옆에 함께 올려 둔 파일이에요. 직접 받아서 글자 인식 도구에 넘겨요
-async function ocrLang(code) {
-  const r = await fetch(ocrURL(`ocr/${code}-traineddata.wasm`));
-  if (!r.ok) throw { code: 'ocr_load' };
-  return { code, data: new Uint8Array(await r.arrayBuffer()) };
+const ocrLangData = {};
+function ocrLang(code) {
+  if (!ocrLangData[code]) ocrLangData[code] = fetch(ocrURL(`ocr/${code}-traineddata.wasm`)).then(r => { if (!r.ok) throw { code: 'ocr_load' }; return r.arrayBuffer(); }).catch(e => { delete ocrLangData[code]; throw e; });
+  return ocrLangData[code].then(b => ({ code, data: new Uint8Array(b.slice(0)) }));
 }
-async function ocrMakeWorker() {
-  ocrShow('한국어·영어 글자 사전 불러오는 중', 0.08);
-  const langs = await Promise.all(['eng', 'kor'].map(ocrLang));
-  return Tesseract.createWorker(langs, 1, {
-    workerPath: ocrURL('ocr/worker.min.js'), corePath: ocrURL('ocr/tesseract-core-lstm.wasm.js'),
-    cacheMethod: 'none', workerBlobURL: true, logger: ocrLog, errorHandler: () => { }
-  });
+const ocrOpts = () => ({ workerPath: ocrURL('ocr/worker.min.js'), corePath: ocrURL('ocr/tesseract-core-lstm.wasm.js'), cacheMethod: 'none', workerBlobURL: true, logger: ocrLog, errorHandler: () => { } });
+// 영어 사전: 단어 → 1(흔한 말) / 2(드문 말)
+function ocrDict() {
+  if (!OCR.dict) OCR.dict = fetch(ocrURL('ocr/words-en.txt')).then(r => r.ok ? r.text() : '').then(t => {
+    const m = new Map(); for (const l of t.split('\n')) if (l) m.set(l.replace('*', ''), l.endsWith('*') ? 2 : 1); return m;
+  }).catch(() => new Map());
+  return OCR.dict;
 }
 function ocrWorker() {
   if (OCR.worker) return Promise.resolve(OCR.worker);
   if (!OCR.loading) OCR.loading = (async () => {
     if (!window.Tesseract) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'ocr/tesseract.min.js'; s.onload = ok; s.onerror = () => no({ code: 'ocr_load' }); document.head.appendChild(s); });
-    const w = await ocrMakeWorker();
-    OCR.worker = w; return w;
+    ocrShow('한국어·영어 글자 사전 불러오는 중', 0.08);
+    ocrDict();
+    const [kor, eng2] = await Promise.all([ocrLang('kor'), ocrLang('eng')]);
+    const [w, we] = await Promise.all([Tesseract.createWorker([kor], 1, ocrOpts()), Tesseract.createWorker([eng2], 1, ocrOpts())]);
+    // 11 = 흩어진 글자 찾기: 표·두 단 쪽에서도 낱말을 빠짐없이 찾고, 줄·칸은 위치로 앱이 다시 짬
+    await w.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+    await we.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11', tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'-~.,()/ " });
+    OCR.worker = w; OCR.eng = we; return w;
   })().catch(e => { OCR.loading = null; throw (e && e.code ? e : { code: 'ocr_load' }); });
   return OCR.loading;
 }
 function ocrStop() {
   MK.run = null;
-  const w = OCR.worker; OCR.worker = null; OCR.loading = null;
-  if (w) try { w.terminate(); } catch (e) { }
+  const ws = [OCR.worker, OCR.eng]; OCR.worker = null; OCR.eng = null; OCR.loading = null;
+  for (const w of ws) if (w) try { w.terminate(); } catch (e) { }
 }
-// 사진 → 글자 읽기 좋은 크기의 그림판 (너무 크면 줄이고, 작은 화면 캡처는 키움)
+// 사진 → 글자 읽기 좋은 흑백 그림 (그림자 지운 뒤 명암을 넓힘. 너무 크면 줄이고 작은 화면 캡처는 키움)
 async function ocrImage(file) {
   let src = null, url = '';
   try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) { src = null; }
   if (!src) src = await new Promise((ok, no) => { const im = new Image(); url = URL.createObjectURL(file); im.onload = () => ok(im); im.onerror = () => no({ code: 'image_rejected' }); im.src = url; });
   const w0 = src.naturalWidth || src.width, h0 = src.naturalHeight || src.height, big = Math.max(w0, h0);
-  const k = big > 2400 ? 2400 / big : big < 1100 ? 1.8 : 1;
-  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w0 * k)); c.height = Math.max(1, Math.round(h0 * k));
-  const g = c.getContext('2d'); g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
+  const k = Math.min(window.__up || 2.2, 2600 / big); // 긴 쪽을 약 2600px로: 작은 글자는 키우고 너무 큰 사진은 줄임
+  const W = Math.max(1, Math.round(w0 * k)), H = Math.max(1, Math.round(h0 * k));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H); g.drawImage(src, 0, 0, W, H);
   if (src.close) src.close();
   if (url) URL.revokeObjectURL(url);
+  if (!window.__noPre) try {
+    // 배경 밝기: 아주 작게 줄였다 키운 그림 (글자는 사라지고 그림자·조명만 남음)
+    const s = document.createElement('canvas'), sw = Math.max(8, Math.round(W / 24)), sh = Math.max(8, Math.round(H / 24));
+    s.width = sw; s.height = sh; const sg = s.getContext('2d'); sg.imageSmoothingQuality = 'high'; sg.drawImage(c, 0, 0, sw, sh);
+    // 글자 획을 지우려고 작은 그림에서 밝은 쪽을 남김(최댓값 3×3)
+    const sd = sg.getImageData(0, 0, sw, sh), sp = sd.data, lum = new Float32Array(sw * sh);
+    for (let i = 0; i < sw * sh; i++) lum[i] = 0.3 * sp[i * 4] + 0.59 * sp[i * 4 + 1] + 0.11 * sp[i * 4 + 2];
+    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+      let mx = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const yy = y + dy, xx = x + dx; if (yy >= 0 && yy < sh && xx >= 0 && xx < sw) mx = Math.max(mx, lum[yy * sw + xx]); }
+      const i = (y * sw + x) * 4; sp[i] = sp[i + 1] = sp[i + 2] = mx;
+    }
+    sg.putImageData(sd, 0, 0);
+    const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const bgg = bg.getContext('2d', { willReadFrequently: true });
+    bgg.imageSmoothingQuality = 'high'; bgg.drawImage(s, 0, 0, W, H);
+    const id = g.getImageData(0, 0, W, H), d = id.data, b = bgg.getImageData(0, 0, W, H).data;
+    const hist = new Uint32Array(256), out = new Uint8ClampedArray(W * H);
+    for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+      const v = 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2], bv = Math.max(40, b[i]);
+      const n = Math.min(255, v / bv * 255); out[j] = n; hist[n | 0]++;
+    }
+    // 어두운 1% ~ 밝은 쪽 끝으로 명암 넓히기
+    let acc = 0, lo = 0; const N = W * H; for (; lo < 255 && (acc += hist[lo]) < N * 0.01; lo++);
+    if (window.__lo != null) lo = window.__lo;
+    const hi = 245, span = Math.max(30, hi - lo);
+    for (let i = 0, j = 0; i < d.length; i += 4, j++) { const v = clamp((out[j] - lo) / span * 255, 0, 255); d[i] = d[i + 1] = d[i + 2] = v; }
+    g.putImageData(id, 0, 0);
+  } catch (e) { /* 다듬기가 안 되면 원래 사진으로 */ }
   return c;
+}
+// 사진 기울기: Tesseract가 찾은 긴 줄들의 밑줄 기울기 가운데값
+function ocrSlope(...datas) {
+  const sl = [];
+  for (const data of datas) for (const b of (data && data.blocks) || []) for (const pa of b.paragraphs || []) for (const ln of pa.lines || []) {
+    const bl = ln.baseline; if (!bl) continue;
+    const dx = bl.x1 - bl.x0; if (dx > 150) sl.push((bl.y1 - bl.y0) / dx);
+  }
+  sl.sort((a, b) => a - b);
+  return sl.length ? clamp(sl[sl.length >> 1], -0.2, 0.2) : 0;
+}
+// Tesseract 결과 → 낱말 [{t, x0, y0, x1, y1, c}]
+function ocrWords(data) {
+  const out = [];
+  for (const b of (data && data.blocks) || []) for (const pa of b.paragraphs || []) for (const ln of pa.lines || []) for (const w of ln.words || []) {
+    const t = String(w.text || '').trim(); if (!t || !w.bbox) continue;
+    out.push({ t, x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1, c: +w.confidence || 0 });
+  }
+  return out;
+}
+const OCR_POS = /^[([]?(?:n|v|a|adj|adv|ad|prep|conj|vt|vi|pron|int|명|동|형|부)[.)\]]?$/i;
+const isLat = t => /[A-Za-z]{2,}/.test(t) && !HANGUL.test(t);
+// 영어 단어 고치기: 사전에 없으면 자주 헷갈리는 글자(l/I/1, rn/m, 0/o…)나 한 글자 차이로 사전에 있는 말을 찾음
+function ocrFix(word, dict) {
+  if (!dict || !dict.size) return word;
+  const lw = word.toLowerCase().replace(/[^a-z0-9|'’\-]/g, '');
+  if (!lw || lw.length < 3 || dict.has(lw)) return lw.length ? (dict.has(lw) ? lw : word) : word;
+  const best = list => { let b = null; for (const x of list) { const t = dict.get(x); if (t && (!b || t < b[1])) b = [x, t]; } return b && b[0]; };
+  const CONF = [['1', 'l'], ['1', 'i'], ['|', 'l'], ['|', 'i'], ['0', 'o'], ['5', 's'], ['8', 'b'], ['rn', 'm'], ['m', 'rn'], ['vv', 'w'], ['cl', 'd'], ['ii', 'u'], ['li', 'h'], ['l', 'i'], ['i', 'l'], ['c', 'e'], ['e', 'c'], ['n', 'u'], ['u', 'n'], ['h', 'b'], ['t', 'f'], ['f', 't'], ['a', 'o'], ['o', 'a']];
+  const c1 = [];
+  for (const [a, b] of CONF) { let i = lw.indexOf(a); while (i >= 0) { c1.push(lw.slice(0, i) + b + lw.slice(i + a.length)); i = lw.indexOf(a, i + 1); } }
+  c1.push(lw.slice(1), lw.slice(0, -1)); // 앞뒤에 붙은 번호·점 같은 글자
+  let hit = best(c1.map(x => x.replace(/[^a-z'\-]/g, '')));
+  if (hit) return hit;
+  if (lw.length >= 5 && /^[a-z]+$/.test(lw)) {
+    const AB = 'abcdefghijklmnopqrstuvwxyz', c2 = [];
+    for (let i = 0; i < lw.length; i++) { c2.push(lw.slice(0, i) + lw.slice(i + 1)); for (const ch of AB) { c2.push(lw.slice(0, i) + ch + lw.slice(i + 1)); c2.push(lw.slice(0, i) + ch + lw.slice(i)); } }
+    hit = best(c2); if (hit) return hit;
+  }
+  return word;
+}
+// 두 번 읽은 결과 합치기: 영어 전용으로 또렷하게 읽은 영어 낱말이 있으면 그 자리의 낱말을 바꿈
+function ocrMerge(A, E, dict) {
+  const ov = (a, b) => { const w = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), h = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0); return w > 0 && h > 0 ? (w * h) / Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0)) : 0; };
+  const out = A.slice();
+  for (const e of E) {
+    if (!/^[A-Za-z][A-Za-z'’\-]*[.,]?$/.test(e.t) || e.t.length < 2 || e.c < 55) continue;
+    const hits = out.filter(a => ov(a, e) > 0.45);
+    // 한글 자리는 그대로. 단, 사전에 있는 영어 낱말을 또렷하게 읽었으면 영어로 (한국어 전용 읽기는 영어를 한글처럼 읽기도 해서)
+    const lw = e.t.toLowerCase().replace(/[^a-z'\-]/g, '');
+    const good = e.c >= 75 && lw.length >= 3 && dict && dict.has(lw);
+    if (hits.some(a => HANGUL.test(a.t) && (!good || a.c >= e.c))) continue;
+    for (const a of hits) out.splice(out.indexOf(a), 1);
+    out.push(e);
+  }
+  return out;
+}
+// 낱말 → 줄 → (넓은 틈으로 나눈) 덩어리 → '영어 - 뜻' 줄들
+function ocrPairs(words, dict, slope = 0) {
+  // 기운 사진: 낱말 위치를 반듯하게 (세로 위치에서 기울기만큼 빼기)
+  if (slope) words = words.map(w => { const d = slope * (w.x0 + w.x1) / 2; return Object.assign({}, w, { y0: w.y0 - d, y1: w.y1 - d }); });
+  words = words.filter(w => !OCR_POS.test(w.t) && !/^[\d.)(\-–—•·:]+$/.test(w.t) && !(w.c < 25 && !HANGUL.test(w.t))
+    && !(/^[A-Za-z.]{1,2}$/.test(w.t) && w.c < 60));
+  if (!words.length) return [];
+  const hs = words.map(w => w.y1 - w.y0).sort((a, b) => a - b), h = hs[hs.length >> 1] || 20;
+  // 줄 만들기: 왼쪽부터, 바로 왼쪽 낱말과 높이가 이어지는 줄에 붙임 (사진이 조금 기울어도 됨)
+  const lines = [];
+  for (const w of words.slice().sort((a, b) => a.x0 - b.x0)) {
+    const yc = (w.y0 + w.y1) / 2;
+    let best = null, bd = 1e9;
+    for (const L of lines) { const last = L.w[L.w.length - 1], d = Math.abs(yc - (last.y0 + last.y1) / 2); if (d < h * 0.6 && w.x0 > last.x0 && w.x0 - last.x1 < h * 14 && d < bd) { bd = d; best = L; } }
+    if (best) best.w.push(w); else lines.push({ w: [w] });
+  }
+  // 덩어리: 낱말 사이가 글자 높이의 1.6배보다 넓으면 끊음
+  const segs = [];
+  for (const L of lines) {
+    let cur = null;
+    for (const w of L.w) {
+      if (cur && w.x0 - cur.x1 > h * 1.6) cur = null;
+      if (!cur) { cur = { w: [], x0: w.x0, x1: w.x1, y0: w.y0, y1: w.y1 }; segs.push(cur); }
+      cur.w.push(w); cur.x1 = Math.max(cur.x1, w.x1); cur.y0 = Math.min(cur.y0, w.y0); cur.y1 = Math.max(cur.y1, w.y1);
+    }
+  }
+  for (const s of segs) {
+    const ycs = s.w.map(w => (w.y0 + w.y1) / 2).sort((a, b) => a - b);
+    s.yc = ycs[ycs.length >> 1]; // 키 큰 글자 상자 하나에 흔들리지 않게 가운데값
+    s.t = s.w.map(w => w.t).join(' ').replace(/\s+([,.;])/g, '$1');
+    // 혼자 떨어진 흐릿한 한 글자(품사 표시를 한글로 잘못 읽은 것 등)는 뜻으로 쓰지 않음
+    if (s.w.length === 1 && /^[가-힣]$/.test(s.t) && s.w[0].c < 45) { s.kind = 'x'; continue; }
+    s.kind = HANGUL.test(s.t) ? (/[A-Za-z]{2,}/.test(s.t) ? 'mix' : 'ko') : isLat(s.t) && s.t.replace(/[^A-Za-z]/g, '').length >= 3 ? 'en' : 'x';
+  }
+  segs.sort((a, b) => a.yc - b.yc || a.x0 - b.x0);
+  const used = new Set(), out = [];
+  const SHORT = new Set(['a', 'an', 'to', 'of', 'in', 'on', 'up', 'by', 'at', 'as', 'be', 'do', 'go', 'it', 'so', 'no', 'or', 'if', 'off', 'out', 'for', 'with', 'one', 'sb', 'sth']);
+  const fixEn = t => {
+    const ws = t.split(/\s+/).map(x => /[A-Za-z]/.test(x) ? ocrFix(x, dict) : '').filter(Boolean);
+    while (ws.length > 1 && ws[0].length <= 2 && !SHORT.has(ws[0].toLowerCase())) ws.shift();
+    while (ws.length > 1 && ws[ws.length - 1].length <= 2 && !SHORT.has(ws[ws.length - 1].toLowerCase())) ws.pop();
+    return ws.join(' ');
+  };
+  // 같은 줄 오른쪽 뜻 → 없으면 바로 아래 뜻 (영어 단어와 왼쪽 끝이 비슷한 곳)
+  // 품사 표시(v. n.)를 한글 한 글자로 잘못 읽은 덩어리는 더 긴 뜻 덩어리가 있으면 건너뜀
+  const right = s => { const r = segs.filter(o => o !== s && !used.has(o) && o.kind === 'ko' && Math.abs(o.yc - s.yc) < h * 0.85 && o.x0 > s.x1 - h * 0.3).sort((a, b) => a.x0 - b.x0);
+    return r.length > 1 && r[0].t.replace(/[^가-힣]/g, '').length <= 1 ? r[1] : r[0]; };
+  const nextEnRight = (s, o) => segs.some(q => q !== s && q.kind === 'en' && Math.abs(q.yc - s.yc) < h * 0.7 && q.x0 > s.x1 && q.x0 < o.x0);
+  const below = s => segs.filter(o => !used.has(o) && o.kind === 'ko' && o.yc > s.yc + h * 0.5 && o.yc < s.yc + h * 2.6 && o.x0 > s.x0 - h * 2.5 && o.x0 < s.x0 + Math.max(h * 3, (s.x1 - s.x0) * 0.6)).sort((a, b) => a.yc - b.yc)[0];
+  for (const s of segs) {
+    if (used.has(s)) continue;
+    if (s.kind === 'mix') {
+      // 한 덩어리에 '영어 뜻 영어 뜻'이 이어지면 한글 뒤에 영어가 시작되는 곳에서 나눔
+      used.add(s);
+      const parts = []; let cur = [];
+      for (const w of s.w) { if (cur.length && /[A-Za-z]{2,}/.test(w.t) && !HANGUL.test(w.t) && cur.some(x => HANGUL.test(x.t))) { parts.push(cur); cur = []; } cur.push(w); }
+      if (cur.length) parts.push(cur);
+      for (const p of parts) {
+        const k = p.findIndex(x => HANGUL.test(x.t)); if (k <= 0) continue;
+        const en = fixEn(p.slice(0, k).map(x => x.t).join(' ')), ko = p.slice(k).map(x => x.t).join(' ').replace(/\s+([,.;])/g, '$1');
+        if (en) out.push({ t: en + ' - ' + ko, x: p[0].x0, y: (p[0].y0 + p[0].y1) / 2 });
+      }
+      continue;
+    }
+    if (s.kind !== 'en') continue;
+    let m = right(s);
+    if (m && nextEnRight(s, m)) m = null;
+    if (!m) m = below(s);
+    if (!m) continue;
+    used.add(s); used.add(m);
+    const en = fixEn(s.t);
+    if (en) out.push({ t: en + ' - ' + m.t, x: s.x0, y: s.yc });
+  }
+  // 읽는 순서: 왼쪽 단(칸)을 위에서 아래로 다 읽고 오른쪽 단으로
+  const pw = Math.max(...words.map(w => w.x1)) || 1, xs = out.map(o => o.x).sort((a, b) => a - b), cuts = [];
+  for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] > pw * 0.18) cuts.push((xs[i] + xs[i - 1]) / 2);
+  const col = x => cuts.filter(c => x > c).length;
+  return out.sort((a, b) => col(a.x) - col(b.x) || a.y - b.y).map(o => o.t);
 }
 // 읽은 글자 다듬기: 낱글자로 벌어진 한글 붙이기, 번호 지우기, 영어 줄 아래 뜻 줄 합치기
 function ocrTidy(text) {
@@ -4159,10 +4330,10 @@ function ocrTidy(text) {
   lines = lines.map(l => {
     const t = l.split(' '), out = [];
     for (let i = 0; i < t.length; i++) {
-      if (/^[가-힣]$/.test(t[i])) {
+      if (/^[가-힣][,.;]?$/.test(t[i])) {
         let j = i, s = '';
-        while (j < t.length && /^[가-힣]$/.test(t[j])) s += t[j++];
-        if (j - i >= 2) { if (j < t.length && /^[가-힣]/.test(t[j])) s += t[j++]; out.push(s); i = j - 1; continue; }
+        while (j < t.length && /^[가-힣][,.;]?$/.test(t[j])) { s += t[j++]; if (/[,.;]$/.test(s)) break; }
+        if (j - i >= 2) { if (!/[,.;]$/.test(s) && j < t.length && /^[가-힣]/.test(t[j])) s += t[j++]; out.push(s); i = j - 1; continue; }
       }
       out.push(t[i]);
     }
@@ -4172,7 +4343,6 @@ function ocrTidy(text) {
   const listy = numbered >= Math.max(2, lines.length * 0.3);
   lines = lines.map(l => {
     let m = l.replace(/^\(?\d{1,3}[.)]?\s*(?=[A-Za-z])/, '');
-    // 번호 목록인데 번호가 l·I·S 같은 글자로 잘못 읽힌 줄 ('limplement' → 'implement')
     if (listy && m === l) m = l.replace(/^[lI|S5]\s?(?=[a-z]{3})/, '');
     return m;
   });
@@ -4186,24 +4356,33 @@ function ocrTidy(text) {
 }
 // 예문·설명처럼 단어 줄이 아닌 것은 빼요
 const ocrRowOk = r => { const en = r.en.replace(/[^A-Za-z\s'~\-]/g, ' ').replace(/\s+/g, ' ').trim(); r.en = en; return en.length >= 2 && en.split(' ').length <= 4 && HANGUL.test(r.ko) && r.ko.length <= 40; };
+// 뜻에 섞여 들어온 영어 낱자·기호 정리
+const ocrKo = s => s.replace(/(^|\s)[A-Za-z|\\/_=+*#&%$@^]{1,2}(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
 async function mkRead() {
   if (!MK.images.length) return;
   const run = MK.run = {};
-  MK.err = ''; MK.step = 'reading'; OCR.i = 0; OCR.n = Math.min(OCR_MAX, MK.images.length); renderMake();
+  MK.err = ''; MK.step = 'reading'; OCR.i = 0; OCR.pass = 0; OCR.n = Math.min(OCR_MAX, MK.images.length); renderMake();
   ocrShow('글자 읽는 도구 준비 중', 0.03);
   try {
-    const w = await ocrWorker();
+    await ocrWorker();
+    const dict = await ocrDict();
     if (MK.run !== run) return;
-    let text = '';
+    const lines = [];
     for (let i = 0; i < OCR.n; i++) {
-      OCR.i = i; ocrShow(`사진 ${i + 1}/${OCR.n} 읽는 중`, 0.3 + 0.7 * i / OCR.n);
+      OCR.i = i; OCR.pass = 0; ocrShow(`사진 ${i + 1}/${OCR.n} 읽는 중`, 0.3 + 0.7 * i / OCR.n);
       const c = await ocrImage(MK.images[i].file);
       if (MK.run !== run) return;
-      const r = await w.recognize(c);
+      const r1 = await OCR.worker.recognize(c, {}, { text: true, blocks: true });
       if (MK.run !== run) return;
-      text += ((r && r.data && r.data.text) || '') + '\n';
+      OCR.pass = 1;
+      const r2 = await OCR.eng.recognize(c, {}, { blocks: true });
+      if (MK.run !== run) return;
+      const pairs = ocrPairs(ocrMerge(ocrWords(r1.data), ocrWords(r2.data), dict), dict, ocrSlope(r1.data, r2.data));
+      // 위치로 짝을 못 지으면 글자만으로
+      lines.push(...(pairs.length ? pairs : ocrTidy((r1.data && r1.data.text) || '').split('\n')));
     }
-    const tidy = ocrTidy(text), parsed = mkParse(tidy), rows = mkDedupe(parsed.filter(ocrRowOk));
+    const tidy = ocrTidy(lines.join('\n'));
+    const parsed = mkParse(tidy).map(r => Object.assign(r, { ko: ocrKo(r.ko) })), rows = mkDedupe(parsed.filter(ocrRowOk));
     MK.paste = tidy;
     const day = tidy.match(/\b(day|unit|lesson)\s*0*(\d{1,3})\b/i);
     if (day && !mkCleanKo(MK.name)) MK.name = day[1][0].toUpperCase() + day[1].slice(1).toLowerCase() + ' ' + day[2].padStart(2, '0');
@@ -4217,7 +4396,7 @@ async function mkRead() {
   } catch (e) {
     if (MK.run !== run) return;
     MK.step = 'pick';
-    MK.err = e && e.code === 'ocr_load' ? '글자 읽는 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요. (처음 한 번 약 8MB를 받아요)' : e && e.code === 'image_rejected' ? '사진을 열 수 없어요. JPG·PNG 사진으로 해 주세요.' : '사진을 읽지 못했어요. 다른 사진으로 하거나 단어를 직접 입력해 주세요.';
+    MK.err = e && e.code === 'ocr_load' ? '글자 읽는 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요. (처음 한 번 약 9MB를 받아요)' : e && e.code === 'image_rejected' ? '사진을 열 수 없어요. JPG·PNG 사진으로 해 주세요.' : '사진을 읽지 못했어요. 다른 사진으로 하거나 단어를 직접 입력해 주세요.';
     ocrStop();
   }
   MK.run = null;
