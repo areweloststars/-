@@ -613,6 +613,8 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mkrow button { width: 36px; height: 40px; border: 0; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; padding: 0; }
 .mkrow button svg { width: 16px; height: 16px; }
 .mkguess { grid-column: 1 / -1; margin-top: -3px; font-size: 11.5px; color: var(--pic); }
+.mkguess.bad { color: var(--bad); font-weight: 700; }
+.mkrow.flag input { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--surface2)); }
 .mkcount { margin: 10px 0 0; font-weight: 700; font-size: 14px; }
 .startbtn[disabled] { opacity: .45; cursor: not-allowed; box-shadow: 2px 2px 0 var(--frame); }
 .mkwait { display: flex; align-items: center; gap: 14px; margin: 12px 0; padding: 14px; background: var(--surface); border: 2px solid var(--line); border-radius: 16px; }
@@ -3797,7 +3799,8 @@ function deckRuntime(deck) {
     if (!w || typeof w !== 'object') continue;
     const ans = (Array.isArray(w.ans) ? w.ans : []).filter(g => g && Array.isArray(g.ok)).map(g => ({ t: String(g.t), ok: g.ok.map(String).filter(Boolean) })).filter(g => g.ok.length);
     if (!ans.length) continue; // 정답이 없는 단어는 깰 수 없으니 뺌
-    words[id] = Object.assign({}, w, { id, m: String(w.m || ans.map(g => g.t).join(', ')), ans });
+    // 화면·복습에 보일 뜻은 게임이 정답으로 받는 뜻으로 (사진 글자 오류가 남은 옛 단어장도 깔끔하게)
+    words[id] = Object.assign({}, w, { id, m: ans.map(g => g.t).join(', ') || String(w.m || ''), ans });
   }
   const has = id => Object.prototype.hasOwnProperty.call(words, id);
   (Array.isArray(deck.scenes) ? deck.scenes : []).forEach((s, i) => {
@@ -4005,7 +4008,7 @@ function mkPickHTML() {
 }
 function mkReviewHTML() {
   const n = mkValidRows().length;
-  const rows = MK.rows.map((r, i) => `<div class="mkrow" data-i="${i}"><input class="mken" value="${esc(r.en)}" placeholder="영어" aria-label="${i + 1}번 영어" autocapitalize="off" autocorrect="off" spellcheck="false"><input class="mkko" value="${esc(r.ko)}" placeholder="뜻 (쉼표로 여러 개)" aria-label="${i + 1}번 뜻"><button type="button" data-mk="rmrow" data-i="${i}" aria-label="${i + 1}번 지우기">${ICON.close}</button>${r.guess ? '<span class="mkguess">사진에 뜻이 없어 Claude가 채운 뜻</span>' : ''}${r.ko && !mkAnsFrom(null, mkCleanKo(r.ko)).length ? '<span class="mkguess">뜻을 한글이나 영어 글자로 써 주세요</span>' : ''}</div>`).join('');
+  const rows = MK.rows.map((r, i) => `<div class="mkrow${r.flag ? ' flag' : ''}" data-i="${i}"><input class="mken" value="${esc(r.en)}" placeholder="영어" aria-label="${i + 1}번 영어" autocapitalize="off" autocorrect="off" spellcheck="false"><input class="mkko" value="${esc(r.ko)}" placeholder="뜻 (쉼표로 여러 개)" aria-label="${i + 1}번 뜻"><button type="button" data-mk="rmrow" data-i="${i}" aria-label="${i + 1}번 지우기">${ICON.close}</button>${r.flag && OCR_FLAG[r.flag] ? `<span class="mkguess bad">⚠ ${OCR_FLAG[r.flag]}</span>` : ''}${r.guess ? '<span class="mkguess">사진에 뜻이 없어 Claude가 채운 뜻</span>' : ''}${r.ko && !mkAnsFrom(null, mkCleanKo(r.ko)).length ? '<span class="mkguess">뜻을 한글이나 영어 글자로 써 주세요</span>' : ''}</div>`).join('');
   const ok = n >= MK_MIN && n <= MK_MAX;
   return `
     ${MK.note ? `<p class="mknote">${esc(MK.note)}</p>` : ''}
@@ -4040,6 +4043,7 @@ function mkBindRows() {
   for (const inp of document.querySelectorAll('#make .mkrow input')) inp.addEventListener('input', () => {
     const i = +inp.closest('.mkrow').dataset.i, r = MK.rows[i]; if (!r) return;
     if (inp.classList.contains('mken')) r.en = inp.value; else { r.ko = inp.value; r.guess = false; }
+    if (r.flag) { r.flag = ''; const row = inp.closest('.mkrow'); row.classList.remove('flag'); const g = row.querySelector('.mkguess.bad'); if (g) g.remove(); }
     mkCountOnly();
   });
   const nm = $('#mkname'); if (nm) nm.addEventListener('input', () => { MK.name = nm.value; });
@@ -4091,7 +4095,7 @@ function mkDedupe(rows) {
       continue;
     }
     at.set(k, out.length);
-    out.push({ en, ko, pos: POS_KEYS.includes(r.pos) ? r.pos : 'x', guess: !!r.guess });
+    out.push({ en, ko, pos: POS_KEYS.includes(r.pos) ? r.pos : 'x', guess: !!r.guess, flag: r.flag || '' });
   }
   return out;
 }
@@ -4133,7 +4137,7 @@ function ocrWorker() {
   if (!OCR.loading) OCR.loading = (async () => {
     if (!window.Tesseract) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'ocr/tesseract.min.js'; s.onload = ok; s.onerror = () => no({ code: 'ocr_load' }); document.head.appendChild(s); });
     ocrShow('한국어·영어 글자 사전 불러오는 중', 0.08);
-    ocrDict();
+    ocrDict(); koLex();
     const [kor, eng2] = await Promise.all([ocrLang('kor'), ocrLang('eng')]);
     const [w, we] = await Promise.all([Tesseract.createWorker([kor], 1, ocrOpts()), Tesseract.createWorker([eng2], 1, ocrOpts())]);
     // 영어 전용 읽기는 11 = 흩어진 글자 찾기: 표·두 단 쪽에서도 영어 낱말을 빠짐없이 찾고, 줄·칸은 위치로 앱이 다시 짬
@@ -4356,6 +4360,47 @@ function ocrTidy(text) {
 const ocrRowOk = r => { const en = r.en.replace(/[^A-Za-z\s'~\-]/g, ' ').replace(/\s+/g, ' ').trim(); r.en = en; return en.length >= 2 && en.split(' ').length <= 4 && HANGUL.test(r.ko) && r.ko.length <= 40; };
 // 뜻에 섞여 들어온 영어 낱자·기호 정리
 const ocrKo = s => s.replace(/(^|\s)[A-Za-z|\\/_=+*#&%$@^]{1,2}(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
+
+/* ---------- 읽은 단어 점검: 영어 사전·한국어 낱말 목록(hunspell-ko + kengdic, 약 17만 개)으로 진짜 낱말인지 봐요 ---------- */
+const KO_END = ['하다', '하게', '하는', '하고', '한', '해서', '했다', '함', '하기', '되다', '되는', '된', '시키다', '받다', '적인', '적으로', '적', '스러운', '스럽게', '스럽다', '로운', '롭게', '롭다', '으로', '에게', '에서', '는', '은', '을', '를', '에', '와', '과', '의', '이', '가', '도', '게', '히', '기', '음', '다', '고'];
+let KOLEX = null;
+function koLex() {
+  if (!KOLEX) KOLEX = fetch(ocrURL('ocr/ko-lex.txt')).then(r => r.ok ? r.text() : '').then(t => new Set(t.split('\n').filter(Boolean))).catch(() => new Set());
+  return KOLEX;
+}
+function koWordOk(w, L) {
+  const c = w.charCodeAt(w.length - 1) - 0xAC00;
+  const cands = [w];
+  for (const e of KO_END) if (w.length > e.length && w.endsWith(e)) cands.push(w.slice(0, -e.length));
+  if (c >= 0 && c < 11172 && (c % 28 === 4 || c % 28 === 8)) cands.push(w.slice(0, -1) + String.fromCharCode(0xAC00 + c - c % 28)); // 받침 ㄴ·ㄹ 관형형 → 어간
+  return cands.some(s => (s.length >= 2 && L.has(s)) || L.has(s + '다') || L.has(s + '하다'));
+}
+// 뜻 한 덩어리 → 'ok' | 'one'(한 글자뿐: 확인 필요) | 'bad'(낱말이 아님)
+function koChunk(chunk, L) {
+  const core = chunk.replace(/\([^)]*\)/g, ' ').replace(/[^가-힣\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!core) return 'bad';
+  const ws = core.split(' ');
+  if (ws.length === 1 && ws[0].length === 1) return L.has(ws[0]) ? 'one' : 'bad';
+  const good = ws.filter(w => koWordOk(w, L)).length;
+  return good >= Math.max(1, ws.length * 0.6) ? 'ok' : 'bad';
+}
+// 짝지은 줄 점검: 엉터리 뜻 덩어리는 빼고, 의심스러운 줄에는 표시(flag)를 붙임. 쓸 수 없는 줄은 null
+function ocrCheckRow(r, dict, L) {
+  const enWords = r.en.toLowerCase().split(/\s+/).filter(Boolean);
+  const enOk = enWords.length && enWords.every(w => dict.has(w) || (w.length <= 3 && ['a', 'an', 'to', 'of', 'in', 'on', 'up', 'by', 'at', 'for', 'off', 'out', 'sb', 'sth'].includes(w)));
+  if (r.en.replace(/[^A-Za-z]/g, '').length < 3) return null; // 'jo', 'or' 같은 조각
+  // 괄호 짝 맞추기, 괄호 안 띄어쓰기 정리
+  let ko = r.ko.replace(/^[)\]]+|[(\[]+$/g, '').replace(/\(([^)]*)$/, '$1').replace(/^([^(]*)\)/, '$1').replace(/\(\s*([^)]*?)\s*\)/g, (a, x) => '(' + x.replace(/\s+/g, '') + ')').trim();
+  if (!L.size) return Object.assign(r, { ko, flag: enOk ? '' : 'en' });
+  const parts = ko.split(/\s*,\s*/).filter(Boolean), st = parts.map(p => koChunk(p, L));
+  const keep = parts.filter((p, i) => st[i] !== 'bad');
+  let flag = '';
+  if (!keep.length) { if (!enOk) return null; flag = 'ko'; }
+  else { ko = keep.join(', '); if (keep.length < parts.length) flag = 'drop'; else if (keep.length === 1 && st[parts.indexOf(keep[0])] === 'one') flag = 'one'; }
+  if (!enOk) flag = flag || 'en';
+  return Object.assign(r, { ko, flag });
+}
+const OCR_FLAG = { ko: '사진에서 뜻을 제대로 읽지 못했어요. 뜻을 고쳐 주세요', drop: '흐린 뜻 일부를 뺐어요. 빠진 뜻이 있으면 더해 주세요', one: '한 글자 뜻이에요. 맞는지 확인해 주세요', en: '사전에 없는 영어예요. 철자를 확인해 주세요' };
 async function mkRead() {
   if (!MK.images.length) return;
   const run = MK.run = {};
@@ -4381,7 +4426,9 @@ async function mkRead() {
       lines.push(...(pairs.length ? pairs : ocrTidy((r1.data && r1.data.text) || '').split('\n')));
     }
     const tidy = ocrTidy(lines.join('\n'));
-    const parsed = mkParse(tidy).map(r => Object.assign(r, { ko: ocrKo(r.ko) })), rows = mkDedupe(parsed.filter(ocrRowOk));
+    const L = await koLex();
+    const parsed = mkParse(tidy).map(r => Object.assign(r, { ko: ocrKo(r.ko) }));
+    const rows = mkDedupe(parsed.filter(ocrRowOk)).map(r => ocrCheckRow(r, dict, L)).filter(Boolean);
     MK.paste = tidy;
     const day = (raw + '\n' + tidy).match(/\b(day|unit|lesson)\s*0*(\d{1,3})\b/i);
     if (day && !mkCleanKo(MK.name)) MK.name = day[1][0].toUpperCase() + day[1].slice(1).toLowerCase() + ' ' + day[2].padStart(2, '0');
@@ -4390,7 +4437,8 @@ async function mkRead() {
       MK.err = '사진에서 ‘영어 단어 + 한글 뜻’ 줄을 찾지 못했어요. 아래 칸에 읽은 글자를 넣어 두었으니 고쳐서 ‘이 단어들로 확인하기’를 눌러 주세요.';
     } else {
       MK.rows = rows.slice(0, MK_MAX); MK.step = 'review';
-      MK.note = `사진에서 ${rows.length}단어를 읽었어요. 기기 안에서 읽어서 틀린 글자가 있을 수 있어요. 한 번 훑어보고 고쳐 주세요.` + (rows.length > MK_MAX ? ` 앞의 ${MK_MAX}개만 가져왔어요.` : '');
+      const nf = rows.filter(r => r.flag).length;
+      MK.note = `사진에서 ${rows.length}단어를 읽었어요.` + (nf ? ` 그중 ${nf}개는 빨간 칸으로 표시했어요. 꼭 확인하고 고쳐 주세요.` : ' 틀린 글자가 없는지 한 번 훑어봐 주세요.') + (rows.length > MK_MAX ? ` 앞의 ${MK_MAX}개만 가져왔어요.` : '');
     }
   } catch (e) {
     if (MK.run !== run) return;
@@ -4725,7 +4773,8 @@ function mkEpisode(key, title, epWords, rows, res) {
     if (!ans.length) continue;
     words[id] = {
       ipa: sstr(w.ipa, 60).replace(/^\/|\/$/g, ''), kr: sstr(w.kr, 30), pos: POS_KEYS.includes(w.pos) ? w.pos : r.pos,
-      m: r.ko, ans: ans.map(g => ({ t: g.t, ok: g.ok })),
+      // Claude가 뜻을 정리해 줬으면(사진 글자 오류를 고친 것) 그 뜻을 화면·복습 음성에 씀
+      m: w.ans && ans.length ? ans.map(g => g.t).join(', ') : r.ko, ans: ans.map(g => ({ t: g.t, ok: g.ok })),
       tip: sstr(w.tip, 160), ex: sstr(w.ex, 160), exKo: sstr(w.exKo, 160),
       pic: sstr(w.pic, 140) || `‘${id}’을(를) 떠올리게 하는 그림이에요.`,
       say: id.replace(/ A to-v$/, '').replace(/ ~$/, '')
@@ -4812,7 +4861,7 @@ ${wl}
 A. "lines": 이야기 자막 ${Math.min(9, ep.words.length + 2)}줄 안팎(한국어, 한 줄 45자 이내). 첫 줄은 이야기 시작(단어 없이). 그다음 줄부터 위 단어를 순서대로 한 줄에 정확히 하나씩 {영어단어|문장 속 한국어 뜻 표현} 모양으로 넣어(예: "새 왕은 무료 간식법을 {implement|시행했답니다}!"). 표시 안의 영어 단어는 위 철자 그대로. 마지막에 단어 없는 웃긴 마무리 한 줄을 넣어도 돼. 코믹하고 따뜻하고 건전하게, 장면이 눈에 그려지게.
 B. "words": 단어마다 객체 하나(키는 영어 단어 그대로):
  - "ipa": 미국식 발음기호(슬래시 없이), "kr": 한글 발음, "pos": n|v|a|d|p|x
- - "ans": 뜻 묶음 배열. 교재 뜻을 쉼표로 나눈 뜻 하나가 묶음 하나(괄호 속 말은 설명이니 묶음으로 나누지 마). 묶음 = [화면에 보일 뜻, 학생이 칠 만한 다른 표현들(어간, 띄어쓰기만 다른 형태, 아주 가까운 동의어)]. 예: [["시행하다","시행"],["실행하다","실행"]]. 다른 묶음의 말이 서로 포함되지 않게.
+ - "ans": 뜻 묶음 배열. 교재 뜻은 사진 글자 인식으로 읽은 것이라 깨진 글자(없는 낱말, 이상한 글자)가 섞일 수 있어. 깨져 보이면 그 영어 단어의 올바른 한국어 뜻으로 바로잡아. 교재 뜻을 쉼표로 나눈 뜻 하나가 묶음 하나(괄호 속 말은 설명이니 묶음으로 나누지 마). 묶음 = [화면에 보일 뜻, 학생이 칠 만한 다른 표현들(어간, 띄어쓰기만 다른 형태, 아주 가까운 동의어)]. 예: [["시행하다","시행"],["실행하다","실행"]]. 다른 묶음의 말이 서로 포함되지 않게.
  - "tip": 외우기 팁(어원이나 연상, 한국어 한 문장), "ex": 쉬운 영어 예문(단어를 [대괄호]로 감싸), "exKo": 예문 해석
  - "panel": 이 단어의 그림 칸 설계(아래 형식). 한 칸 = 이야기의 그 장면, 주인공 하나를 크게. "sign"은 장면 속 표지판·대사처럼 뜻을 떠올리게 하는 말(한국어 2줄 이내, 줄당 9자 이내). 정답 뜻을 그대로 쓰지는 마.
  - "pic": 그 그림 칸에 무엇이 있고 왜 이 뜻인지 1~2문장(90자 이내, 한국어)
@@ -5886,11 +5935,13 @@ async function svTTS(L, ms, after) {
   if (!live()) return;
   if (ok) after(); else SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0)));
 }
+// 복습 때 읽어 줄 뜻: 게임이 정답으로 받는 뜻(정리된 뜻) 그대로
+const meanSay = id => { const w = WORDS[id] || {}; const t = (w.ans || []).map(g => g.t).filter(Boolean).join(', '); return (t || String(w.m || '')).replace(/\([^)]*\)/g, '').trim(); };
 // 이야기 전체 문장과 단어 발음을 순서대로 미리 만들어 둠
 function voicePrefetch() {
   if (DECK.builtin || !Voice.ready('ko') || !SV.lines || !SV.lines.length) return;
   for (const L of SV.lines) {
-    if (L.recap) { if (L.word && WORDS[L.word]) Voice.synth(WORDS[L.word].m.replace(/\([^)]*\)/g, ''), 'ko-KR', SAVE.rate).catch(() => { }); }
+    if (L.recap) { if (L.word && WORDS[L.word]) Voice.synth(meanSay(L.word), 'ko-KR', SAVE.rate).catch(() => { }); }
     else if (L.plain) Voice.synth(L.plain, 'ko-KR', SAVE.rate).catch(() => { });
     if (L.word && Voice.ready('en')) Voice.synth(WORDS[L.word] && WORDS[L.word].say || shortW(L.word), 'en-US', Math.min(SAVE.rate, 1) * .85).catch(() => { });
   }
@@ -5907,7 +5958,7 @@ function svRecap(L, ms, after) {
   const live = () => tok === SV.tok;
   sayWord(L.word, wordRate())
     .then(() => live() && sleep(120))
-    .then(() => live() && (m ? Narr.play(m, SAVE.rate) : !DECK.builtin && canSpeak ? tts(WORDS[L.word].m.replace(/\([^)]*\)/g, ''), 'ko-KR', SAVE.rate) : sleep(900)))
+    .then(() => live() && (m ? Narr.play(m, SAVE.rate) : !DECK.builtin && canSpeak ? tts(meanSay(L.word), 'ko-KR', SAVE.rate) : sleep(900)))
     .then(() => live() && sleep(200))
     .then(() => { if (live()) after(); })
     .catch(e => { if (!live()) return; if (!(e && e.name === 'AbortError') && ++SV.failN >= 3) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });

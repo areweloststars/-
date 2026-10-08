@@ -11,3 +11,4 @@
 - Tesseract.js 5.1.1 (Apache-2.0), tesseract.js-core 5.1.1 (Apache-2.0), 한국어·영어 학습 데이터 tessdata 4.0.0_best_int (Apache-2.0).
   worker.min.js는 언어 데이터를 직접 넘길 때 생기는 버그 한 곳을 고쳤어요(t.data → t.code).
 - words-en.txt: SCOWL 영어 단어 목록(크기 70까지) — words-en-COPYRIGHT.txt 참고.
+- ko-lex.txt: 한국어 낱말 목록. hunspell-ko(npm dictionary-ko 2.0.0, GPL-2.0/LGPL-2.1/MPL-1.1)의 어간과 kengdic(MPL 2.0/LGPL)의 한국어 표제어를 모은 것. 읽은 뜻이 진짜 낱말인지 확인하는 데만 씀.
