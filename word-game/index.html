@@ -5275,8 +5275,8 @@ let ttsTok = 0;
 async function tts(text, lang, rate) {
   if (!text) throw new Error('no tts');
   const my = ++ttsTok;
-  // 고품질 목소리를 불러오는 중이면 잠깐(최대 4초) 기다림. 기기에 저장돼 있으면 보통 2~3초면 준비돼요
-  for (let i = 0; i < 20 && Voice.loading && !Voice.ready(lang) && my === ttsTok; i++) await sleep(200);
+  // 고품질 목소리를 불러오는 중이면 잠깐(최대 10초) 기다림. 기기에 저장돼 있으면 보통 몇 초면 준비돼요
+  for (let i = 0; i < 50 && Voice.loading && !Voice.ready(lang) && my === ttsTok; i++) await sleep(200);
   if (my !== ttsTok) throw { name: 'AbortError' };
   if (Voice.ready(lang)) {
     try {
@@ -5352,13 +5352,28 @@ const Narr = (() => {
     const c = ac();
     if (!c || c.state !== 'running') throw new Error('audio locked');
     if (!bufs[k]) bufs[k] = await new Promise((res, rej) => c.decodeAudioData(bytes(k).buffer, res, rej));
+    return playBuf(c, bufs[k], rate);
+  }
+  // 기기 안에서 만든 목소리(wav 주소)를 Web Audio로 재생 (<audio>가 막힌 앱 안 화면용)
+  const ubufs = new Map();
+  async function playUrlWA(u, rate) {
+    const c = ac();
+    if (!c || c.state !== 'running') throw new Error('audio locked');
+    if (!ubufs.has(u)) {
+      const ab = await (await fetch(u)).arrayBuffer();
+      ubufs.set(u, await new Promise((res, rej) => c.decodeAudioData(ab, res, rej)));
+      if (ubufs.size > 80) ubufs.delete(ubufs.keys().next().value);
+    }
+    return playBuf(c, ubufs.get(u), rate);
+  }
+  function playBuf(c, buf, rate) {
     return new Promise((res, rej) => {
       const s = c.createBufferSource();
-      s.buffer = bufs[k]; s.playbackRate.value = rate; s.connect(c.destination);
+      s.buffer = buf; s.playbackRate.value = rate; s.connect(c.destination);
       let done = false;
       const fin = (ok, err) => { if (done) return; done = true; clearTimeout(guard); if (src === s) src = null; if (cur === stopper) cur = null; ok ? res() : rej(err); };
       const stopper = () => { try { s.stop(); } catch (e) { } fin(false, { name: 'AbortError' }); };
-      const guard = setTimeout(() => fin(true), (bufs[k].duration / rate) * 1000 + 3000);
+      const guard = setTimeout(() => fin(true), (buf.duration / rate) * 1000 + 3000);
       s.onended = () => fin(true);
       cur = stopper; src = s;
       s.start();
@@ -5374,7 +5389,14 @@ const Narr = (() => {
     await playWA(k, rate);
   }
   // 기기 안에서 만든 목소리(wav 주소) 재생
-  function playUrl(u, rate = 1) { stop(); return playEl(null, rate, u); }
+  async function playUrl(u, rate = 1) {
+    stop();
+    if (mode === 'el') {
+      try { await playEl(null, rate, u); return; }
+      catch (e) { if (e && e.name === 'AbortError') throw e; mode = 'wa'; } // <audio>가 막히면 이후로는 Web Audio로
+    }
+    await playUrlWA(u, rate);
+  }
   return { unlock, play, playUrl, stop, setRate, has };
 })();
 
@@ -5715,7 +5737,7 @@ function buildPlayer() {
     ${scene ? '<button type="button" class="vbtn vfull" data-act="vfull" id="vfull"></button>' : ''}
     <div class="vsub" id="vsub" aria-live="polite"></div>
   </div>`);
-  SV.on = false; SV.busy = false; SV.i = 0; SV.ended = false; SV.narrFail = !DECK.builtin && !canSpeak && M.kind === 'scene';
+  SV.on = false; SV.busy = false; SV.i = 0; SV.ended = false; SV.failN = 0; SV.narrFail = !DECK.builtin && !canSpeak && M.kind === 'scene';
   if (!DECK.builtin) { // 고품질 목소리를 준비하고, 이야기 문장을 미리 만들어 둠 (읽는 중간에 끊기지 않게)
     if (!Voice.failed && !Voice.ready('ko')) { Voice.start(); toast('고품질 목소리를 준비하고 있어요 · 처음 한 번만 약 60MB를 받아요'); }
     voicePrefetch();
@@ -5849,12 +5871,20 @@ function svSpeak(i, L, ms, after) {
     .catch(fallback);
 }
 // 사진으로 만든 단어장: 자막을 기기 음성(한국어)으로 읽고, 단어는 영어로 한 번 더
-function svTTS(L, ms, after) {
+async function svTTS(L, ms, after) {
   const tok = SV.tok, t0 = Date.now(), live = () => tok === SV.tok;
-  tts(L.plain, 'ko-KR', SAVE.rate)
-    .then(() => live() && L.word ? sleep(120).then(() => live() && sayWord(L.word, SAVE.rate)) : null)
-    .then(() => { if (live()) after(); })
-    .catch(e => { if (!live()) return; if (!(e && e.name === 'AbortError')) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
+  let ok = true;
+  try { await tts(L.plain, 'ko-KR', SAVE.rate); SV.failN = 0; }
+  catch (e) {
+    if (e && e.name === 'AbortError') return;
+    ok = false;
+    if (++SV.failN >= 3) { SV.narrFail = true; svCtl(); } // 세 번 연달아 안 될 때만 자막으로 바꿈
+  }
+  if (!live()) return;
+  // 영어 단어 발음은 따로: 안 돼도 이야기는 계속
+  if (L.word && ok) { await sleep(120); if (!live()) return; try { await sayWord(L.word, SAVE.rate); } catch (e) { } }
+  if (!live()) return;
+  if (ok) after(); else SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0)));
 }
 // 이야기 전체 문장과 단어 발음을 순서대로 미리 만들어 둠
 function voicePrefetch() {
@@ -5880,7 +5910,7 @@ function svRecap(L, ms, after) {
     .then(() => live() && (m ? Narr.play(m, SAVE.rate) : !DECK.builtin && canSpeak ? tts(WORDS[L.word].m.replace(/\([^)]*\)/g, ''), 'ko-KR', SAVE.rate) : sleep(900)))
     .then(() => live() && sleep(200))
     .then(() => { if (live()) after(); })
-    .catch(e => { if (!live()) return; if (!(e && e.name === 'AbortError')) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
+    .catch(e => { if (!live()) return; if (!(e && e.name === 'AbortError') && ++SV.failN >= 3) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
 }
 function svShow(single) {
   if (!SP || !SV.lines.length) return;
