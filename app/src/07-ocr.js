@@ -384,7 +384,7 @@ function ocrRotate(c, slope) {
 }
 // 표제어: 다른 영어보다 크게(1.45배 이상) 쓰인, 쪽 왼쪽의 사전 낱말
 function ocrHeadwords(words, dict, W) {
-  // 굵은 표제어가 'barr' + 'ier'처럼 두 조각으로 읽히면 붙여 봄 (붙인 말이 사전에 있을 때만. 안 그러면 'barr'가 'bar'로 고쳐져 barrier를 잃어요)
+  // 굵은 표제어가 'harv' + 'est'처럼 두 조각으로 읽히면 붙여 봄 (붙인 말이 사전에 있을 때만. 안 그러면 앞 조각이 다른 짧은 낱말로 고쳐져 원래 단어를 잃어요)
   const glue = [];
   for (const a of words) for (const b of words) {
     if (a === b || !/^[A-Za-z]+$/.test(a.t) || !/^[A-Za-z]+[.,]?$/.test(b.t)) continue;
@@ -401,7 +401,7 @@ function ocrHeadwords(words, dict, W) {
     if (h < med * 1.35 || t.length < 3 || w.x0 > W * 0.35) continue;
     const fixed = dict.has(t) ? t : ocrFix(t, dict);
     if (!dict.has(fixed)) continue;
-    // 한 줄에 표제어는 하나. 같은 자리를 더 넓게 읽은 낱말이 있으면 그쪽('and'보다 'band')
+    // 한 줄에 표제어는 하나. 같은 자리를 더 넓게 읽은 낱말이 있으면 그쪽('art'보다 'cart')
     const same = out.findIndex(o => Math.abs((o.y0 + o.y1) / 2 - (w.y0 + w.y1) / 2) < h * 0.6);
     if (same >= 0) { const o = out[same]; if (w.x0 < o.x1 && w.x1 > o.x0 && (w.x1 - w.x0) > (o.x1 - o.x0) * 1.15) out[same] = Object.assign({}, w, { t: fixed }); continue; }
     out.push(Object.assign({}, w, { t: fixed }));
@@ -473,7 +473,7 @@ async function ocrDictPage(c, words, dict, L, run) {
       const top = Math.max(0, Math.round(Math.max(cy - hh * 1.1 + Math.min(0, drop), pv ? (pv.y0 + pv.y1) / 2 + Math.min(0, drop) : 0)));
       const bottom = Math.min(c.height, Math.round(Math.min(cy + hh * 1.6 + Math.max(0, drop), nx ? (nx.y0 + nx.y1) / 2 + Math.max(0, drop) : 1e9)));
       if (left >= c.width - 20 || bottom - top < 10) continue;
-      // 표제어도 따로 크게 잘라 한 낱말로 다시 읽음 ('barrier'를 'barrio'로 읽는 일 줄이기)
+      // 표제어도 따로 크게 잘라 한 낱말로 다시 읽음 (긴 표제어를 비슷한 다른 낱말로 읽는 일 줄이기)
       try {
         const pad = Math.round(hh * 0.25), hc = document.createElement('canvas'), sx = 2;
         hc.width = Math.round((hw.x1 - hw.x0 + pad * 2) * sx); hc.height = Math.round((hh + pad * 2) * sx);

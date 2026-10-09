@@ -24,7 +24,7 @@ test('Korean conjugation follows the irregular rules', () => {
 });
 
 test('part of speech is guessed from the Korean meaning (with English hints)', () => {
-  const cases = [['붕대', 'bandage', 'n'], ['묶다', 'bind', 'v'], ['용감한', 'brave', 'a'], ['고대의', 'ancient', 'a'], ['빠르게', 'quickly', 'd'], ['단지', 'merely', 'd'],
+  const cases = [['반창고', 'plaster', 'n'], ['묶다', 'tie', 'v'], ['용감한', 'brave', 'a'], ['고대의', 'ancient', 'a'], ['빠르게', 'quickly', 'd'], ['단지', 'merely', 'd'],
     ['그렇지 않으면', 'otherwise', 'd'], ['중요하다', 'important', 'a'], ['예방하다', 'prevent', 'v'], ['효과적인', 'effective', 'a'], ['제한', 'limit', 'n'], ['행운', 'luck', 'n'],
     ['큰', 'big', 'a'], ['가게', 'store', 'n'], ['회의', 'meeting', 'n'], ['공급', 'supply', 'n'], ['꺼리는', 'reluctant', 'a'], ['피할 수 없는', 'inevitable', 'a'], ['의심하다', 'suspect', 'v']];
   const got = P().json(`${JSON.stringify(cases)}.map(([m, en]) => koKind(m, en, 'x').kind)`);
@@ -33,9 +33,9 @@ test('part of speech is guessed from the Korean meaning (with English hints)', (
 
 // 일반 사전 뜻으로 만든 단어 목록 (명사·동사·형용사·부사·숙어가 섞임)
 const WORDS = [
-  ['barrier', '울타리, 장애물, 장벽'], ['bandage', '붕대(를 감다)'], ['bundle', '다발, 꾸러미'], ['bind', '묶다, 결속시키다'], ['bond', '유대, 결속'], ['band', '띠, 끈'], ['bar', '막대'],
+  ['fence', '울타리, 담장'], ['plaster', '반창고(를 붙이다)'], ['parcel', '소포, 꾸러미'], ['tie', '묶다, 매다'], ['friendship', '우정, 친분'], ['ribbon', '리본, 끈'], ['stick', '막대기'],
   ['explain', '설명하다'], ['ancient', '고대의'], ['quickly', '빠르게'], ['brave', '용감한'], ['decide', '결정하다'], ['carefully', '조심스럽게'], ['harvest', '수확'],
-  ['implement', '시행하다, 실행하다'], ['revenue', '수익'], ['postpone', '연기하다, 미루다'], ['reluctant', '꺼리는, 마지못한'], ['inevitable', '피할 수 없는'], ['abundant', '풍부한'], ['merely', '단지'],
+  ['carry out', '실행하다, 수행하다'], ['revenue', '수익'], ['postpone', '연기하다, 미루다'], ['reluctant', '꺼리는, 마지못한'], ['inevitable', '피할 수 없는'], ['abundant', '풍부한'], ['merely', '단지'],
   ['give up', '포기하다'], ['look forward to', '~을 고대하다'], ['in advance', '미리'], ['take part in', '~에 참가하다'], ['be about to', '막 ~하려 하다'], ['rather', '오히려, 꽤'], ['otherwise', '그렇지 않으면'],
   ['get along with', '~와 잘 지내다'], ['because of', '~ 때문에'], ['afford', '~할 여유가 있다'], ['curious', '호기심이 많은'], ['shiver', '떨다'], ['repair', '수리하다'], ['steal', '훔치다'],
   ['suspect', '의심하다, 용의자'], ['necessary', '필요한'], ['frighten', '겁먹게 하다'], ['citizen', '시민'], ['library', '도서관'], ['fear', '두려움'], ['deadline', '마감']
@@ -76,13 +76,13 @@ test('auto story: every word once, grammatical particles, no leftovers or repeat
 
 test('auto story: problems come before resolutions, meanings drive the scene', () => {
   const s = P().json(`(() => {
-    const rows = {}; for (const [en, ko] of [['bond', '유대, 결속'], ['bind', '묶다'], ['barrier', '울타리, 장애물']]) rows[en] = { en, ko, pos: 'x' };
-    const st = mkStory(['bond', 'bind', 'barrier'], rows, 0);
+    const rows = {}; for (const [en, ko] of [['friendship', '우정, 친분'], ['tie', '묶다'], ['fence', '울타리, 담장']]) rows[en] = { en, ko, pos: 'x' };
+    const st = mkStory(['friendship', 'tie', 'fence'], rows, 0);
     return { lines: st.lines, pic: Object.fromEntries(Object.entries(st.words).map(([k, w]) => [k, w.panel.subject.emoji || w.panel.subject.kind])) };
   })()`);
   const at = id => s.lines.findIndex(l => l.includes(`{${id}|`));
-  assert.ok(at('barrier') < at('bind') && at('bind') < at('bond'), s.lines.join('\n'));
-  assert.match(s.lines[at('barrier')], /가로막|넘으려고/);
-  assert.match(s.lines[at('bind')], /\{bind\|묶었어요\}/);
-  assert.deepEqual(s.pic, { bond: '🤝', bind: '🪢', barrier: '🚧' });
+  assert.ok(at('fence') < at('tie') && at('tie') < at('friendship'), s.lines.join('\n'));
+  assert.match(s.lines[at('fence')], /가로막|넘으려고/);
+  assert.match(s.lines[at('tie')], /\{tie\|묶었어요\}/);
+  assert.deepEqual(s.pic, { friendship: '🤝', tie: '🪢', fence: '🚧' });
 });

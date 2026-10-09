@@ -8,7 +8,7 @@ const { bootPage } = require('./page.cjs');
 const STORE_KEY = 'day02-voca-mission-v1';
 // 일반 사전 뜻으로 만든 연습용 단어 목록 (교재 내용 아님)
 const ROWS = [
-  ['bandage', '붕대', 'n'], ['barrier', '장벽, 장애물', 'n'], ['bundle', '다발, 꾸러미', 'n'], ['bind', '묶다', 'v'],
+  ['plaster', '반창고', 'n'], ['fence', '울타리, 담장', 'n'], ['parcel', '소포, 꾸러미', 'n'], ['tie', '묶다, 매다', 'v'],
   ['explain', '설명하다', 'v'], ['ancient', '고대의', 'a'], ['quickly', '빠르게', 'd'], ['brave', '용감한', 'a'],
   ['decide', '결정하다', 'v'], ['carefully', '조심스럽게', 'd'], ['harvest', '수확', 'n'], ['shiver', '떨다', 'v']
 ].map(([en, ko, pos]) => ({ en, ko, pos }));
@@ -96,29 +96,29 @@ test('OCR layout: pairs words with meanings on the same row or below, column by 
   try {
     const W = (t, x, y, c = 92, w = t.length * 14) => ({ t, x0: x, y0: y, x1: x + w, y1: y + 22, c });
     const words = [
-      W('1', 4, 10), W('bandage', 30, 10), W('n.', 150, 10), W('붕대', 190, 10),
-      W('2', 4, 60), W('barrier', 30, 60), W('장벽,', 190, 60), W('장애물', 250, 60),
-      W('3', 4, 110), W('bundle', 30, 110), W('다발', 34, 140), // 뜻이 아랫줄에 있는 사전식
+      W('1', 4, 10), W('garden', 30, 10), W('n.', 150, 10), W('정원', 190, 10),
+      W('2', 4, 60), W('fence', 30, 60), W('울타리,', 190, 60), W('담장', 250, 60),
+      W('3', 4, 110), W('parcel', 30, 110), W('소포', 34, 140), // 뜻이 아랫줄에 있는 사전식
       W('river', 520, 10), W('강', 640, 10), W('quickly', 520, 60), W('빠르게', 640, 60)
     ];
-    const dict = [['bandage', 1], ['barrier', 2], ['bundle', 3], ['river', 4], ['quickly', 5]];
+    const dict = [['garden', 1], ['fence', 2], ['parcel', 3], ['river', 4], ['quickly', 5]];
     const rows = p.json(`ocrPairs(${JSON.stringify(words)}, new Map(${JSON.stringify(dict)}))`);
-    assert.deepEqual(rows, ['bandage - 붕대', 'barrier - 장벽, 장애물', 'bundle - 다발', 'river - 강', 'quickly - 빠르게']);
+    assert.deepEqual(rows, ['garden - 정원', 'fence - 울타리, 담장', 'parcel - 소포', 'river - 강', 'quickly - 빠르게']);
     // 확인 화면용 '사진 속 원래 줄' 상자: 영어 단어와 뜻을 함께 감쌈 (기울기를 펴도 원래 위치로)
     const boxes = p.json(`(() => { OCR.boxes = new Map(); ocrPairs(${JSON.stringify(words)}, new Map(${JSON.stringify(dict)}), 0.01); const b = Object.fromEntries(OCR.boxes); OCR.boxes = null; return b; })()`);
-    assert.deepEqual(Object.keys(boxes).sort(), ['bandage', 'barrier', 'bundle', 'quickly', 'river']);
-    assert.deepEqual(boxes.barrier, { x0: 30, y0: 60, x1: 292, y1: 82 });
-    assert.deepEqual(boxes.bundle, { x0: 30, y0: 110, x1: 114, y1: 162 });
-    // 사전 한 글자 차이 고치기: 'barrler' → 'barrier'
-    assert.equal(p.json(`ocrFix('barrler', new Map(${JSON.stringify(dict)}))`), 'barrier');
+    assert.deepEqual(Object.keys(boxes).sort(), ['fence', 'garden', 'parcel', 'quickly', 'river']);
+    assert.deepEqual(boxes.fence, { x0: 30, y0: 60, x1: 278, y1: 82 });
+    assert.deepEqual(boxes.parcel, { x0: 30, y0: 110, x1: 114, y1: 162 });
+    // 잘 헷갈리는 글자 고치기: 'fenee' → 'fence'
+    assert.equal(p.json(`ocrFix('fenee', new Map(${JSON.stringify(dict)}))`), 'fence');
   } finally { p.close(); }
 });
 
 test('typed list parser reads numbered, colon, tab and Korean-first lines', () => {
   const p = bootPage();
   try {
-    const rows = p.json(`mkParse(${JSON.stringify('1. bandage - 붕대\nbarrier: 장벽, 장애물\nbundle\t다발\n묶다 bind\n그냥 메모')}).map(r => r.en + '=' + r.ko)`);
-    assert.deepEqual(rows, ['bandage=붕대', 'barrier=장벽, 장애물', 'bundle=다발', 'bind=묶다']);
+    const rows = p.json(`mkParse(${JSON.stringify('1. garden - 정원\nfence: 울타리, 담장\nparcel\t소포\n묶다 tie\n그냥 메모')}).map(r => r.en + '=' + r.ko)`);
+    assert.deepEqual(rows, ['garden=정원', 'fence=울타리, 담장', 'parcel=소포', 'tie=묶다']);
   } finally { p.close(); }
 });
 
