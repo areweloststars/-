@@ -104,6 +104,11 @@ test('OCR layout: pairs words with meanings on the same row or below, column by 
     const dict = [['bandage', 1], ['barrier', 2], ['bundle', 3], ['river', 4], ['quickly', 5]];
     const rows = p.json(`ocrPairs(${JSON.stringify(words)}, new Map(${JSON.stringify(dict)}))`);
     assert.deepEqual(rows, ['bandage - 붕대', 'barrier - 장벽, 장애물', 'bundle - 다발', 'river - 강', 'quickly - 빠르게']);
+    // 확인 화면용 '사진 속 원래 줄' 상자: 영어 단어와 뜻을 함께 감쌈 (기울기를 펴도 원래 위치로)
+    const boxes = p.json(`(() => { OCR.boxes = new Map(); ocrPairs(${JSON.stringify(words)}, new Map(${JSON.stringify(dict)}), 0.01); const b = Object.fromEntries(OCR.boxes); OCR.boxes = null; return b; })()`);
+    assert.deepEqual(Object.keys(boxes).sort(), ['bandage', 'barrier', 'bundle', 'quickly', 'river']);
+    assert.deepEqual(boxes.barrier, { x0: 30, y0: 60, x1: 292, y1: 82 });
+    assert.deepEqual(boxes.bundle, { x0: 30, y0: 110, x1: 114, y1: 162 });
     // 사전 한 글자 차이 고치기: 'barrler' → 'barrier'
     assert.equal(p.json(`ocrFix('barrler', new Map(${JSON.stringify(dict)}))`), 'barrier');
   } finally { p.close(); }

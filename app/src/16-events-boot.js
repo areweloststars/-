@@ -66,7 +66,12 @@ function bindEvents() {
     if (chip && SP) {
       Sound.unlock(); Narr.unlock();
       const id = chip.dataset.id;
-      if (M.kind === 'scene') svOne(SV.lines.findIndex(l => l.word === id));
+      if (M.kind === 'scene') {
+        const i = SV.lines.findIndex(l => l.word === id);
+        // 지금 읽어 주는 단어를 한 번 더 누르면 멈춤
+        if (SV.busy && !SV.on && SV.i === i) { svPause(); return; }
+        svOne(i);
+      }
       else svWord(id);
       return;
     }

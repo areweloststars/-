@@ -3,7 +3,7 @@
    ③ 글자 위치로 줄·칸을 다시 짜서 '영어 → 오른쪽이나 바로 아래 한글 뜻'으로 짝짓기 (두 단(칸) 쪽, 한 줄에 두 단어도)
    ④ 영어 사전(SCOWL 약 11만 단어)으로 잘못 읽은 글자 고치기 ---------- */
 const OCR_MAX = 10;
-const OCR = { worker: null, eng: null, loading: null, i: 0, n: 1, dict: null, low: new Set() };
+const OCR = { worker: null, eng: null, loading: null, i: 0, n: 1, dict: null, low: new Set(), boxes: null };
 const ocrURL = p => new URL(p, location.href).href;
 function ocrShow(label, pct) {
   const bar = $('#ocrbar'), lab = $('#ocrlab');
@@ -152,7 +152,7 @@ function ocrMerge(A, E, dict) {
 // 낱말 → 줄 → (넓은 틈으로 나눈) 덩어리 → '영어 - 뜻' 줄들
 function ocrPairs(words, dict, slope = 0) {
   // 기운 사진: 낱말 위치를 반듯하게 (세로 위치에서 기울기만큼 빼기)
-  if (slope) words = words.map(w => { const d = slope * (w.x0 + w.x1) / 2; return Object.assign({}, w, { y0: w.y0 - d, y1: w.y1 - d }); });
+  if (slope) words = words.map(w => { const d = slope * (w.x0 + w.x1) / 2; return Object.assign({}, w, { y0: w.y0 - d, y1: w.y1 - d, _o: w }); });
   // '설명하다'가 '설 / 명 / 하다'로 쪼개 읽히면 가운데 '명'은 품사 표시가 아니라 낱말의 한 글자: 바로 왼쪽에 붙은 한글이 있으면 남김
   const hs0 = words.map(w => w.y1 - w.y0).sort((a, b) => a - b), h0 = hs0[hs0.length >> 1] || 20;
   const glued = w => /^[명동형부]$/.test(w.t) && words.some(o => o !== w && HANGUL.test(o.t) && Math.abs((o.y0 + o.y1) / 2 - (w.y0 + w.y1) / 2) < h0 * 0.5 && w.x0 - o.x1 > -3 && w.x0 - o.x1 < h0 * 0.6);
@@ -216,7 +216,7 @@ function ocrPairs(words, dict, slope = 0) {
       for (const p of parts) {
         const k = p.findIndex(x => HANGUL.test(x.t)); if (k <= 0) continue;
         const en = fixEn(p.slice(0, k).map(x => x.t).join(' ')), ko = p.slice(k).map(x => x.t).join(' ').replace(/\s+([,.;])/g, '$1');
-        if (en) out.push({ t: en + ' - ' + ko, x: p[0].x0, y: (p[0].y0 + p[0].y1) / 2 });
+        if (en) out.push({ t: en + ' - ' + ko, x: p[0].x0, y: (p[0].y0 + p[0].y1) / 2, b: ocrBox(p) });
       }
       continue;
     }
@@ -227,13 +227,36 @@ function ocrPairs(words, dict, slope = 0) {
     if (!m) continue;
     used.add(s); used.add(m);
     const en = fixEn(s.t);
-    if (en) out.push({ t: en + ' - ' + m.t, x: s.x0, y: s.yc });
+    if (en) out.push({ t: en + ' - ' + m.t, x: s.x0, y: s.yc, b: ocrBox([...s.w, ...m.w]) });
   }
   // 읽는 순서: 왼쪽 단(칸)을 위에서 아래로 다 읽고 오른쪽 단으로
   const pw = Math.max(...words.map(w => w.x1)) || 1, xs = out.map(o => o.x).sort((a, b) => a - b), cuts = [];
   for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] > pw * 0.18) cuts.push((xs[i] + xs[i - 1]) / 2);
   const col = x => cuts.filter(c => x > c).length;
+  if (OCR.boxes) for (const o of out) ocrKeepBox(o.t, o.b);
   return out.sort((a, b) => col(a.x) - col(b.x) || a.y - b.y).map(o => o.t);
+}
+// 확인 화면에 보여 줄 '사진 속 원래 줄' 위치: 낱말 상자들을 감싸는 상자 (기울기를 펴기 전의 원래 위치로)
+function ocrBox(ws) {
+  const o = ws.map(w => w._o || w);
+  return { x0: Math.min(...o.map(w => w.x0)), y0: Math.min(...o.map(w => w.y0)), x1: Math.max(...o.map(w => w.x1)), y1: Math.max(...o.map(w => w.y1)) };
+}
+function ocrKeepBox(line, b) {
+  const en = String(line).split(' - ')[0].trim().toLowerCase();
+  if (en && b && isFinite(b.x0) && !OCR.boxes.has(en)) OCR.boxes.set(en, b);
+}
+// 사진에서 그 줄만 작게 잘라 낸 그림 (화면에만 보여 주고 단어장에는 저장하지 않아요)
+function ocrSnip(c, b) {
+  try {
+    const pad = Math.max(6, (b.y1 - b.y0) * 0.35);
+    const x = Math.max(0, b.x0 - pad), y = Math.max(0, b.y0 - pad);
+    const w = Math.min(c.width - x, b.x1 - b.x0 + pad * 2), h = Math.min(c.height - y, b.y1 - b.y0 + pad * 2);
+    if (w < 8 || h < 8) return '';
+    const k = Math.min(1, 96 / h, 900 / w), o = document.createElement('canvas');
+    o.width = Math.max(1, Math.round(w * k)); o.height = Math.max(1, Math.round(h * k));
+    o.getContext('2d').drawImage(c, x, y, w, h, 0, 0, o.width, o.height);
+    return o.toDataURL('image/jpeg', 0.72);
+  } catch (e) { return ''; }
 }
 // 읽은 글자 다듬기: 낱글자로 벌어진 한글 붙이기, 번호 지우기, 영어 줄 아래 뜻 줄 합치기
 function ocrTidy(text) {
@@ -488,7 +511,8 @@ async function ocrDictPage(c, words, dict, L, run) {
           if (closest !== i) continue;
           const conf = clamp((+ln.confidence || 50) / 100, 0.2, 1);
           const sc = Math.min(8, ms.join('').length) * conf - Math.max(0, Math.abs(ly - ey) - hh * 0.5) / hh * 6 - (ms.fix || 0) * 0.5 - (ms.loose || 0) * 1.5;
-          cands.push({ sc, ms, conf });
+          const lb = ln.bbox || bb;
+          cands.push({ sc, ms, conf, b: { x0: lb.x0 / cs + left, y0: lb.y0 / cs + top, x1: lb.x1 / cs + left, y1: lb.y1 / cs + top } });
         }
       }
       // 여러 번 읽어서 같은 뜻이 또 나오면 믿을 만한 뜻 (한 번만 나온 뜻은 잘못 읽었을 가능성이 커요)
@@ -496,6 +520,7 @@ async function ocrDictPage(c, words, dict, L, run) {
       for (const cd of cands) { const v = cd.ms.reduce((a, m) => a + (votes.get(m) - 1), 0); cd.sc += v * 3; if (!best || cd.sc > best.sc) best = cd; }
       if (best) {
         rows.push(hw.t + ' - ' + best.ms.join(', '));
+        if (OCR.boxes) ocrKeepBox(hw.t, ocrBox([hw, best.b]));
         if (best.conf < 0.5 || (hw.c || 0) < 85) OCR.low.add(hw.t); // 흐리게 읽힌 줄: 확인 화면에서 빨간 칸
       }
       ocrShow('', 0.3 + 0.7 * (OCR.i + 0.6 + 0.4 * (i + 1) / heads.length) / OCR.n);
@@ -512,8 +537,10 @@ async function mkRead() {
     await ocrWorker();
     const dict = await ocrDict();
     if (MK.run !== run) return;
-    const lines = []; let raw = '';
+    const lines = [], snips = new Map(); let raw = '';
+    const slowT = setTimeout(() => { const s = $('#ocrslow'); if (s && MK.run === run) s.hidden = false; }, 75000);
     for (let i = 0; i < OCR.n; i++) {
+      OCR.boxes = new Map();
       OCR.i = i; OCR.pass = 0; ocrShow(`사진 ${i + 1}/${OCR.n} 읽는 중`, 0.3 + 0.7 * i / OCR.n);
       let c = await ocrImage(MK.images[i].file);
       if (MK.run !== run) return;
@@ -534,20 +561,26 @@ async function mkRead() {
       }
       OCR.pass = 1;
       raw += ((r2.data && r2.data.text) || '') + '\n';
+      const keepSnips = () => { for (const [en, b] of OCR.boxes) if (!snips.has(en)) { const u = ocrSnip(c, b); if (u) snips.set(en, u); } };
       const dictRows = await ocrDictPage(c, ocrWords(r2.data), dict, await koLex(), run);
       if (MK.run !== run) return;
-      if (dictRows) { lines.push(...dictRows); continue; }
+      if (dictRows) { keepSnips(); lines.push(...dictRows); continue; }
       const r1 = await OCR.worker.recognize(c, {}, { text: true, blocks: true });
       if (MK.run !== run) return;
       raw += ((r1.data && r1.data.text) || '') + '\n';
+      OCR.boxes = new Map();
       const pairs = ocrPairs(ocrMerge(ocrWords(r1.data), ocrWords(r2.data), dict), dict, ocrSlope(r1.data, r2.data));
+      keepSnips();
       // 위치로 짝을 못 지으면 글자만으로
       lines.push(...(pairs.length ? pairs : ocrTidy((r1.data && r1.data.text) || '').split('\n')));
     }
     const tidy = ocrTidy(lines.join('\n'));
     const L = await koLex();
     const parsed = mkParse(tidy).map(r => Object.assign(r, { ko: ocrKo(r.ko) }));
+    clearTimeout(slowT); OCR.boxes = null;
     const rows = mkDedupe(parsed.filter(ocrRowOk)).map(r => ocrCheckRow(r, dict, L)).filter(Boolean);
+    // 확인 화면: 줄마다 사진 속 원래 줄을 함께 보여 줌 (영어 단어로 찾음)
+    for (const r of rows) { const k = r.en.toLowerCase(); r.snip = snips.get(k) || snips.get(k.split(' ')[0]) || ''; }
     MK.paste = tidy;
     const day = (raw + '\n' + tidy).match(/\b(day|unit|lesson)\s*0*(\d{1,3})\b/i);
     if (day && !mkCleanKo(MK.name)) MK.name = day[1][0].toUpperCase() + day[1].slice(1).toLowerCase() + ' ' + day[2].padStart(2, '0');
@@ -561,6 +594,7 @@ async function mkRead() {
       MK.note = `사진에서 ${rows.length}단어를 읽었어요.` + (nf ? ` 그중 ${nf}개는 빨간 칸으로 표시했어요. 꼭 확인하고 고쳐 주세요.` : ' 틀린 글자가 없는지 한 번 훑어봐 주세요.') + (rows.length > MK_MAX ? ` 앞의 ${MK_MAX}개만 가져왔어요.` : '');
     }
   } catch (e) {
+    OCR.boxes = null;
     if (MK.run !== run) return;
     MK.step = 'pick';
     MK.err = e && e.code === 'ocr_load' ? '글자 읽는 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요. (처음 한 번 약 9MB를 받아요)' : e && e.code === 'image_rejected' ? '사진을 열 수 없어요. JPG·PNG 사진으로 해 주세요.' : '사진을 읽지 못했어요. 다른 사진으로 하거나 단어를 직접 입력해 주세요.';

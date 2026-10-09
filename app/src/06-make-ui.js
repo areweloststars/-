@@ -53,7 +53,7 @@ function renderMake() {
   const head = `<div class="topbar"><button type="button" class="iconbtn" data-mk="home" aria-label="미션 목록으로">${ICON.back}</button><span class="toplab">${MK.step === 'art' ? 'DRAW PICTURES' : 'NEW WORD BOOK'}</span></div><h2 class="stitle">${MK.step === 'art' ? '그림 꾸미기' : '사진으로 새 단어장 만들기'}</h2>`;
   let body = '';
   if (MK.step === 'pick') body = mkPickHTML();
-  else if (MK.step === 'reading') body = `<div class="mkwait ocr"><div class="spin" aria-hidden="true"></div><p><b>사진 속 단어를 읽고 있어요</b><br><small id="ocrlab">글자 읽는 도구 준비 중</small></p><button type="button" class="btn" data-mk="stop">그만두기</button><div class="ocrbar" aria-hidden="true"><i id="ocrbar"></i></div></div><p class="mksmall">사진은 이 기기 안에서만 읽어요. 어디에도 보내지 않아요.</p>`;
+  else if (MK.step === 'reading') body = `<div class="mkwait ocr"><div class="spin" aria-hidden="true"></div><p><b>사진 속 단어를 읽고 있어요</b><br><small id="ocrlab">글자 읽는 도구 준비 중</small></p><button type="button" class="btn" data-mk="stop">그만두기</button><div class="ocrbar" aria-hidden="true"><i id="ocrbar"></i></div></div><p class="mksmall mkslow" id="ocrslow" hidden>오래 걸리고 있어요. 사진이 흐리거나 기울었으면 ‘그만두기’를 누르고 더 밝고 가깝게 다시 찍어 보세요. 단어를 직접 입력해도 돼요.</p><p class="mksmall">사진은 이 기기 안에서만 읽어요. 어디에도 보내지 않아요.</p>`;
   else if (MK.step === 'art') body = MK.art && MK.art.sel ? arEditHTML() : arGridHTML();
   else if (MK.step === 'review') body = mkReviewHTML();
   else if (MK.step === 'making') body = mkMakingHTML();
@@ -86,11 +86,11 @@ function mkPickHTML() {
 }
 function mkReviewHTML() {
   const n = mkValidRows().length;
-  const rows = MK.rows.map((r, i) => `<div class="mkrow${r.flag ? ' flag' : ''}" data-i="${i}"><input class="mken" value="${esc(r.en)}" placeholder="영어" aria-label="${i + 1}번 영어" autocapitalize="off" autocorrect="off" spellcheck="false"><input class="mkko" value="${esc(r.ko)}" placeholder="뜻 (쉼표로 여러 개)" aria-label="${i + 1}번 뜻"><button type="button" data-mk="rmrow" data-i="${i}" aria-label="${i + 1}번 지우기">${ICON.close}</button>${r.flag && OCR_FLAG[r.flag] ? `<span class="mkguess bad">⚠ ${OCR_FLAG[r.flag]}</span>` : ''}${r.guess ? '<span class="mkguess">사진에 뜻이 없어 Claude가 채운 뜻</span>' : ''}${r.ko && !mkAnsFrom(null, mkCleanKo(r.ko)).length ? '<span class="mkguess">뜻을 한글이나 영어 글자로 써 주세요</span>' : ''}</div>`).join('');
+  const rows = MK.rows.map((r, i) => `<div class="mkrow${r.flag ? ' flag' : ''}" data-i="${i}"><input class="mken" value="${esc(r.en)}" placeholder="영어" aria-label="${i + 1}번 영어" autocapitalize="off" autocorrect="off" spellcheck="false"><input class="mkko" value="${esc(r.ko)}" placeholder="뜻 (쉼표로 여러 개)" aria-label="${i + 1}번 뜻"><button type="button" data-mk="rmrow" data-i="${i}" aria-label="${i + 1}번 지우기">${ICON.close}</button>${r.snip ? `<img class="mksnip" src="${r.snip}" alt="${i + 1}번 줄의 사진 속 원래 모습">` : ''}${r.flag && OCR_FLAG[r.flag] ? `<span class="mkguess bad">⚠ ${OCR_FLAG[r.flag]}</span>` : ''}${r.guess ? '<span class="mkguess">사진에 뜻이 없어 Claude가 채운 뜻</span>' : ''}${r.ko && !mkAnsFrom(null, mkCleanKo(r.ko)).length ? '<span class="mkguess">뜻을 한글이나 영어 글자로 써 주세요</span>' : ''}</div>`).join('');
   const ok = n >= MK_MIN && n <= MK_MAX;
   return `
     ${MK.note ? `<p class="mknote">${esc(MK.note)}</p>` : ''}
-    <p class="mksmall">잘못 읽은 글자가 있으면 고쳐 주세요. <b>뜻이 여러 개면 쉼표로</b> 나눠요. 게임에서는 쉼표로 나눈 뜻을 <b>모두</b> 써야 정답이에요.</p>
+    <p class="mksmall">잘못 읽은 글자가 있으면 고쳐 주세요. <b>뜻이 여러 개면 쉼표로</b> 나눠요. 게임에서는 쉼표로 나눈 뜻을 <b>모두</b> 써야 정답이에요.${MK.rows.some(r => r.snip) ? ' 줄마다 아래에 사진 속 원래 줄을 함께 보여 줘요(이 화면에만 보이고 저장하지 않아요).' : ''}</p>
     <label class="mklab">단어장 이름<input id="mkname" value="${esc(MK.name)}" maxlength="24" placeholder="예) Day 03 단어"></label>
     <div class="mkrows">${rows}</div>
     <button type="button" class="linkbtn" data-mk="addrow">＋ 단어 추가</button>
