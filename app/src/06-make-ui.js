@@ -65,6 +65,7 @@ function mkPickHTML() {
   const thumbs = MK.images.map((im, i) => `<div class="mkimg"><img src="${im.url}" alt="고른 사진 ${i + 1}"><button type="button" data-mk="rmimg" data-i="${i}" aria-label="사진 ${i + 1} 빼기">${ICON.close}</button></div>`).join('');
   return `
     <ol class="mksteps"><li><b>사진</b> 단어장 쪽을 찍어요</li><li><b>확인</b> 읽은 단어와 뜻을 고쳐요</li><li><b>완성</b> 그림·미션이 바로 생겨요</li></ol>
+    <p class="mksmall mkcopy">사진과 읽은 단어는 이 기기에만 저장되고 어디에도 올리지 않아요. 교재 내용은 출판사의 저작물이라, 직접 가진 교재로 혼자 공부할 때만 쓰고 만든 단어장을 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
     <div class="mkpick">
       <label class="btn good mkbtn">${ICON.camera}<span>사진 찍기</span><input class="mkfile" type="file" accept="image/*" capture="environment" data-mkfile="1" aria-label="사진 찍기"></label>
       <label class="btn mkbtn">${ICON.pic}<span>앨범에서 고르기</span><input class="mkfile" type="file" accept="image/*" multiple data-mkfile="1" aria-label="앨범에서 고르기"></label>
@@ -79,8 +80,8 @@ function mkPickHTML() {
     </details>
     ${MK.images.length ? `<div class="mkimgs">${thumbs}</div><p class="mksmall">사진 ${MK.images.length}장 · 한 번에 ${OCR_MAX}장까지</p><button type="button" class="startbtn" data-mk="read">${ICON.play}사진 속 단어 읽기</button>` : '<p class="mksmall">‘영어 단어 + 한글 뜻’이 한 줄씩 나란히 있는 쪽을 <b>똑바로, 밝게</b> 찍으면 가장 잘 읽어요. 사진은 이 기기 안에서 읽고, 따로 API나 로그인이 필요 없어요.</p>'}
     <details class="mkpaste"${MK.pasteOpen ? ' open' : ''}><summary>${ICON.pen}단어 직접 입력·붙여넣기</summary>
-      <p class="mksmall">한 줄에 하나씩 <b>영어 - 뜻</b> 모양으로 써요. 뜻이 여러 개면 쉼표로 나눠요.<br>예) implement - 시행하다, 실행하다</p>
-      <textarea id="mkpaste" rows="7" placeholder="implement - 시행하다, 실행하다&#10;flaw - 결함">${esc(MK.paste)}</textarea>
+      <p class="mksmall">한 줄에 하나씩 <b>영어 - 뜻</b> 모양으로 써요. 뜻이 여러 개면 쉼표로 나눠요.<br>예) explore - 탐험하다, 조사하다</p>
+      <textarea id="mkpaste" rows="7" placeholder="explore - 탐험하다, 조사하다&#10;harvest - 수확">${esc(MK.paste)}</textarea>
       <button type="button" class="btn" data-mk="parse">이 단어들로 확인하기</button>
     </details>`;
 }
@@ -112,6 +113,7 @@ function mkDoneHTML() {
     <p><b>${esc(d.name)}</b> — ${n}단어, 에피소드 ${d.scenes.length}개</p>
     <div class="mkthumbs">${d.scenes.map(s => `<div><img src="${'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">${genScene(d.panels[s.key] || [])}</svg>`)}" alt=""><span>${esc(s.title)}</span></div>`).join('')}</div>
     ${MK.saveNote ? `<p class="mksmall">${esc(MK.saveNote)}</p>` : ''}
+    <p class="mksmall">교재로 만든 단어장은 개인 공부용으로만 써 주세요. 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
     <button type="button" class="startbtn" data-mk="play">${ICON.play}이 단어장으로 게임 시작</button>
     <div class="ractions"><button type="button" class="btn" data-mk="art">${ICON.pen}그림 꾸미기</button></div></div>`;
 }

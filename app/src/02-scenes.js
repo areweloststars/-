@@ -52,8 +52,8 @@ function scDragon() {
   /* ---- 용 (왼쪽을 봄). 좌표는 키트 bigDragon과 같은 공간(x 296~640, y 30~340) ---- */
   const SC = { w: 22, h: 18, dx: 22, dy: 14, x0: 350, y0: 168 };
   const FR = 5, FC = 3;                       // 빠진 비늘: 5번째 줄, 3번째 칸
-  const flawXY = () => [SC.x0 + FC * SC.dx + (FR % 2 ? SC.dx / 2 : 0), SC.y0 + FR * SC.dy + SC.h * 0.55];
-  const FLAW = flawXY();
+  const holeXY = () => [SC.x0 + FC * SC.dx + (FR % 2 ? SC.dx / 2 : 0), SC.y0 + FR * SC.dy + SC.h * 0.55];
+  const HOLE = holeXY();
   function drg(o = {}) {
     let b = '';
     b += pth('M520 300C580 310 600 270 590 240C610 250 618 286 600 312C580 340 520 336 490 320Z', GRN, 3);
@@ -70,10 +70,10 @@ function scDragon() {
         const sx = SC.x0 + c * SC.dx + (r % 2 ? SC.dx / 2 : 0), hw = SC.w / 2, h = SC.h;
         const d = `M${sx - hw} ${sy}V${sy + 5}Q${sx - hw} ${sy + h} ${sx} ${sy + h}Q${sx + hw} ${sy + h} ${sx + hw} ${sy + 5}V${sy}Z`;
         const u = `M${sx - hw} ${sy + 5}Q${sx - hw} ${sy + h} ${sx} ${sy + h}Q${sx + hw} ${sy + h} ${sx + hw} ${sy + 5}`;
-        const isFlaw = o.flaw && r === FR && c === FC;
-        if (!isFlaw && !(inside(sx - hw, sy) && inside(sx + hw, sy) && inside(sx - hw, sy + 5) && inside(sx + hw, sy + 5) && inside(sx, sy + h))) continue;
-        if (o.only && !isFlaw) continue;
-        if (isFlaw) sc += pth(`M${sx - hw} ${sy + 3}Q${sx - hw} ${sy + h} ${sx} ${sy + h}Q${sx + hw} ${sy + h} ${sx + hw} ${sy + 3}Q${sx} ${sy - 3} ${sx - hw} ${sy + 3}Z`, SKIN_PINK, 0) +
+        const isHole = o.hole && r === FR && c === FC;
+        if (!isHole && !(inside(sx - hw, sy) && inside(sx + hw, sy) && inside(sx - hw, sy + 5) && inside(sx + hw, sy + 5) && inside(sx, sy + h))) continue;
+        if (o.only && !isHole) continue;
+        if (isHole) sc += pth(`M${sx - hw} ${sy + 3}Q${sx - hw} ${sy + h} ${sx} ${sy + h}Q${sx + hw} ${sy + h} ${sx + hw} ${sy + 3}Q${sx} ${sy - 3} ${sx - hw} ${sy + 3}Z`, SKIN_PINK, 0) +
           pth(`M${sx - hw} ${sy + 3}Q${sx - hw} ${sy + h} ${sx} ${sy + h}Q${sx + hw} ${sy + h} ${sx + hw} ${sy + 3}Q${sx} ${sy - 3} ${sx - hw} ${sy + 3}Z`, 'none', 0, { stroke: '#A63A55', 'stroke-width': 2, 'stroke-dasharray': '3 3', 'stroke-linecap': 'round' });
         else sc += pth(d, BELLY, 0) + pth(u, 'none', 0, { stroke: SCALE, 'stroke-width': 2, 'stroke-linecap': 'round' });
       }
@@ -132,7 +132,7 @@ function scDragon() {
     return b;
   }
 
-  /* ---- 0. upcoming: 성문 게시판 "D-1" ---- */
+  /* ---- 0. approach: 성문 게시판 "D-1" ---- */
   {
     const [, , w, h] = P[0];
     let b = '';
@@ -145,7 +145,7 @@ function scDragon() {
     addPanel(0, b, '#E3F1FB');
   }
 
-  /* ---- 1. oppose: "싸움 반대!" 현수막 ---- */
+  /* ---- 1. protest: "싸움 반대!" 현수막 ---- */
   {
     const [, , w, h] = P[1];
     let b = '';
@@ -158,7 +158,7 @@ function scDragon() {
     addPanel(1, b, '#FBEFD9');
   }
 
-  /* ---- 2. lawmaker: '법' 책을 든 국회의원 할아버지 ---- */
+  /* ---- 2. recommend: '법' 책을 든 국회의원 할아버지 ---- */
   {
     const [, , w, h] = P[2];
     let b = '';
@@ -171,30 +171,30 @@ function scDragon() {
     addPanel(2, b, '#EEE8FB');
   }
 
-  /* ---- 3. flaw: 비늘 하나가 빠진 용의 가슴 (돋보기 속은 2배로 크게) ---- */
+  /* ---- 3. weakness: 비늘 하나가 빠진 용의 가슴 (돋보기 속은 2배로 크게) ---- */
   {
     const s = 0.78, ox = -222, oy = -20;
     let b = '';
-    b += G(drg({ flaw: true, id: 3 }), `translate(${ox} ${oy}) scale(${s})`);
-    const fx = FLAW[0] * s + ox, fy = FLAW[1] * s + oy, R = 33, m = 2.1;
+    b += G(drg({ hole: true, id: 3 }), `translate(${ox} ${oy}) scale(${s})`);
+    const fx = HOLE[0] * s + ox, fy = HOLE[1] * s + oy, R = 33, m = 2.1;
     // 손잡이 (렌즈 아래 오른쪽)
     const hx = fx + R * 0.72, hy = fy + R * 0.72;
     b += ln(hx, hy, hx + 30, hy + 30, 13, INK) + ln(hx, hy, hx + 30, hy + 30, 7.5, C.woodD);
     // 렌즈 속: 같은 용을 m배 확대해서 빠진 비늘 주변만 보여 줌
-    b += circ(fx, fy, R, BELLY, 0) + G(drg({ flaw: true, only: true }), `translate(${fx} ${fy}) scale(${s * m}) translate(${-FLAW[0]} ${-FLAW[1]})`);
+    b += circ(fx, fy, R, BELLY, 0) + G(drg({ hole: true, only: true }), `translate(${fx} ${fy}) scale(${s * m}) translate(${-HOLE[0]} ${-HOLE[1]})`);
     b += circ(fx, fy, R + 1.5, 'none', 0, { stroke: '#E8EEF6', 'stroke-width': 5 }) + circ(fx, fy, R + 4.5, 'none', 3) + circ(fx, fy, R - 0.5, 'none', 2);
     b += pth(`M${fx - R * 0.62} ${fy - R * 0.3}Q${fx - R * 0.55} ${fy - R * 0.62} ${fx - R * 0.25} ${fy - R * 0.68}`, 'none', 0, { stroke: '#fff', 'stroke-width': 3.4, 'stroke-linecap': 'round', opacity: 0.9 });
     addPanel(3, b, '#E4F4E1');
   }
 
-  /* ---- 4. accurately: 창이 빠진 비늘에 정확하게 명중 ---- */
+  /* ---- 4. aim: 창이 빠진 비늘에 정확하게 명중 ---- */
   {
     const [, , w, h] = P[4];
     const s = 0.68, ox = -134, oy = -14;
     let b = '';
     b += ground(w, h, 212, '#CFE6B8');
-    b += G(drg({ flaw: true, dizzy: true, id: 4 }), `translate(${ox} ${oy}) scale(${s})`);
-    const fx = FLAW[0] * s + ox, fy = FLAW[1] * s + oy;
+    b += G(drg({ hole: true, dizzy: true, id: 4 }), `translate(${ox} ${oy}) scale(${s})`);
+    const fx = HOLE[0] * s + ox, fy = HOLE[1] * s + oy;
     const kx = 32, ky = 228, ks = 0.92, hx = kx + 22 * ks, hy = ky - 100 * ks;
     b += knight({ x: kx, y: ky, s: ks, face: 'shout', lh: [-18, -50], rh: [22, -100], rb: 2 });
     b += pth(`M${hx + 6} ${hy}L${fx - 48} ${fy + 14}`, 'none', 0, { stroke: C.red, 'stroke-width': 3.4, 'stroke-dasharray': '1 8', 'stroke-linecap': 'round' });
@@ -203,7 +203,7 @@ function scDragon() {
     addPanel(4, b, '#E3F1FB');
   }
 
-  /* ---- 5. press conference: 왕궁 기자 회견 ---- */
+  /* ---- 5. announce: 왕궁 기자 회견 ---- */
   {
     let b = '';
     b += sign(30, 12, 130, 36, '왕궁 기자 회견', null, 18);
@@ -217,7 +217,7 @@ function scDragon() {
     addPanel(5, b, '#EEE8FB');
   }
 
-  /* ---- 6. public transportation: 승객을 태운 용 버스가 정류장으로 ---- */
+  /* ---- 6. passenger: 승객을 태운 용 버스가 정류장으로 ---- */
   {
     const [, , w, h] = P[6];
     let b = '';
@@ -338,7 +338,7 @@ function scRace() {
   const wh = k => [P[k][2], P[k][3]];
   const zz = (x, y) => tx(x, y, 'z', 18, '#4C7BE0') + tx(x + 13, y - 20, 'Z', 23, '#4C7BE0') + tx(x + 28, y - 44, 'Z', 28, '#4C7BE0');
 
-  // 0 competition: '토끼 VS 거북이 리턴즈!' 간판 아래 맞대결
+  // 0 rival: '토끼 VS 거북이 리턴즈!' 간판 아래 맞대결
   {
     const [w, h] = wh(0);
     let o = raceGround(w, h, 188, '#E9D9BC');
@@ -348,7 +348,7 @@ function scRace() {
     o += raceBolt(100, 132, 1.1, 30);
     panels.push(panelSvg(P[0], o, '#FBEFD9'));
   }
-  // 1 competitive: '이번에도 내가 1등!' 쌩 달려 나가는 토끼
+  // 1 boast: '이번에도 내가 1등!' 쌩 달려 나가는 토끼
   {
     const [w, h] = wh(1);
     let o = raceGround(w, h, 188, '#CFE6B8');
@@ -357,7 +357,7 @@ function scRace() {
     o += tx(195, 39, '이번에도', 19) + tx(195, 65, '내가 1등!', 21, C.red);
     panels.push(panelSvg(P[1], o, '#E3F1FB'));
   }
-  // 2 presently: 전광판 '현재 1위 토끼' + 지금 쿨쿨 자는 토끼
+  // 2 lead: 전광판 '현재 1위 토끼' + 지금 쿨쿨 자는 토끼
   {
     const [w, h] = wh(2);
     let o = raceGround(w, h, 188, '#CFE6B8');
@@ -370,7 +370,7 @@ function scRace() {
     o += zz(118, 116);
     panels.push(panelSvg(P[2], o, '#EEE8FB'));
   }
-  // 3 audience: 관중 셋이 '거북이 힘내라!' 현수막을 번쩍 들고 응원
+  // 3 cheer: 관중 셋이 '거북이 힘내라!' 현수막을 번쩍 들고 응원
   {
     const [w, h] = wh(3);
     let o = raceGround(w, h, 194, '#D6DFEE');
@@ -378,7 +378,7 @@ function scRace() {
     o += raceFan(37, 206, 1.5, bearHead, '#A0703F') + raceFan(95, 206, 1.5, frogHead, '#7CC46A') + raceFan(153, 206, 1.5, birdHead, '#4C9BE0');
     panels.push(panelSvg(P[3], o, '#F7E8E8'));
   }
-  // 4 motivate: 다람쥐 응원단장 '할 수 있어!' → 힘이 나서 달리는 거북이
+  // 4 encourage: 다람쥐 응원단장 '할 수 있어!' → 힘이 나서 달리는 거북이
   {
     const [w, h] = wh(4);
     let o = raceGround(w, h, 178, '#CFE6B8');
@@ -388,7 +388,7 @@ function scRace() {
     o += tx(131, 41, '할 수', 21) + tx(131, 67, '있어!', 23, C.red);
     panels.push(panelSvg(P[4], o, '#E4F4E1'));
   }
-  // 5 exceed: 제한속도 10인데 지금 15! 과속 카메라 번쩍
+  // 5 limit: 제한속도 10인데 지금 15! 과속 카메라 번쩍
   {
     const [w, h] = wh(5);
     let o = raceGround(w, h, 194, '#DADDE6');
@@ -399,7 +399,7 @@ function scRace() {
     for (const sy of [164, 175, 186]) o += ln(10, sy, 24, sy, 3, '#8E94AA');
     panels.push(panelSvg(P[5], o, '#E8EEF6'));
   }
-  // 6 entrepreneurship: 상금으로 차린 '느림보 택배' 개업
+  // 6 deliver: 상금으로 차린 '느림보 택배' 개업
   {
     const [w, h] = wh(6);
     let o = raceGround(w, h, 196, '#E9D9BC');
@@ -501,7 +501,7 @@ function scPigs() {
     return b;
   };
 
-  // 0 modify: 짚 집 설계도에 빨간 ✕, 빨간 펜으로 벽돌집을 새로 그려 넣는 첫째
+  // 0 revise: 짚 집 설계도에 빨간 ✕, 빨간 펜으로 벽돌집을 새로 그려 넣는 첫째
   {
     const [w, h] = wh(0);
     let o = ground(w, h, 202, FLOOR);
@@ -521,7 +521,7 @@ function scPigs() {
     addPanel(0, o, '#FBEFD9');
   }
 
-  // 1 specify: 자재 명세서에 '벽돌 1,000장'이 또박또박. 둘째가 지시봉으로 콕
+  // 1 material: 자재 명세서에 '벽돌 1,000장'이 또박또박. 둘째가 지시봉으로 콕
   {
     const [w, h] = wh(1);
     let o = ground(w, h, 204, FLOOR);
@@ -534,7 +534,7 @@ function scPigs() {
     addPanel(1, o, '#EEE8FB');
   }
 
-  // 2 collaboratively: 삼형제가 벽돌을 손에서 손으로 건네며 함께 쌓기
+  // 2 cooperate: 삼형제가 벽돌을 손에서 손으로 건네며 함께 쌓기
   {
     const [w, h] = wh(2);
     let o = ground(w, h, 196, GRASS);
@@ -553,7 +553,7 @@ function scPigs() {
     addPanel(2, o, '#E3F1FB');
   }
 
-  // 3 operate: 막내가 초록 버튼을 눌러 시멘트 믹서를 부릉부릉 돌리는 중
+  // 3 machine: 막내가 초록 버튼을 눌러 시멘트 믹서를 부릉부릉 돌리는 중
   {
     const [w, h] = wh(3);
     let o = ground(w, h, 200, FLOOR);
@@ -571,7 +571,7 @@ function scPigs() {
     addPanel(3, o, '#E8EEF6');
   }
 
-  // 4 combine: 벽돌 + 시멘트 → 튼튼한 벽
+  // 4 build: 벽돌 + 시멘트 → 튼튼한 벽
   {
     const [w, h] = wh(4);
     let o = ground(w, h, 206, FLOOR);
@@ -584,7 +584,7 @@ function scPigs() {
     addPanel(4, o, '#F7E8E8');
   }
 
-  // 5 operational: '방어 시스템 운영 중' 초록불, 늑대가 불어도 벽돌집은 끄떡없음
+  // 5 protect: '방어 시스템 운영 중' 초록불, 늑대가 불어도 벽돌집은 끄떡없음
   {
     const [w, h] = wh(5);
     let o = ground(w, h, 206, GRASS);
@@ -598,7 +598,7 @@ function scPigs() {
     addPanel(5, o, '#E4F4E1');
   }
 
-  // 6 operationally: '한 달 운영비' 그래프: 짚 집은 높고 벽돌집은 낮아요
+  // 6 cost: '한 달 운영비' 그래프: 짚 집은 높고 벽돌집은 낮아요
   {
     const [w, h] = wh(6);
     let o = '';
@@ -672,7 +672,7 @@ function scPinocchio() {
   const addPanel = (k, inner, bg) => panels.push(panelSvg(P[k], inner, bg));
   const wh = k => [P[k][2], P[k][3]];
 
-  /* ---- 0. present: "네!" 손을 번쩍 든 피노키오 + 출석부 '참석' 도장 ---- */
+  /* ---- 0. attend: "네!" 손을 번쩍 든 피노키오 + 출석부 '참석' 도장 ---- */
   {
     const [w, h] = wh(0);
     let b = pinocchioGround(w, h, 198, '#E9D9BC');
@@ -685,7 +685,7 @@ function scPinocchio() {
     addPanel(0, b, '#FBEFD9');
   }
 
-  /* ---- 1. informative: '정직 백과사전'을 들고 머리에 전구가 반짝 ---- */
+  /* ---- 1. knowledge: '정직 백과사전'을 들고 머리에 전구가 반짝 ---- */
   {
     const [w, h] = wh(1);
     let b = pinocchioGround(w, h, 198, '#E9D9BC');
@@ -705,7 +705,7 @@ function scPinocchio() {
     addPanel(1, b, '#EEE8FB');
   }
 
-  /* ---- 2. emphasize: 칠판 '거짓말은 절대 안 돼!' + 밑줄을 콕 짚는 귀뚜라미 선생님 ---- */
+  /* ---- 2. warn: 칠판 '거짓말은 절대 안 돼!' + 밑줄을 콕 짚는 귀뚜라미 선생님 ---- */
   {
     const [w, h] = wh(2);
     let b = pinocchioGround(w, h, 204, '#E9D9BC');
@@ -718,7 +718,7 @@ function scPinocchio() {
     addPanel(2, b, '#E8EEF6');
   }
 
-  /* ---- 3. increasingly: 거짓말할수록 코가 점점 길어짐 ---- */
+  /* ---- 3. grow: 거짓말할수록 코가 점점 길어짐 ---- */
   {
     const [w, h] = wh(3);
     let b = pinocchioGround(w, h, 200, '#CFE6B8');
@@ -731,7 +731,7 @@ function scPinocchio() {
     addPanel(3, b, '#E3F1FB');
   }
 
-  /* ---- 4. indicative of ~: 새 둥지까지 생긴 아주 긴 코 = 거짓말 신호 ---- */
+  /* ---- 4. sign: 새 둥지까지 생긴 아주 긴 코 = 거짓말 신호 ---- */
   {
     const [w, h] = wh(4);
     let b = pinocchioGround(w, h, 200, '#CFE6B8');
@@ -748,7 +748,7 @@ function scPinocchio() {
     addPanel(4, b, '#E4F4E1');
   }
 
-  /* ---- 5. indicate: 벽의 거짓말 측정기 바늘이 '거짓말'을 가리킴 ---- */
+  /* ---- 5. lie: 벽의 거짓말 측정기 바늘이 '거짓말'을 가리킴 ---- */
   {
     const [w, h] = wh(5);
     let b = '';
@@ -766,7 +766,7 @@ function scPinocchio() {
     addPanel(5, b, '#E8EEF6');
   }
 
-  /* ---- 6. achieve: 진짜 소년이 되어 트로피를 번쩍! '꿈을 이뤘어요!' ---- */
+  /* ---- 6. become: 진짜 소년이 되어 트로피를 번쩍! '꿈을 이뤘어요!' ---- */
   {
     const [w, h] = wh(6);
     let b = pinocchioGround(w, h, 200, '#CFE6B8');
@@ -827,7 +827,7 @@ function scRobin() {
     return pth(d + `V${h + 4}Z`, f, 2.4);
   };
 
-  /* 0 expansive: 언덕 위 로빈이 손차양을 하고 끝없이 펼쳐진 숲을 바라봄 */
+  /* 0 endless: 언덕 위 로빈이 손차양을 하고 끝없이 펼쳐진 숲을 바라봄 */
   {
     const [w, h] = wh(0);
     let o = '';
@@ -841,7 +841,7 @@ function scRobin() {
     addPanel(0, o, '#E3F1FB');
   }
 
-  /* 1 expend: 금화 자루를 거꾸로 들고 마을을 위해 아낌없이 씀 */
+  /* 1 spend: 금화 자루를 거꾸로 들고 마을을 위해 아낌없이 씀 */
   {
     const [w, h] = wh(1);
     let o = ground(w, h, 204, FLOOR);
@@ -859,7 +859,7 @@ function scRobin() {
     addPanel(1, o, '#FBEFD9');
   }
 
-  /* 2 charity: '셔우드 자선단체' 천막에서 로빈이 할머니께 빵을 건넴 */
+  /* 2 share: '셔우드 자선단체' 천막에서 로빈이 할머니께 빵을 건넴 */
   {
     const [w, h] = wh(2);
     let o = ground(w, h, 212, FLOOR);
@@ -874,7 +874,7 @@ function scRobin() {
     addPanel(2, o, '#F7E8E8');
   }
 
-  /* 3 restore: 무너진 다리를 새 판자로 튼튼하게 복구 */
+  /* 3 repair: 무너진 다리를 새 판자로 튼튼하게 복구 */
   {
     const [w, h] = wh(3);
     let o = rect(0, 176, w, h - 176, WATER, 0, 0) + ln(0, 176, w, 176, 2.4);
@@ -893,7 +893,7 @@ function scRobin() {
     addPanel(3, o, '#E3F1FB');
   }
 
-  /* 4 diverse: 거인 리틀 존, 꼬마 궁수, 사슴 — 키도 모습도 제각각 */
+  /* 4 different: 거인 리틀 존, 꼬마 궁수, 사슴 — 키도 모습도 제각각 */
   {
     const [w, h] = wh(4);
     let o = ground(w, h, 206, GRASS);
@@ -905,7 +905,7 @@ function scRobin() {
     addPanel(4, o, '#EEE8FB');
   }
 
-  /* 5 biologically: 터크 수사가 돋보기로 약초를 관찰하며 연구 */
+  /* 5 observe: 터크 수사가 돋보기로 약초를 관찰하며 연구 */
   {
     const [w, h] = wh(5);
     let o = ground(w, h, 206, GRASS);
@@ -920,7 +920,7 @@ function scRobin() {
     addPanel(5, o, '#FBEFD9');
   }
 
-  /* 6 preserve: 울타리로 지키는 커다란 보호수 — 영원히 보존 */
+  /* 6 forever: 울타리로 지키는 커다란 보호수 — 영원히 보존 */
   {
     const [w, h] = wh(6);
     let o = ground(w, h, 206, GRASS);
@@ -937,7 +937,7 @@ function scRobin() {
 /* ================= 장면 6. 알라딘과 요술 램프 ================= */
 const note = (x, y, c = INK) => pth(`M${x} ${y}V${y - 18}L${x + 10} ${y - 21}V${y - 4}`, 'none', 2.4, { stroke: c }) + ell(x - 3, y, 4, 3, c, 0) + ell(x + 7, y - 4, 4, 3, c, 0);
 /* ================= 장면: 알라딘과 요술 램프 (만화 한 쪽, 6칸) ================= */
-// 칸 순서 = 이야기 순서: user-friendly, term, attire, innovative, participatory, implement
+// 칸 순서 = 이야기 순서: rub, rule, clothes, invention, festival, law
 
 // 밝은 간판: 가운데 x, 위 y, 너비 w, 줄 [[글, 크기, 색]]
 function aladdinSign(cx, y, w, rows, f = '#FFFDF8') {
@@ -975,7 +975,7 @@ function scAladdin() {
   // 왕 알라딘: 보라 망토 + 왕관
   const king = o => person({ hs: 'short', hair: HAIRC, skin: SKN, top: PURPLE, face: 'happy', under: robe(PURPLE), extra: crown(), ...o });
 
-  /* ---- 0. user-friendly: 쓱쓱 문지르기만 하면 지니가 펑! ---- */
+  /* ---- 0. rub: 쓱쓱 문지르기만 하면 지니가 펑! ---- */
   {
     const [w, h] = wh(0);
     let b = aladdinGround(w, h, 204, '#E9D9BC');
@@ -993,7 +993,7 @@ function scAladdin() {
     addPanel(0, b, '#E8EEF6');
   }
 
-  /* ---- 1. term: 소원 이용 약관 = 소원은 딱 3개! ---- */
+  /* ---- 1. rule: 소원 이용 약관 = 소원은 딱 3개! ---- */
   {
     const [w, h] = wh(1);
     let b = aladdinGround(w, h, 206, '#E9D9BC');
@@ -1010,7 +1010,7 @@ function scAladdin() {
     addPanel(1, b, '#FBEFD9');
   }
 
-  /* ---- 2. attire: 누더기 옷 → 반짝이는 왕자님 복장 ---- */
+  /* ---- 2. clothes: 누더기 옷 → 반짝이는 왕자님 복장 ---- */
   {
     const [w, h] = wh(2);
     let b = aladdinGround(w, h, 200, '#E9D9BC');
@@ -1021,7 +1021,7 @@ function scAladdin() {
     addPanel(2, b, '#EEE8FB');
   }
 
-  /* ---- 3. innovative: 하늘을 나는 세계 최초 양탄자 ---- */
+  /* ---- 3. invention: 하늘을 나는 세계 최초 양탄자 ---- */
   {
     const [w, h] = wh(3);
     let b = cloud(196, 224, 0.62);
@@ -1032,7 +1032,7 @@ function scAladdin() {
     addPanel(3, b, '#E3F1FB');
   }
 
-  /* ---- 4. participatory: 온 마을이 함께 춤추는 축제 ---- */
+  /* ---- 4. festival: 온 마을이 함께 춤추는 축제 ---- */
   {
     const [w, h] = wh(4);
     let b = aladdinGround(w, h, 206, '#CFE6B8');
@@ -1048,7 +1048,7 @@ function scAladdin() {
     addPanel(4, b, '#E4F4E1');
   }
 
-  /* ---- 5. implement: 왕이 된 알라딘이 '무료 간식법' 시행 ---- */
+  /* ---- 5. law: 왕이 된 알라딘이 '무료 간식법' 시행 ---- */
   {
     const [w, h] = wh(5);
     let b = aladdinGround(w, h, 206, '#E9D9BC');
@@ -1070,7 +1070,7 @@ function scAladdin() {
 /* ================= 장면 7. 별주부전: 용궁 출근기 ================= */
 const seaweed = (x, y, h, c = '#3FA36B') => pth(`M${x} ${y}C${x - 10} ${y - h * .3} ${x + 10} ${y - h * .6} ${x} ${y - h}`, 'none', 0, { stroke: INK, 'stroke-width': 9, 'stroke-linecap': 'round' }) + pth(`M${x} ${y}C${x - 10} ${y - h * .3} ${x + 10} ${y - h * .6} ${x} ${y - h}`, 'none', 0, { stroke: c, 'stroke-width': 5, 'stroke-linecap': 'round' });
 /* ================= 장면: 별주부전 용궁 출근기 (만화 한 쪽, 6칸) ================= */
-// 칸 순서 = 이야기 순서: report to work, respective, consult, instruct A to-v, confidential, update
+// 칸 순서 = 이야기 순서: arrive, busy, medicine, order, secret, news
 
 // 밝은 간판: 가운데 x, 위 y, 너비 w, 줄 [[글, 크기, 색]]
 function seaSign(cx, y, w, rows, f = '#FFFDF8') {
@@ -1120,7 +1120,7 @@ function scSea() {
   const KING = '#2EA6A0';
   const king = o => seaThin(person({ hs: 'bald', hair: HR.grey, skin: SK[0], top: KING, face: 'smile', under: robe(KING), extra: beard() + crown(), ...o }), 0.95 / (o.s || 1));
 
-  /* ---- 0. report to work: 아침 9시, 자라가 사원증을 찍고 출근 ---- */
+  /* ---- 0. arrive: 아침 9시, 자라가 사원증을 찍고 출근 ---- */
   {
     const [w, h] = wh(0);
     let b = seaSand(w, h, 188);
@@ -1136,7 +1136,7 @@ function scSea() {
     add(0, b, '#DDF0F4');
   }
 
-  /* ---- 1. respective: 신하들이 각각의 자리에서 일해요 ---- */
+  /* ---- 1. busy: 신하들이 각각의 자리에서 일해요 ---- */
   {
     const [w, h] = wh(1);
     let b = seaSand(w, h, 198);
@@ -1154,7 +1154,7 @@ function scSea() {
     add(1, b, '#E3EEF8');
   }
 
-  /* ---- 2. consult: 배탈 난 용왕님이 문어 의사와 상담 ---- */
+  /* ---- 2. medicine: 배탈 난 용왕님이 문어 의사와 상담 ---- */
   {
     const [w, h] = wh(2);
     let b = seaSand(w, h, 192);
@@ -1171,7 +1171,7 @@ function scSea() {
     add(2, b, '#DDF0F4');
   }
 
-  /* ---- 3. instruct A to-v: 용왕님이 자라에게 토끼를 데려오라고 지시 ---- */
+  /* ---- 3. order: 용왕님이 자라에게 토끼를 데려오라고 지시 ---- */
   {
     const [w, h] = wh(3);
     let b = seaSand(w, h, 194);
@@ -1181,7 +1181,7 @@ function scSea() {
     add(3, b, '#E3EEF8');
   }
 
-  /* ---- 4. confidential: 꾀돌이 토끼 "간은 기밀 장소에 숨겨 뒀지롱~" ---- */
+  /* ---- 4. secret: 꾀돌이 토끼 "간은 기밀 장소에 숨겨 뒀지롱~" ---- */
   {
     const [w, h] = wh(4);
     let b = seaSand(w, h, 192);
@@ -1196,7 +1196,7 @@ function scSea() {
     add(4, b, '#E6EEF8');
   }
 
-  /* ---- 5. update: 자라가 용왕님께 최신 정보를 알려요 ---- */
+  /* ---- 5. news: 자라가 용왕님께 최신 정보를 알려요 ---- */
   {
     const [w, h] = wh(5);
     let b = seaSand(w, h, 194);
