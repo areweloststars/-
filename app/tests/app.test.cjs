@@ -114,6 +114,44 @@ test('OCR layout: pairs words with meanings on the same row or below, column by 
   } finally { p.close(); }
 });
 
+test('OCR dictionary pages: headwords and meaning lines survive common misreads', () => {
+  const p = bootPage();
+  try {
+    p.window.__lex = fs.readFileSync(require('node:path').join(__dirname, '../../word-game/ocr/ko-lex.txt'), 'utf8');
+    p.run('window.__L = new Set(window.__lex.split("\\n").filter(Boolean)); window.__lex = "";');
+    const mean = t => p.json(`ocrMeanLine(${JSON.stringify(t)}, window.__L)`);
+    // '('를 못 읽은 설명 괄호, 유의어 기호 ⓢ를 읽은 글자·영어·숫자
+    assert.deepEqual(mean('동 1.탐험하다@ 6, 1916) 2. 문제. 생각 등을) 조사하다 @) [8'), ['탐험하다', '조사하다']);
+    // 번호를 낱자모로 읽음('ㅇ.'), 비슷한 모양 글자(물→울)
+    assert.deepEqual(mean('명 1.물타리 ㅇ.담장'), ['울타리', '담장']);
+    // 대괄호로 적은 바꿔 쓸 말, 말줄임표로 시작하는 뜻
+    assert.deepEqual(mean('동 제한[금지]하다, …하게 하다'), ['제한하다', '금지하다', '~하게 하다']);
+    // 뜻 뒤에 붙은 ⓢ 글자('닫다운'), '['를 못 읽은 대괄호
+    assert.deepEqual(mean('동 1.닫다운 close 2.잠그다'), ['닫다', '잠그다']);
+    assert.deepEqual(mean('동 감독관리]하다'), ['관리하다']);
+    // '~' 자리 표시가 든 뜻, 붙어 읽힌 두 낱말과 비슷한 모양 글자('머리를강다' → '머리를 감다')
+    assert.deepEqual(mean('막 ~하려 하다'), ['막 ~하려 하다']);
+    assert.deepEqual(mean('1. 00머리를강다)'), ['머리를 감다']);
+    // 여러 번 읽은 결과로 다듬기: 비슷한 꼴은 다수결, 이 줄에만 붙어 읽힌 뜻은 다른 읽기에 나온 부분으로
+    assert.equal(p.json(`koNear('묶다', '묵다')`), true);
+    assert.equal(p.json(`koNear('묶다', '개다')`), false);
+    const best = { ms: ['묵다', '상자 바구니'], conf: 0.5 };
+    assert.deepEqual(p.json(`(() => { const b = ${JSON.stringify(best)}; return ocrAgree(b, [b, { ms: ['묶다', '상자', '바구니'], conf: 0.6 }, { ms: ['묶다'], conf: 0.55 }]); })()`), ['묶다', '상자', '바구니']);
+    // 표제어: 끝 글자를 쉼표로 읽음, 같은 쪽에 여러 번 나온 비슷한 낱말, 다른 표제어로 쓴 낱말은 빼기
+    const dict = `new Map([['harvest', 1], ['hope', 1], ['hop', 1], ['garden', 1], ['fence', 1], ['river', 1], ['quickly', 1], ['the', 1]])`;
+    assert.equal(p.json(`ocrHeadPick([{ t: 'harves,', c: 60 }, { t: 'harves', c: 55 }], new Map(), ${dict}, () => false)`), 'harvest');
+    assert.equal(p.json(`ocrHeadPick([{ t: 'hop', c: 45 }, { t: 'hcp', c: 30 }], new Map([['hope', 2]]), ${dict}, () => false)`), 'hope');
+    assert.equal(p.json(`ocrHeadPick([{ t: 'hop', c: 45 }, { t: 'hcp', c: 30 }], new Map([['hope', 2]]), ${dict}, w => w === 'hope')`), 'hop');
+    // 또렷하게 두 번 똑같이 읽힌 낱말은 쪽에 비슷한 낱말이 있어도 그대로
+    assert.equal(p.json(`ocrHeadPick([{ t: 'hop', c: 60 }, { t: 'hop', c: 50 }], new Map([['hope', 2]]), ${dict}, () => false)`), 'hop');
+    // 표제어 찾기: 바로 밑에 붙은 작은 영어(어원 설명)와 여백 선에서 멀리 떨어진 큰 낱말은 표제어가 아님
+    const W = (t, x, y, h, c = 95) => ({ t, x0: x, y0: y, x1: x + Math.round(t.length * h * 0.6), y1: y + h, c });
+    const words = [W('garden', 20, 100, 34), W('fence', 20, 300, 34), W('river', 22, 500, 34), W('river', 24, 536, 28), W('quickly', 300, 400, 34)];
+    for (let k = 0; k < 10; k++) words.push(W('the', 420, 100 + k * 50, 20));
+    assert.deepEqual(p.json(`ocrHeadwords(${JSON.stringify(words)}, ${dict}, 1000).map(h => h.t)`), ['garden', 'fence', 'river']);
+  } finally { p.close(); }
+});
+
 test('typed list parser reads numbered, colon, tab and Korean-first lines', () => {
   const p = bootPage();
   try {
