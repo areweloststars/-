@@ -1,1 +1,3 @@
 node_modules/
+# 사이트 열쇠: 저장소에 넣지 않아요 (공유 링크의 # 뒤가 열쇠)
+app/.site-key
