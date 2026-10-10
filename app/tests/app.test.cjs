@@ -224,6 +224,14 @@ test('OCR word-list pages: example-line heads, two columns, two words on a slant
     assert.deepEqual(mean('이7 |다, 먹0|다'), ['이기다', '먹이다']);
     assert.deepEqual(mean('청소하다, 정2 하다'), ['청소하다']);
     assert.deepEqual(mean('청소하다, 정@ 하다'), ['청소하다']);
+    // '명사 + 이다'는 그대로 (비슷한 모양의 다른 낱말로 바꾸지 않음), '명사 + 이·가' 뒤의 '되다'는 띄어 쓴 그대로
+    assert.deepEqual(mean('필수적이다'), ['필수적이다']);
+    assert.deepEqual(mean('~에 도움이 되다'), ['~에 도움이 되다']);
+    // 사진 방향 고르기: 옆으로 누운 글줄을 잘못 읽은 세 글자 낱말('for', 'off')은 세지 않음
+    const page = ws => ({ blocks: [{ paragraphs: [{ lines: [{ words: ws.map((t, i) => ({ text: t, confidence: 90, bbox: { x0: i * 50, y0: 0, x1: i * 50 + 40, y1: 20 } })) }] }] }] });
+    const dhits = ws => p.json(`ocrDictHits(${JSON.stringify(page(ws))}, new Map(${JSON.stringify(['for', 'off', 'jot', 'roe', 'river', 'borrow', 'ancient'].map(w => [w, 1]))}))`);
+    assert.equal(dhits(['for', 'off', 'jot', 'roe']), 0);
+    assert.equal(dhits(['river', 'borrow', 'ancient', 'for']), 3);
     // 여러 번 읽은 뜻 다듬기: 같은 줄의 비슷한 꼴 두 뜻은 따로 두고, 비슷한 꼴 가운데 낱말 목록에 그대로 있는 꼴을 먼저
     assert.deepEqual(p.json(`(() => { const b = { ms: ['가다', '나다'], conf: 0.9 }; return ocrAgree(b, [b, { ms: ['가다', '나다'], conf: 0.8 }], window.__L); })()`), ['가다', '나다']);
     assert.deepEqual(p.json(`(() => { const b = { ms: ['공무하다'], conf: 0.9 }; return ocrAgree(b, [b, { ms: ['공무하다'], conf: 0.8 }, { ms: ['공부하다'], conf: 0.85 }], window.__L); })()`), ['공부하다']);

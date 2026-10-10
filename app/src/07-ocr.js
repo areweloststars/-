@@ -370,7 +370,7 @@ const ocrRowOk = r => { const en = r.en.replace(/[^A-Za-z\s'~\-]/g, ' ').replace
 const ocrKo = s => s.replace(/(^|\s)[A-Za-z|\\/_=+*#&%$@^]{1,2}(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
 
 /* ---------- 읽은 단어 점검: 영어 사전·한국어 낱말 목록(hunspell-ko + kengdic, 약 17만 개)으로 진짜 낱말인지 봐요 ---------- */
-const KO_END = ['하다', '하게', '하는', '하고', '한', '해서', '했다', '함', '하기', '되다', '되는', '된', '시키다', '받다', '적인', '적으로', '적', '스러운', '스럽게', '스럽다', '로운', '롭게', '롭다', '으로', '로', '에게', '에서', '는', '은', '을', '를', '에', '와', '과', '의', '이', '가', '도', '게', '히', '기', '음', '다', '고'];
+const KO_END = ['하다', '하게', '하는', '하고', '한', '해서', '했다', '함', '하기', '되다', '되는', '된', '시키다', '받다', '이다', '적인', '적으로', '적', '스러운', '스럽게', '스럽다', '로운', '롭게', '롭다', '으로', '로', '에게', '에서', '는', '은', '을', '를', '에', '와', '과', '의', '이', '가', '도', '게', '히', '기', '음', '다', '고'];
 let KOLEX = null;
 function koLex() {
   if (!KOLEX) KOLEX = fetch(ocrURL('ocr/ko-lex.txt')).then(r => r.ok ? r.text() : '').then(t => new Set(t.split('\n').filter(Boolean))).catch(() => new Set());
@@ -384,7 +384,7 @@ function koWordOk(w, L) {
   return cands.some(s => (s.length >= 2 && L.has(s)) || L.has(s + '다') || L.has(s + '하다'));
 }
 // 낱말 목록에 그대로 있거나 '어간 + 하다·시키다…' 꼴로 확실한 낱말인지 ('습이'처럼 조사를 떼어야만 통과하는 잡티와 구별)
-const KO_VEND = ['하다', '시키다', '되다', '받다', '스럽다', '롭다', '하는', '하게', '한', '적인', '적으로', '스러운', '로운'];
+const KO_VEND = ['하다', '시키다', '되다', '받다', '이다', '스럽다', '롭다', '하는', '하게', '한', '적인', '적으로', '스러운', '로운']; // '이다': '필수적이다'처럼 명사 + 이다
 function koExact(t, L) {
   t = String(t).replace(/\(.*$/, '').replace(/[^가-힣]/g, '');
   if (t.length < 2) return false;
@@ -447,8 +447,9 @@ function ocrPairSlope(words) {
   sl.sort((a, b) => a - b);
   return clamp(sl[sl.length >> 1], -0.2, 0.2);
 }
-// 영어 사전에 있는 낱말을 또렷하게(신뢰도 60 이상) 몇 개 읽었는지: 사진 방향 고르기에 씀
-function ocrDictHits(data, dict) { return ocrWords(data).filter(w => /^[A-Za-z]{3,}[.,]?$/.test(w.t) && w.c >= 60 && dict.has(w.t.toLowerCase().replace(/[.,]$/, ''))).length; }
+// 영어 사전에 있는 네 글자 이상 낱말을 또렷하게(신뢰도 60 이상) 몇 개 읽었는지: 사진 방향 고르기에 씀
+// (옆으로 누운 글줄은 'for'·'off'·'jot' 같은 세 글자 낱말로 잘못 읽히기 쉬워서 세 글자 낱말은 세지 않아요)
+function ocrDictHits(data, dict) { return ocrWords(data).filter(w => /^[A-Za-z]{4,}[.,]?$/.test(w.t) && w.c >= 60 && dict.has(w.t.toLowerCase().replace(/[.,]$/, ''))).length; }
 // 그림을 90° 단위로 돌림 (max: 긴 쪽 최대 크기, 방향 고르기용으로 작게)
 function ocrTurn(c, deg, max) {
   const k = max ? Math.min(1, max / Math.max(c.width, c.height)) : 1, sw = deg % 180 !== 0;
@@ -832,7 +833,9 @@ function ocrMeanLine(text, L) {
     // 품사 표시가 앞에 붙어 읽힌 것('형회상자(를' → '상자(를')
     ws = ws.map((w, k) => { if (ok(w) && !/다$/.test(w)) return w; const [x, f] = koFixWord(w, L, k === 0); out.fix += f; return x; }).flatMap(w => w.split(' '));
     // 떨어져 읽힌 '하다'·'되다'·'시키다'는 앞 낱말에 붙임 ('제한 하다' → '제한하다')
-    for (let i = ws.length - 1; i > 0; i--) if (/^(하다|되다|시키다)$/.test(ws[i]) && /^[가-힣]+[^게고지아어여]$/.test(ws[i - 1]) && koExact(ws[i - 1] + ws[i], L)) ws.splice(i - 1, 2, ws[i - 1] + ws[i]);
+    // ('도움이 되다'처럼 앞말이 '명사 + 이·가·을·를'이면 띄어 쓴 그대로)
+    for (let i = ws.length - 1; i > 0; i--) if (/^(하다|되다|시키다)$/.test(ws[i]) && /^[가-힣]+[^게고지아어여]$/.test(ws[i - 1]) && koExact(ws[i - 1] + ws[i], L)
+      && !(/[이가을를]$/.test(ws[i - 1]) && ws[i - 1].length >= 3 && L.has(ws[i - 1].slice(0, -1)))) ws.splice(i - 1, 2, ws[i - 1] + ws[i]);
     // 앞말 없이 '하게 하다'로 시작하면 앞 말줄임표를 못 읽은 것: '~하게 하다'
     if (/^(하게|되게|하도록)/.test(ws[0] || '')) ws[0] = '~' + ws[0];
     while (ws.length && !ok(ws[0])) ws.shift();
