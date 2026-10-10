@@ -168,6 +168,7 @@ function boot(data) {
   loadSave();
   if (data && data.save && typeof data.save === 'object') Object.assign(SAVE, data.save);
   snapshotBuiltin();
+  for (const d of PRIVATE_DECKS) DeckStore.seed(d);
   bootDeck();
   if (!DIFF[SAVE.diff]) SAVE.diff = 'normal';
   if (SAVE.dir !== 'en' && SAVE.dir !== 'ko') SAVE.dir = 'en';

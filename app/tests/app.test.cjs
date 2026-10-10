@@ -24,12 +24,40 @@ test('word-game/index.html is the locked build of app/src (run: SITE_KEY=… npm
 test('locked page opens only with its key', () => {
   const crypto = require('node:crypto');
   const html = build(), key = crypto.randomBytes(32), page = seal(html, key);
-  assert.equal(unseal(page, key), html);
+  assert.equal(unseal(page, key), html.replace('/*@@DECKS@@*/[]', '[]'));
   assert.throws(() => unseal(page, crypto.randomBytes(32)));
   // 같은 게임·같은 열쇠면 같은 파일 (다시 만들어도 바뀌지 않음), 열쇠가 다르면 다른 파일
   assert.equal(seal(html, key), page);
   assert.notEqual(seal(html, crypto.randomBytes(32)), page);
   assert.ok(!page.includes(key.toString('base64url')));
+});
+
+test('private decks go only into the locked game and into the deck archive', () => {
+  const crypto = require('node:crypto');
+  const { lockDecks, openDecks } = require('../build.cjs');
+  // 일반 낱말로 만든 연습용 단어장 (교재 내용 아님)
+  const deck = { v: 1, id: 'p-test', name: '연습 이야기', created: 1, updated: 100, source: 'text',
+    words: { borrow: { m: '빌리다', ans: [{ t: '빌리다', ok: ['빌리다'] }], pos: 'v' }, explain: { m: '설명하다', ans: [{ t: '설명하다', ok: ['설명하다'] }], pos: 'v' } },
+    scenes: [{ key: 'p-test-e1', title: '도서관 모험', words: ['borrow', 'explain'], lines: ['책을 {borrow|빌렸어요} </script>', '규칙을 {explain|설명했어요}'] }], panels: {} };
+  const key = crypto.randomBytes(32), box = lockDecks([deck], key);
+  assert.ok(!box.includes('borrow') && !box.includes('도서관'));
+  assert.deepEqual(openDecks(box, key), [deck]);
+  const game = unseal(seal(build(), key, [deck], 'x'), key);
+  assert.ok(game.includes('"p-test"') && !game.includes('</script>",'), '단어장 글 속 </script>는 풀어 쓰지 않음');
+  // 앱: 보관함에 없으면 넣고, 지운 뒤에는 같은 판을 다시 넣지 않고, 사용자가 고친 더 새 판은 그대로
+  const p = bootPage();
+  try {
+    const seed = d => p.json(`DeckStore.seed(${JSON.stringify(d)})`);
+    assert.equal(seed(deck), true);
+    assert.equal(p.json(`DeckStore.get('p-test').name`), '연습 이야기');
+    assert.equal(seed(deck), false);
+    p.run(`DeckStore.del('p-test')`);
+    assert.equal(seed(deck), false);
+    assert.equal(seed(Object.assign({}, deck, { updated: Date.now() + 1000 })), true);
+    p.run(`DeckStore.put(Object.assign({}, DeckStore.get('p-test'), { name: '내가 고친 이름' }))`);
+    assert.equal(seed(Object.assign({}, deck, { updated: 200 })), false);
+    assert.equal(p.json(`DeckStore.get('p-test').name`), '내가 고친 이름');
+  } finally { p.close(); }
 });
 
 test('boots with the original demo deck and no errors', async () => {

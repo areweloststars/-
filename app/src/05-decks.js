@@ -7,6 +7,8 @@ const OLD_BUILTIN_ID = 'day02';
 let DECK = DECK_BUILTIN;
 let BUILTIN = null;
 const PROG_KEYS = ['best', 'wrong', 'seen', 'lives', 'bank', 'done'];
+// 주인의 단어장: 잠긴 사이트를 만들 때만 채워져요 (app/decks.enc를 사이트 열쇠로 풀어 넣음). 공개 소스에서는 비어 있어요
+const PRIVATE_DECKS = /*@@DECKS@@*/[];
 
 function snapshotBuiltin() { BUILTIN = { words: Object.assign({}, WORDS), scenes: SCENES.slice(), art: Object.assign({}, ART) }; }
 function applyDeckData(d) {
@@ -119,6 +121,15 @@ const DeckStore = (() => {
       if (db) { try { await coll().doc(deck.id).set(deck); cloud = true; } catch (e) { cloud = false; } }
       changed();
       return { local, cloud };
+    },
+    // 사이트에 함께 들어 있는 단어장 넣기: 없으면 넣고, 더 새 판이면 바꿈. 이 판 뒤에 지운 단어장, 사용자가 고친(더 새) 단어장은 그대로
+    seed(deck) {
+      if (!valid(deck)) return false;
+      const ver = +deck.updated || 0, cur = cache[deck.id];
+      if ((+tomb[deck.id] || 0) >= ver || (cur && (+cur.updated || 0) >= ver)) return false;
+      cache[deck.id] = deck; delete tomb[deck.id];
+      saveLocal(); changed();
+      return true;
     },
     // 지울 때는 '지웠다'는 표시를 남겨서, 다른 기기나 늦게 연결된 저장소가 다시 올리지 않게
     async del(id) {
