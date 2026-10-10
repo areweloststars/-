@@ -10,6 +10,16 @@
   형식은 `app/src/10-make-deck.js`의 에피소드 요청문(제목·주제·자막 `{영어|뜻}`·ipa·kr·ans·tip·ex·exKo·panel·pic)과 `GEN_SPEC_DOC`을 따라요.
 - 명작 동화·영웅담·전래 동화·신화를 비틀거나 웃긴 상황으로, 코믹하고 건전하고 기억에 남게. 에피소드마다 다른 이야기.
 
+### 단어장을 넣는 순서 (주인 단어장)
+
+1. 열쇠 준비: `app/.site-key` 또는 `SITE_KEY=<공유 링크>`.
+2. `node app/build.cjs --decks-out app/.decks` → 지금 들어 있는 단어장을 풀어 봄 (`app/.decks/`는 `.gitignore`에 있어요).
+3. 새 단어장을 `app/.decks/<id>.json`으로 써요. 에피소드마다 앱의 `mkEpisode(key, title, words, rows, res)`를
+   `app/tests/page.cjs`의 `bootPage()` 안에서 돌려 만들면 형식이 맞아요. 단어장 = `{v:1, id, name, created, updated, source:'text', words, scenes, panels}`.
+   단어장을 고쳐 다시 넣을 때는 `updated`를 키워요 (사용자 기기의 옛 판이 바뀌어요).
+4. `node app/build.cjs --decks-in app/.decks` → `app/decks.enc`로 잠그고 사이트를 다시 빌드. `npm test`, 브라우저로 열쇠 링크를 열어 확인.
+5. 사이트 반영(PR·합치기)은 사용자에게 물어본 뒤에.
+
 ## 저작권·개인 정보
 
 - 교재 단어 목록·뜻·예문을 공개 저장소에 그대로 넣지 않아요. 사용자 단어장은 사이트 열쇠로 잠근 파일에만 넣어요.
