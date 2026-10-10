@@ -190,6 +190,46 @@ test('OCR app screenshots: two-line words, articles, stray letters and glued wor
   } finally { p.close(); }
 });
 
+test('OCR word-list pages: example-line heads, two columns, two words on a slanted line, split syllables', () => {
+  const p = bootPage();
+  try {
+    p.window.__lex = fs.readFileSync(require('node:path').join(__dirname, '../../word-game/ocr/ko-lex.txt'), 'utf8');
+    p.run('window.__L = new Set(window.__lex.split("\\n").filter(Boolean)); window.__lex = "";');
+    const W = (t, x, y, c = 95) => ({ t, x0: x, y0: Math.round(y), x1: x + t.length * 16, y1: Math.round(y) + 30, c });
+    // 글줄 하나: 낱말을 왼쪽부터 늘어놓음 (sl: 휘어 찍혀 비스듬한 줄의 기울기)
+    const line = (y, x, toks, sl = 0, c = 95) => { const o = [], x0 = x; for (const t of toks) { o.push(typeof t === 'string' ? W(t, x, y + sl * (x - x0), c) : W(t.t, x, y + sl * (x - x0), t.c)); x = o[o.length - 1].x1 + 14; } return o; };
+    // 두 단 단어장: 번호 + 낱말 + 발음 + 뜻, 바로 아래 그 낱말로 시작하는 예문과 번역. 낱말 크기는 예문과 같음
+    const words = [
+      ...line(100, 104, ['1borrow', '[bárou]', '빌리다']), ...line(150, 110, ['borrow', 'a', 'book', 'from', 'the', 'library']), ...line(185, 110, ['도서관에서', '책을', '빌리다']),
+      ...line(120, 715, ['2', 'explain', '[ikspléin]', '설명하다']), ...line(170, 730, ['explain', 'the', 'rule']), ...line(205, 730, ['규칙을', '설명하다']),
+      ...line(300, 95, ['3', 'ancient', '[éinʃənt]', '고대의']), ...line(350, 110, ['ancient', 'ruins']),
+      // 흐리게 읽힌 낱말: 예문이 같은 낱말로 또렷하게 시작하면 낱말로 봄
+      ...line(320, 715, ['4', W('courage', 0, 0, 20), '[kə́ːridʒ]', '용기']), ...line(370, 730, ['courage', 'to', 'try']),
+      ...line(500, 95, ['5', 'whisper', '[wíspər]', '속삭이다']), ...line(550, 110, ['whisper', 'a', 'secret']),
+      // 쪽 너비로 쓴 줄에 낱말 둘 ('A … : B …'), 사진이 휘어 줄이 오른쪽으로 내려감. 사이 설명 줄, 예문 줄 둘
+      ...line(700, 60, ['6-7', 'gather', '[gǽðər]', '모으다', ':', 'collect', '[kəlékt]', '수집하다'], 0.08),
+      ...line(760, 110, ['gather는', '모으는', '것,', 'collect는', '수집하는', '것'], 0.08),
+      ...line(800, 110, ['gather', 'the', 'papers', '서류를', '모으다'], 0.08), ...line(840, 110, ['collect', 'old', 'coins', '옛날', '동전을', '모으다'], 0.08),
+      // 예문 첫 낱말을 잘못 읽어('pone') 짝이 없어도 단의 낱말 자리에서 발음 기호가 붙은 낱말은 낱말 줄. 발음 기호 없는 머리글('DAY 07')은 아님
+      ...line(950, 95, ['8', 'arrive', '[əráiv]', '도착하다']), ...line(1000, 110, ['pone', 'at', 'the', 'station']), ...line(40, 95, ['DAY', '07'])
+    ];
+    const dict = JSON.stringify(['borrow', 'book', 'from', 'the', 'library', 'explain', 'rule', 'ancient', 'ruins', 'courage', 'to', 'try', 'whisper', 'secret', 'gather', 'papers', 'collect', 'old', 'coins', 'a', 'arrive', 'at', 'station', 'day'].map(w => [w, 1]));
+    const heads = p.json(`ocrHeadwords(${JSON.stringify(words)}, new Map(${dict}), 1200).map(h => ({ t: h.t, col: h.col, x0: h.x0, right: h.right || 0, eok: !!h.eok }))`);
+    assert.deepEqual(heads.map(h => h.t + ':' + h.col), ['borrow:0', 'explain:1', 'ancient:0', 'courage:1', 'whisper:0', 'gather:0', 'collect:0', 'arrive:0']);
+    const hd = t => heads.find(h => h.t === t);
+    assert.ok(hd('courage').eok);
+    assert.ok(hd('gather').right > 0 && hd('gather').right < hd('collect').x0, '첫 낱말의 뜻 자리는 둘째 낱말 앞까지');
+    // 세로 모음 'ㅣ'가 떨어져 숫자·기호로 읽힌 글자('기' → '7 |'), 가운데 글자가 잡티로 빠져 '하다'만 남은 뜻
+    const mean = t => p.json(`ocrMeanLine(${JSON.stringify(t)}, window.__L)`);
+    assert.deepEqual(mean('이7 |다, 먹0|다'), ['이기다', '먹이다']);
+    assert.deepEqual(mean('청소하다, 정2 하다'), ['청소하다']);
+    assert.deepEqual(mean('청소하다, 정@ 하다'), ['청소하다']);
+    // 여러 번 읽은 뜻 다듬기: 같은 줄의 비슷한 꼴 두 뜻은 따로 두고, 비슷한 꼴 가운데 낱말 목록에 그대로 있는 꼴을 먼저
+    assert.deepEqual(p.json(`(() => { const b = { ms: ['가다', '나다'], conf: 0.9 }; return ocrAgree(b, [b, { ms: ['가다', '나다'], conf: 0.8 }], window.__L); })()`), ['가다', '나다']);
+    assert.deepEqual(p.json(`(() => { const b = { ms: ['공무하다'], conf: 0.9 }; return ocrAgree(b, [b, { ms: ['공무하다'], conf: 0.8 }, { ms: ['공부하다'], conf: 0.85 }], window.__L); })()`), ['공부하다']);
+  } finally { p.close(); }
+});
+
 test('typed list parser reads numbered, colon, tab and Korean-first lines', () => {
   const p = bootPage();
   try {

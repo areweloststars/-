@@ -4628,7 +4628,94 @@ function ocrHeadwords(words, dict, W) {
       for (let k = out.length - 1; k >= 0; k--) if (Math.abs(out[k].x0 - s * out[k].y0 - i0) > hm * 2.5) out.splice(k, 1);
     } else { const minX = Math.min(...out.map(o => o.x0)); for (let k = out.length - 1; k >= 0; k--) if (out[k].x0 - minX > hm * 3.5) out.splice(k, 1); }
   }
-  return out;
+  // 낱말 줄 아래에 그 낱말로 시작하는 예문이 있는 단어장 쪽은 표제어가 크지 않아도, 단이 둘이어도 그쪽으로 찾아요
+  const eco = ocrEchoHeads(words, dict, W);
+  return eco.length >= 4 && eco.length > out.length ? eco : out;
+}
+// 단어장 목록(낱말 줄 + 그 낱말로 시작하는 예문 줄)의 표제어: 줄의 첫 영어 낱말(앞에 번호만 올 수 있음)인데,
+// 바로 아래 몇 줄 안에 같은 왼쪽 끝에서 같은 낱말(활용형도: 첫 네 글자)로 시작하는 줄이 있는 것 ('borrow' 아래 'borrow a book from the library').
+// 단이 여럿이면 단마다 오른쪽 끝(다음 단의 왼쪽 끝)을 함께 적어 둬요
+function ocrEchoHeads(words, dict, W) {
+  // 번호가 붙어 읽힌 낱말('12borrow', '7travel')은 번호를 떼고 그만큼 왼쪽 끝을 옮김.
+  // 발음 기호가 붙어 읽힌 낱말은 앞 낱말만 ('travel(trævəl)', '('를 글자로 읽은 'travelitrævəl)'은 사전에 있는 가장 긴 앞부분). ph: 발음 기호가 붙어 있었음
+  const cut = (w, n) => Object.assign({}, w, { t: w.t.slice(0, n), x1: Math.round(w.x0 + (w.x1 - w.x0) * n / w.t.length), ph: true });
+  const lat = words.map(w => {
+    const m = w.t.match(/^[\d\W_]{1,3}(?=[A-Za-z]{3})/);
+    if (m) w = Object.assign({}, w, { t: w.t.slice(m[0].length), x0: Math.round(w.x0 + (w.x1 - w.x0) * m[0].length / w.t.length) });
+    const g = w.t.match(/^([A-Za-z][A-Za-z\-]{2,})[\[(]/);
+    if (g) return cut(w, g[1].length);
+    if (/^[A-Za-z]{6,}[\])]$/.test(w.t)) { const s = w.t.toLowerCase(); for (let n = s.length - 3; n >= 4; n--) if (dict.has(s.slice(0, n))) return cut(w, n); }
+    return w;
+  }).filter(w => /^[A-Za-z][A-Za-z\-]*[.,]?$/.test(w.t));
+  const norm = t => t.toLowerCase().replace(/[^a-z\-]/g, '');
+  const same = (a, b) => Math.abs((a.y0 + a.y1) / 2 - (b.y0 + b.y1) / 2) < Math.min(a.y1 - a.y0, b.y1 - b.y0) * 0.6;
+  // 낱말과 바로 오른쪽에 붙은 조각을 이어 읽은 글자 ('bo' + 'rrow')
+  const joined = w => { const t = norm(w.t), nx = t.length < 5 && lat.find(o => o !== w && same(o, w) && o.x0 >= w.x1 - 3 && o.x0 - w.x1 < (w.y1 - w.y0) * 0.5); return t + (nx ? norm(nx.t) : ''); };
+  // 글자 높이 기준: 또렷한 영어 낱말 높이의 가운데값 (위아래로 튀어나온 글자가 없는 낱말('measure')은 상자가 낮아서 그 높이로 재면 너무 좁아요)
+  const hs = lat.filter(w => w.c >= 60).map(w => w.y1 - w.y0).sort((a, b) => a - b), med = hs[hs.length >> 1] || 0;
+  // 줄의 첫 영어 낱말인지 (앞의 번호를 영어로 잘못 읽은 것('02' → 'oz')은 낱말로 치지 않음)
+  const first = (w, hb) => !lat.some(o => o !== w && same(o, w) && o.x1 <= w.x0 + 3 && w.x0 - o.x1 < hb * 4 && norm(o.t).length >= 3);
+  // 예문 줄: 바로 아래 몇 줄 안에, 비슷한 왼쪽 끝(낱말 앞 번호의 폭만큼 어긋나기도 해요)에서 같은 낱말로 시작하는 줄의 첫 낱말.
+  // 또렷하게(45 이상) 읽혔으면 첫 네 글자, 흐리면 첫 다섯 글자까지 같아야 해요. 위에서부터
+  const echoes = (w, t, hb) => lat.filter(o => {
+    if (o === w || o.y0 <= w.y0 + (w.y1 - w.y0) * 0.6 || o.y0 - w.y1 >= hb * 3.5 || Math.abs(o.x0 - w.x0) >= hb * 3 || !first(o, hb)) return false;
+    const j = joined(o), k = o.c >= 45 ? Math.min(4, t.length) : 5;
+    return t.length >= k && j.slice(0, k) === t.slice(0, k);
+  }).sort((a, b) => a.y0 - b.y0);
+  const word = w => { const t = norm(w.t); if (t.length < 3) return ''; if (dict.has(t)) return t; const f = ocrFix(t, dict); return dict.has(f) ? f : ''; };
+  const out = [];
+  for (const w of lat) {
+    const h = w.y1 - w.y0, hb = Math.max(h, med), t = word(w);
+    if (!t || !first(w, hb)) continue;
+    const es = echoes(w, t, hb), echo = es[0];
+    // 표제어가 흐리게 읽혔어도(신뢰도 45 미만) 예문이 그 낱말 그대로 또렷하게 시작하면 표제어 (eok: 예문으로 확인된 낱말)
+    const eok = t.length >= 4 && es.some(o => o.c >= 70 && joined(o).startsWith(t));
+    if (!echo || (w.c < 45 && !eok)) continue;
+    // 예문 하나에 낱말 줄 후보가 여럿이면(사이의 설명 줄도 그 낱말로 시작할 때) 맨 위 줄이 낱말 줄
+    const cand = Object.assign({}, w, { t, raw: w.t, echo, eok }), prev = out.findIndex(o => o.echo === echo);
+    if (prev < 0) out.push(cand); else if (w.y0 < out[prev].y0) out[prev] = cand;
+  }
+  // 예문 줄 자신이 다른 예문의 표제어로 잡히지 않게: 다른 표제어의 예문인 낱말은 뺌
+  const isEcho = w => out.some(p => p.echo && p.echo.x0 === w.x0 && p.echo.y0 === w.y0);
+  const heads = out.filter(o => !isEcho(o)).sort((a, b) => a.y0 - b.y0);
+  // 단 나누기: 왼쪽 끝이 크게 떨어지면 다른 단
+  const xs = heads.map(o => o.x0).sort((a, b) => a - b), cuts = [];
+  for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] > W * 0.18) cuts.push(xs[i]);
+  for (const o of heads) { o.col = cuts.filter(x => o.x0 >= x).length; o.colRight = cuts[o.col] ? cuts[o.col] - (o.y1 - o.y0) * 0.6 : 0; }
+  // 예문 첫 낱말을 잘못 읽어 짝이 없는 낱말 줄: 단의 낱말 왼쪽 끝에 놓인 줄의 첫 사전 낱말이고 바로 뒤에 발음 기호('[…]', '(…)')가 붙었으면 낱말 줄.
+  // 같은 단의 다른 낱말 줄과는 한 항목(낱말 줄 + 예문 + 번역) 높이만큼 떨어져 있어야 해요
+  if (heads.length >= 4) {
+    const PH = /[\[\]()əæðʃʒŋːɔʌɪʊɛɑˈ]|[áéíóúàèìòù]/;
+    for (const w of lat) {
+      const h = w.y1 - w.y0, hb = Math.max(h, med);
+      if (w.c < 45 || heads.some(o => o.x0 === w.x0 && o.y0 === w.y0) || isEcho(w) || !first(w, hb)) continue;
+      const t = word(w); if (!t || heads.some(o => o.t === t)) continue;
+      const col = cuts.filter(x => w.x0 >= x - hb * 1.5).length, hc = heads.filter(o => o.col === col);
+      if (hc.length < 2) continue;
+      if (Math.abs(w.x0 - hc.map(o => o.x0).sort((a, b) => a - b)[hc.length >> 1]) > hb * 1.5) continue;
+      if (!w.ph && !words.some(o => o !== w && same(o, w) && o.x0 >= w.x1 - 3 && o.x0 - w.x1 < hb * 1.2 && PH.test(o.t))) continue;
+      const ys = hc.map(o => o.y0).sort((a, b) => a - b), gs = ys.slice(1).map((y, i) => y - ys[i]).sort((a, b) => a - b), sp = gs[gs.length >> 1];
+      if (hc.some(o => Math.abs(o.y0 - w.y0) < sp * 0.6)) continue;
+      heads.push(Object.assign({}, w, { t, raw: w.t, col, colRight: cuts[col] ? cuts[col] - h * 0.6 : 0, echo: null, eok: false }));
+    }
+  }
+  // 한 줄에 낱말 둘('A [발음] 뜻 : B [발음] 뜻'): 표제어 줄 오른쪽의 사전 낱말인데, 아래 몇 줄 안에 단의 왼쪽 끝에서
+  // 그 낱말로 시작하는 예문이 있으면 둘째 표제어 (흐리게(60 미만) 읽혔으면 예문이 그 낱말 그대로 또렷하게 시작할 때만).
+  // 휘어 찍힌 쪽은 줄이 비스듬해서 표제어 둘레 글줄의 기울기를 따라 같은 줄인지 봐요 (사이의 ':'는 '-'나 잡티로 읽히기도 해서 따지지 않아요)
+  for (const hd of heads.slice()) {
+    const h = hd.y1 - hd.y0, hb = Math.max(h, med), rx = hd.colRight || W, hx = (hd.x0 + hd.x1) / 2, hy = (hd.y0 + hd.y1) / 2;
+    const sl = ocrPairSlope(words.filter(o => Math.abs((o.y0 + o.y1) / 2 - hy) < h * 4));
+    for (const w of lat) {
+      const t = norm(w.t);
+      if (w === hd || w.c < 25 || t.length < 4 || !dict.has(t) || w.x0 < hd.x1 + h * 3 || w.x0 > rx) continue;
+      if (Math.abs((w.y0 + w.y1) / 2 - (hy + sl * ((w.x0 + w.x1) / 2 - hx))) > Math.min(h, w.y1 - w.y0) * 0.6) continue;
+      const ex = lat.find(o => o.c >= 60 && o.y0 > hd.y1 && o.y0 - hd.y1 < hb * 8 && Math.abs(o.x0 - hd.x0) < hb * 3 && joined(o).startsWith(t.slice(0, 4)) && first(o, hb));
+      if (!ex || (w.c < 60 && !(ex.c >= 70 && joined(ex).startsWith(t))) || heads.some(o => o.t === t)) continue;
+      hd.right = Math.min(hd.right || 1e9, w.x0 - h * 0.5);
+      heads.push(Object.assign({}, w, { t, raw: w.t, col: hd.col, colRight: hd.colRight, echo: ex }));
+    }
+  }
+  return heads.sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0);
 }
 // 두 영어 낱말의 편집 거리 (최대 3까지만 셈)
 function ocrEdit(a, b) {
@@ -4805,9 +4892,12 @@ function ocrParen(t) {
   }
   return out;
 }
+const KO_BAR = { 2: ['리', '기'], 7: ['기'], 'ㄱ': ['기'], 0: ['이'], o: ['이'], O: ['이'], 'ㅇ': ['이'], L: ['니'], 'ㄴ': ['니'] };
 // 뜻 줄 글자 → 뜻 목록: 품사 표시(명·동), 번호, 영어 동의어, 기호를 빼고 진짜 낱말인 뜻만 (최대 4개)
 function ocrMeanLine(text, L) {
   let t = String(text || '').replace(/[㈀-㋿①-⓿]/g, ' ')
+    // 세로 모음 'ㅣ'가 떨어져 숫자·기호로 읽힌 글자('기' → '7 |', '이' → '0|'): 이어서 확실한 낱말이 될 때만 되돌림
+    .replace(/([가-힣]+)\s?([27ㄱ0oOㅇLㄴ])\s?[|Il1ㅣ]\s?([가-힣]*)/g, (a, x, j, z) => { for (const f of [s => L.has(s), s => koExact(s, L)]) for (const g of KO_BAR[j]) if (f(x + g + z)) return x + g + z; return a; })
     // 어원 설명('…에서 유래'), 괄호와 붙어 읽힌 품사 표시('형(상자'), 낱말 앞에 붙은 낱자모('ㅋ감독')는 지움
     .replace(/에서\s*유래\S*/g, ' ').replace(/(^|[\s.\d])[명동형부통][(\[{]/g, '$1 ').replace(/(^|\s)[ㄱ-ㅣ]+(?=[가-힣])/g, '$1')
     // 홀로 읽힌 낱자모('ㅇ.')는 번호를 잘못 읽은 것: 뜻 나누는 자리로
@@ -4820,16 +4910,20 @@ function ocrMeanLine(text, L) {
     // '['를 못 읽은 '감독관리]하다': ']' 앞에서 뒷말과 이어 진짜 낱말이 되는 부분만 ('관리하다')
     .replace(/([가-힣]+)\]([가-힣]+)/g, (a, x, z) => { for (let k = x.length - 2; k >= Math.max(0, x.length - 4); k--) if (koExact(x.slice(k) + z, L)) return ' ' + x.slice(k) + z; return x + ' ' + z; });
   t = ocrParen(t)
-    // 괄호: 앞 글자에 붙은 한글 괄호('머리(를 감다)')만 남기고, 띄어 쓴 설명 괄호·영어 괄호·짝 없는 괄호는 뺌
-    .replace(/(^|[^가-힣])\([^)]*\)?/g, '$1 ')
-    .replace(/\(([^)]*)\)?/g, (a, x) => /[가-힣]/.test(x) && a.endsWith(')') ? a : ' ')
+    // 괄호: 앞 글자에 붙은 한글 괄호('머리(를 감다)')만 남기고, 띄어 쓴 설명 괄호·영어 괄호는 뺌.
+    // 짝 없는 '('는 그 글자만 지움 (발음 기호 끝을 '(]'로 읽은 것 뒤의 뜻까지 지우지 않게)
+    .replace(/(^|[^가-힣])\([^()]*\)/g, '$1 ')
+    .replace(/\(([^()]*)\)/g, (a, x) => /[가-힣]/.test(x) ? a : ' ')
+    .replace(/\((?![^()]*\))/g, ' ')
     .replace(/[A-Za-z0-9@#*_=|\[\]{}<>"“”'`^:;!?&%$+\\]+|~(?![가-힣])/g, m => /\d/.test(m) ? m.replace(/\d+/g, d => ' ' + d + '.').replace(/[^\d.]/g, ' ') : ' ');
   const parts = t.split(/\s*(?:\d+\s*\.|[,，·ㆍ/]|\.\s)\s*/).map(p => p.replace(/[.]/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
   const out = [];
   out.fix = 0; // 글자를 떼거나 바꿔서 낱말을 만든 횟수 (많을수록 덜 믿을 만한 줄)
   const ok = w => /^~[가-힣]{0,3}$/.test(w) || koWordOk(w.replace(/^~/, '').replace(/\(.*$/, '').replace(/[()]/g, ''), L); // '~하려'·'~에게' 같은 자리 표시도 뜻의 일부
-  for (let p of parts) {
-    let ws = p.split(' ');
+  for (let pi = 0; pi < parts.length; pi++) {
+    let p = parts[pi], ws = p.split(' ');
+    // 가운데 글자를 잡티로 읽어 갈라진 낱말('정리하다' → '정', '하다')의 뒤쪽 '하다'는 뜻이 아님
+    if (/^(하다|되다|시키다)$/.test(p) && /^[가-힣]$/.test(parts[pi - 1] || '')) continue;
     // '설 명 하다'처럼 낱글자로 쪼개 읽힌 한글은 먼저 붙임 (그래야 가운데 '명'이 품사 표시로 지워지지 않아요)
     // 붙인 말이 진짜 낱말일 때만 ('더 밍 흥상자'처럼 잡티 글자까지 붙여 뜻을 망치지 않게)
     for (let i = 0; i < ws.length; i++) if (/^[가-힣]$/.test(ws[i]) && /^[가-힣]$/.test(ws[i + 1] || '')) {
@@ -4838,7 +4932,8 @@ function ocrMeanLine(text, L) {
       if (koWordOk(t.replace(/\(.*$/, ''), L)) ws.splice(i, j - i, t);
     }
     ws = ws.filter(w => !/^(명|동|형|부|유|반|참|명동|동명|숙)$/.test(w));
-    while (ws.length > 1 && /^[가-힣]$/.test(ws[0]) && !/^~/.test(ws[1])) ws.shift(); // '명'을 잘못 읽은 한 글자 등 ('막 ~하려 하다'의 '막'은 둠)
+    let cut = 0; while (ws.length > 1 && /^[가-힣]$/.test(ws[0]) && !/^~/.test(ws[1])) { ws.shift(); cut++; } // '명'을 잘못 읽은 한 글자 등 ('막 ~하려 하다'의 '막'은 둠)
+    if (cut && /^(하다|되다|시키다)$/.test(ws.join(' '))) continue; // 앞 글자만 남고 가운데가 잡티로 빠진 낱말('정@ 하다')의 '하다'
     // 낱말이 아닌 낱말 고치기: 뜻 뒤에 붙은 유의어 기호 ⓢ를 읽은 글자('닫다운' → '닫다'), 비슷한 모양 글자('렬정하다' → '결정하다'),
     // 품사 표시가 앞에 붙어 읽힌 것('형회상자(를' → '상자(를')
     ws = ws.map((w, k) => { if (ok(w) && !/다$/.test(w)) return w; const [x, f] = koFixWord(w, L, k === 0); out.fix += f; return x; }).flatMap(w => w.split(' '));
@@ -4876,7 +4971,7 @@ function ocrBestMean(cands) {
 // - 비슷하게 읽힌 꼴 가운데 가장 많이 나온 꼴로 ('묵다' 한 번, '묶다' 두 번 → '묶다')
 // - 쉼표를 못 읽어 붙은 뜻은 다른 읽기에서 따로 나온 뜻으로 나눔 ('상자 바구니' → '상자', '바구니')
 // - 다른 읽기에 없는 뜻: 일부만 나왔으면 그 부분만, 다른 뜻이 둘 이상 확인된 줄의 홀로 읽힌 낱말·짧은 잡티('하복 아남 개')는 뺌
-function ocrAgree(best, cands) {
+function ocrAgree(best, cands, L) {
   const out = [], others = cands.filter(cd => cd !== best);
   const sup = best.ms.map(m => others.filter(cd => cd.ms.some(x => koNear(m, x))).length);
   const confirmed = i => sup.filter((v, j) => j !== i && v).length;
@@ -4897,17 +4992,20 @@ function ocrAgree(best, cands) {
         if (!/다$/.test(m) && ws.every(x => x.length <= 2) && confirmed(i)) return;
       }
     } else if (!sup[i] && confirmed(i) >= 2) return;
+    // 같은 줄의 다른 뜻은 모양이 비슷해도('가다, 나다') 이 뜻의 다른 읽기로 치지 않음
     const vs = new Map();
-    for (const cd of cands) for (const x of cd.ms) if (koNear(m, x)) vs.set(x, (vs.get(x) || 0) + 1 + cd.conf);
-    let pick = m, pv = -1;
-    for (const [x, v] of vs) if (v > pv) { pv = v; pick = x; }
+    for (const cd of cands) for (const x of cd.ms) if (koNear(m, x) && (x === m || !best.ms.includes(x))) vs.set(x, (vs.get(x) || 0) + 1 + cd.conf);
+    // 낱말 목록에 그대로 있는 낱말이 더 많은 꼴을 먼저 ('공무하다'가 두 번, '공부하다'가 한 번이어도 '공부하다'), 그다음 많이 나온 꼴
+    const lx = x => L ? x.split(' ').filter(w => L.has(w.replace(/^~/, '').replace(/\(.*$/, ''))).length : 0;
+    let pick = m, pv = -1, pl = -1;
+    for (const [x, v] of vs) { const l = lx(x); if (l > pl || (l === pl && v > pv)) { pl = l; pv = v; pick = x; } }
     if (!out.includes(pick)) out.push(pick);
   });
   return out.slice(0, 4);
 }
 // 한 표제어의 뜻이 여러 줄이면('1. 2.' 다음 줄에 '3.') 줄마다 여러 번 읽은 결과로 다듬어 위에서부터 이어 붙임 (최대 4개)
 // 가장 믿을 만한 줄은 늘 넣고, 다른 줄은 또렷하게(신뢰도 55 이상) 읽혔고 다른 읽기에서도 나온 뜻만
-function ocrLines(best, cands) {
+function ocrLines(best, cands, L) {
   const lines = [];
   for (const cd of [...cands].sort((a, b) => a.y - b.y)) {
     const ln = lines.find(l => Math.abs(l.y - cd.y) < Math.max(l.h, cd.h) * 0.6);
@@ -4916,7 +5014,7 @@ function ocrLines(best, cands) {
   const out = [];
   for (const ln of lines) {
     const main = ln.cs.includes(best), b = main ? best : ocrBestMean(ln.cs);
-    let ms = ocrAgree(b, ln.cs);
+    let ms = ocrAgree(b, ln.cs, L);
     if (!main) {
       if (b.conf < 0.55) continue;
       ms = ms.filter(m => ln.cs.some(cd => cd !== b && cd.ms.some(x => koNear(m, x))));
@@ -4945,6 +5043,23 @@ function ocrCutLevel(c, cx, cy, a, x0, y0, w, h, s) {
   const cos = Math.cos(a), sin = Math.sin(a);
   const back = (px, py) => { const u = px / s + x0 - cx, v = py / s + y0 - cy; return [cx + u * cos - v * sin, cy + u * sin + v * cos]; };
   return { o, back };
+}
+// 표제어 줄의 오른쪽 끝: 단 경계(rx) 바로 앞에 글자 높이보다 넓은 빈자리(단 사이)가 있으면 rx 그대로.
+// 없으면 줄이 경계를 넘어 이어지는 것이라 경계 뒤에서 처음 나오는 넓은 빈자리(글자 높이 2.5배)까지
+function ocrLineEnd(c, cx, cy, a, hh, left, rx) {
+  const x0 = Math.max(left, Math.round(rx - hh * 4)), w = c.width - x0;
+  if (w < hh * 2) return rx;
+  const { o } = ocrCutLevel(c, cx, cy, a, x0, Math.round(cy - hh * 0.5), w, Math.max(4, Math.round(hh)), 1);
+  const d = o.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, o.width, o.height).data;
+  const lum = []; for (let i = 0; i < d.length; i += 4) lum.push(d[i]);
+  lum.sort((p, q) => p - q);
+  const th = lum[Math.floor(lum.length * 0.7)] * 0.6, ink = new Uint8Array(o.width); // 바탕(밝은 쪽)보다 한참 어두운 점이 글자
+  for (let x = 0; x < o.width; x++) { let n = 0; for (let y = 0; y < o.height; y++) if (d[(y * o.width + x) * 4] < th) n++; ink[x] = n >= 2 ? 1 : 0; }
+  const gap = (from, to, len) => { let run = 0; for (let x = Math.max(0, from); x < Math.min(o.width, to); x++) { run = ink[x] ? 0 : run + 1; if (run >= len) return x - run + 1; } return -1; };
+  const bx = Math.round(rx) - x0;
+  if (gap(0, bx + Math.round(hh), Math.round(hh * 1.2)) >= 0) return rx;
+  const end = gap(bx, o.width, Math.round(hh * 2.5));
+  return end < 0 ? c.width : x0 + end + Math.round(hh * 0.5);
 }
 // 사전식 쪽: 표제어마다 오른쪽 뜻 자리만 잘라서 한국어로 다시 읽음
 async function ocrDictPage(c, words, dict, L, run) {
@@ -4981,7 +5096,9 @@ async function ocrDictPage(c, words, dict, L, run) {
           const cut = ocrCutLevel(c.plain || c, cx, cy, hw.a, hw.x0 - pad, hw.y0 - pad, x1 - hw.x0 + pad * 2, hh + pad * 2, s).o;
           if (bin) ocrOtsu(cut, cut.getContext('2d', { willReadFrequently: true }));
           const r = await OCR.eng.recognize(cut);
-          reads.push({ t: String(r.data.text || '').trim().split(/[\s\[(]+/)[0] || '', c: r.data.confidence || 0 });
+          // 첫 낱말 (앞에 번호가 함께 잘려 들어왔으면('15 travel') 번호는 건너뜀)
+          const toks = String(r.data.text || '').trim().split(/[\s\[(]+/).filter(Boolean);
+          reads.push({ t: toks.find(x => /[A-Za-z]/.test(x)) || toks[0] || '', c: r.data.confidence || 0 });
         } catch (e) { }
       };
       await reread(2, false);
@@ -4989,12 +5106,14 @@ async function ocrDictPage(c, words, dict, L, run) {
       // 두 읽기가 다르면 흑백으로 더 크게 한 번 더
       const norm = x => String(x || '').toLowerCase().replace(/[^a-z\-]/g, '');
       if (!(dict.has(hw.t) && norm(reads[1] && reads[1].t) === hw.t)) { await reread(3, true); if (MK.run !== run) return null; }
-      const pg = pgOf(hw), pick = ocrHeadPick(reads, pg, dict, w => owner.has(w) && owner.get(w) !== hw) || hw.t;
+      // 바로 아래 예문이 이 낱말 그대로 또렷하게 시작하면(eok) 그것도 한 번 읽은 것으로 침 (발음 기호와 붙어 읽혀 다시 읽기가 낱말 끝을 놓칠 때)
+      const pg = pgOf(hw), pick = ocrHeadPick(hw.eok ? reads.concat({ t: hw.t, c: 90 }) : reads, pg, dict, w => owner.has(w) && owner.get(w) !== hw) || hw.t;
       if (window.__dd) window.__dd.push('reread ' + reads.map(r => r.t + ' c' + Math.round(r.c)).join(' / ') + ' => ' + pick);
       const conf = Math.max(0, ...reads.slice(1).filter(r => norm(r.t) === pick).map(r => r.c));
-      // 처음에 아주 흐리게(50 미만) 읽힌 표제어는 다시 읽어서 확인되지 않고 쪽의 다른 곳에도 두 번 이상 나오지 않으면 버림 (각주 한글을 'ray'로 읽은 것 같은 잡티)
-      if ((hw.c || 0) < 50 && conf < 45 && (pg.get(pick) || 0) < 2) continue;
-      hw.t = pick; hw.rc = conf;
+      // 처음에 아주 흐리게(50 미만) 읽힌 표제어는 다시 읽어서 확인되지 않고 쪽의 다른 곳에도 두 번 이상 나오지 않으면 버림 (각주 한글을 'ray'로 읽은 것 같은 잡티).
+      // 바로 아래 예문이 그 낱말로 또렷하게 시작하는 표제어(eok)는 흐리게 찍혔어도 둠
+      if ((hw.c || 0) < 50 && conf < 45 && (pg.get(pick) || 0) < 2 && !(hw.eok && pick === hw.t)) continue;
+      hw.ek = !!hw.eok && pick === hw.t; hw.t = pick; hw.rc = conf;
       if (!owner.has(pick)) owner.set(pick, hw);
       ok.push(hw);
     }
@@ -5008,13 +5127,21 @@ async function ocrDictPage(c, words, dict, L, run) {
       const hw = ok[i], hh = hw.y1 - hw.y0, cx = (hw.x0 + hw.x1) / 2, cy = (hw.y0 + hw.y1) / 2, sin = Math.sin(hw.a), cos = Math.cos(hw.a);
       // 바로잡은 그림(이 표제어 가운데를 축으로 돌림)에서 각 표제어 가운데의 높이
       const yOf = h => cy - ((h.x0 + h.x1) / 2 - cx) * sin + ((h.y0 + h.y1) / 2 - cy) * cos;
-      const nx = ok[i + 1], pv = ok[i - 1], left = Math.round(hw.x1 + hh * 2);
-      const top = Math.max(0, Math.round(Math.max(cy - hh * 1.1, pv ? yOf(pv) : -1e9))), bottom = Math.round(Math.min(cy + hh * 2.2, nx ? yOf(nx) : 1e9));
-      if (left >= c.width - 20 || bottom - top < 10) continue;
+      // 같은 단의 표제어끼리만 위아래 경계로 (단이 여럿인 단어장 쪽), 뜻 자리는 다음 단 앞까지.
+      // 위아래는 바로잡은 높이로 따져요 (휘어 찍혀 비스듬한 줄의 둘째 낱말('A … : B …'의 B)이 다음 줄로 잡히지 않게)
+      const col = ok.filter(h => (h.col || 0) === (hw.col || 0)), line = h => Math.abs(yOf(h) - cy) < hh * 0.6;
+      const nx = col.filter(h => yOf(h) > cy + hh * 0.6).sort((a, b) => yOf(a) - yOf(b))[0], pv = col.filter(h => yOf(h) < cy - hh * 0.6).sort((a, b) => yOf(b) - yOf(a))[0];
+      const left = Math.round(hw.x1 + hh * 2);
+      // 단이 여럿인 쪽이라도 쪽 너비로 쓴 줄은 단 사이 빈자리를 넘어 이어져요: 그때는 줄이 끝나는 빈자리까지
+      const right = Math.round(hw.right || (hw.colRight ? ocrLineEnd(c.plain || c, cx, cy, hw.a, hh, left, hw.colRight) : c.width));
+      // 예문이 바로 아래 오는 단어장은 예문 줄 앞까지만 (예문 번역을 뜻으로 읽지 않게)
+      const ey0 = hw.echo ? cy - (hw.echo.x0 - cx) * sin + (hw.echo.y0 - cy) * cos - 2 : 1e9;
+      const top = Math.max(0, Math.round(Math.max(cy - hh * 1.1, pv ? yOf(pv) : -1e9))), bottom = Math.round(Math.min(cy + hh * 2.2, nx ? yOf(nx) : 1e9, ey0));
+      if (left >= right - 20 || bottom - top < 10) continue;
       const cands = [];
       // 뜻 자리를 s배로 읽어 줄마다 후보로 (가는 한글 글씨는 크기에 따라 잘 읽히는 게 달라서 크기를 바꿔 여러 번 읽어요)
       const readAt = async (s, bin) => {
-        const { o, back } = ocrCutLevel(c, cx, cy, hw.a, left, top, c.width - left, bottom - top, s);
+        const { o, back } = ocrCutLevel(c, cx, cy, hw.a, left, top, right - left, bottom - top, s);
         if (bin) ocrOtsu(o, o.getContext('2d', { willReadFrequently: true })); // 색 띠(초록 제목 띠 등) 위 글자: 잘라 낸 곳만의 기준으로 흑백
         const r = await OCR.worker.recognize(o, {}, { blocks: true });
         if (MK.run !== run) return false;
@@ -5028,9 +5155,9 @@ async function ocrDictPage(c, words, dict, L, run) {
           const ly = (bb.y0 + bb.y1) / 2 / s + top, mh = (bb.y1 - bb.y0) / s;
           // 뜻 글자는 표제어 밑줄에 맞춰 찍혀요: 기대하는 뜻 줄 가운데 = 표제어 밑줄 - 뜻 글자 높이 절반. 다른 표제어 줄에 더 가까우면 그 표제어 것
           const ey = h => yOf(h) + (h.y1 - h.y0) / 2 - mh / 2;
-          let closest = i, cd = Math.abs(ly - ey(hw));
-          for (let j = 0; j < ok.length; j++) if (j !== i && Math.abs(ly - ey(ok[j])) < cd) { cd = Math.abs(ly - ey(ok[j])); closest = j; }
-          if (closest !== i) continue;
+          let closest = hw, cd = Math.abs(ly - ey(hw));
+          for (const h of col) if (h !== hw && !line(h) && Math.abs(ly - ey(h)) < cd) { cd = Math.abs(ly - ey(h)); closest = h; }
+          if (closest !== hw) continue;
           const conf = clamp((+ln.confidence || 50) / 100, 0.2, 1);
           const sc = Math.min(8, ms.join('').length) * conf - Math.max(0, Math.abs(ly - ey(hw)) - hh * 0.5) / hh * 6 - (ms.fix || 0) * 0.5 - (ms.loose || 0) * 1.5;
           const lb = ln.bbox || bb, pts = [back(lb.x0, lb.y0), back(lb.x1, lb.y0), back(lb.x0, lb.y1), back(lb.x1, lb.y1)];
@@ -5043,9 +5170,10 @@ async function ocrDictPage(c, words, dict, L, run) {
       // 아무것도 못 읽었거나 고른 줄의 뜻이 다른 크기로 읽은 결과와 다르면 흑백으로 2배 크게 한 번 더 읽어서 다수결
       if (!best || best.ms.some(m => !cands.some(o => o.s !== best.s && o.ms.includes(m)))) { if (!(await readAt(2, true))) return null; best = ocrBestMean(cands); }
       if (best) {
-        rows.push(hw.t + ' - ' + ocrLines(best, cands).join(', '));
+        rows.push(hw.t + ' - ' + ocrLines(best, cands, L).join(', '));
         if (OCR.boxes) ocrKeepBox(hw.t, ocrBox([hw, best.b]));
-        if (best.conf < 0.5 || Math.max(hw.c || 0, hw.rc || 0) < 85) OCR.low.add(hw.t); // 흐리게 읽힌 줄: 확인 화면에서 빨간 칸
+        // 흐리게 읽힌 줄: 확인 화면에서 빨간 칸 (표제어가 흐려도 바로 아래 예문이 같은 낱말로 또렷하게 시작하면 표제어는 확인된 것)
+        if (best.conf < 0.5 || (Math.max(hw.c || 0, hw.rc || 0) < 85 && !hw.ek)) OCR.low.add(hw.t);
       }
       ocrShow('', 0.3 + 0.7 * (OCR.i + 0.6 + 0.4 * (i + 1) / ok.length) / OCR.n);
     }
