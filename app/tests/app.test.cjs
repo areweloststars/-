@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const { build, out } = require('../build.cjs');
+const { build, out, seal, unseal, sumOf, sum } = require('../build.cjs');
 const { bootPage } = require('./page.cjs');
 
 const STORE_KEY = 'day02-voca-mission-v1';
@@ -13,8 +13,23 @@ const ROWS = [
   ['decide', '결정하다', 'v'], ['carefully', '조심스럽게', 'd'], ['harvest', '수확', 'n'], ['shiver', '떨다', 'v']
 ].map(([en, ko, pos]) => ({ en, ko, pos }));
 
-test('word-game/index.html is built from app/src (run: npm run build)', () => {
-  assert.ok(fs.readFileSync(out, 'utf8') === build(), 'word-game/index.html differs from app/src — run: npm run build');
+test('word-game/index.html is the locked build of app/src (run: SITE_KEY=… npm run build)', () => {
+  const page = fs.readFileSync(out, 'utf8');
+  assert.equal(sumOf(page), sum(build()), 'word-game/index.html differs from app/src — run: SITE_KEY=<링크의 # 뒤 열쇠> npm run build');
+  // 사이트에 올라가는 파일에는 게임 코드가 그대로 들어 있지 않고, 검색에도 나오지 않게
+  assert.ok(!page.includes('function mkRead') && !page.includes('ocrEchoHeads'));
+  assert.match(page, /<meta name="robots" content="noindex/);
+});
+
+test('locked page opens only with its key', () => {
+  const crypto = require('node:crypto');
+  const html = build(), key = crypto.randomBytes(32), page = seal(html, key);
+  assert.equal(unseal(page, key), html);
+  assert.throws(() => unseal(page, crypto.randomBytes(32)));
+  // 같은 게임·같은 열쇠면 같은 파일 (다시 만들어도 바뀌지 않음), 열쇠가 다르면 다른 파일
+  assert.equal(seal(html, key), page);
+  assert.notEqual(seal(html, crypto.randomBytes(32)), page);
+  assert.ok(!page.includes(key.toString('base64url')));
 });
 
 test('boots with the original demo deck and no errors', async () => {

@@ -4,10 +4,21 @@
 이 파일은 **빌드 결과**라서 직접 고치지 않고, `app/src`를 고친 뒤 빌드해요.
 
 ```
-npm install      # 테스트용 jsdom 받기 (게임 실행에는 필요 없음)
-npm run build    # app/src → word-game/index.html
-npm test         # 빌드가 최신인지 + 회귀 테스트
+npm install                          # 테스트용 jsdom 받기 (게임 실행에는 필요 없음)
+SITE_KEY=<공유 링크> npm run build    # app/src → 잠근 word-game/index.html
+npm test                             # 빌드가 최신인지 + 회귀 테스트 (열쇠 없이 돼요)
 ```
+
+### 링크가 있어야 열리는 사이트
+
+사이트에 올라가는 `word-game/index.html`은 게임 전체를 AES-GCM으로 잠근 페이지(`app/src/lock.html`)예요.
+공유 링크 `…/word-game/#k=<열쇠 43글자>`의 `#` 뒤가 열쇠이고, 이 부분은 브라우저가 서버로 보내지 않아요.
+열쇠가 없거나 틀리면 잠금 화면만 보이고, 검색 엔진에는 나오지 않게(`noindex`) 해 두었어요. 한 번 연 기기는 열쇠를 기억해서 주소만으로도 열려요.
+
+- 열쇠는 **저장소에 넣지 않아요**. 빌드할 때 `SITE_KEY`(링크 전체나 `#` 뒤 열쇠) 또는 `app/.site-key` 파일(`.gitignore`에 있음)에서 읽어요.
+- `node app/build.cjs --link`: 지금 열쇠로 공유 링크 보기. `--new-key`: 새 열쇠로 바꾸기 (예전 링크는 더 이상 안 열려요).
+- 막아 주는 것은 *사이트에서 게임을 여는 것*이에요. 저장소가 공개라서 `app/src`의 코드는 GitHub에서 누구나 볼 수 있어요.
+  코드까지 숨기려면 저장소를 비공개로 바꿔야 하는데, 무료 계정에서는 비공개 저장소의 GitHub Pages가 꺼져요 (GitHub Pro 이상 필요).
 
 ## 폴더
 
@@ -16,7 +27,8 @@ npm test         # 빌드가 최신인지 + 회귀 테스트
 | `app/src/shell.html` | HTML 껍데기 (`/*@@STYLES@@*/`, `/*@@SCRIPT@@*/` 자리에 CSS·JS가 들어감) |
 | `app/src/styles.css` | 화면 스타일 |
 | `app/src/NN-*.js` | 게임 스크립트. 번호 순서대로 이어 붙여 하나의 `<script>`가 되고, 모두 같은 전역 범위를 써요 |
-| `app/build.cjs` | 빌드 (`--check`는 비교만) |
+| `app/src/lock.html` | 사이트에 올라가는 잠금 페이지 (`/*@@SITE@@*/` 자리에 잠근 게임이 들어감) |
+| `app/build.cjs` | 빌드와 잠그기 (`--check`는 비교만, `--link`는 공유 링크) |
 | `app/tests/` | jsdom 회귀 테스트 |
 | `word-game/ocr/` | 글자 인식(Tesseract.js)과 영어·한국어 단어 목록 |
 | `word-game/tts/` | 영어 발음용 음성 엔진(Piper·eSpeak NG). 라이선스는 `word-game/tts/NOTICE.txt` |
