@@ -152,6 +152,44 @@ test('OCR dictionary pages: headwords and meaning lines survive common misreads'
   } finally { p.close(); }
 });
 
+test('OCR app screenshots: two-line words, articles, stray letters and glued words', () => {
+  const p = bootPage();
+  try {
+    p.window.__lex = fs.readFileSync(require('node:path').join(__dirname, '../../word-game/ocr/ko-lex.txt'), 'utf8');
+    p.run('window.__L = new Set(window.__lex.split("\\n").filter(Boolean)); window.__lex = "";');
+    const W = (t, x, y, c = 95, w = t.length * 20, h = 40) => ({ t, x0: x, y0: y, x1: x + w, y1: y + h, c });
+    const dict = JSON.stringify(['take', 'a', 'break', 'look', 'forward', 'to', 'give', 'up', 'hold', 'on', 'lot', 'of', 'turn', 'away', 'at'].map(w => [w, 1]));
+    // 단어장 앱 화면: 왼쪽 영어(두 줄로 넘어가기도 함), 오른쪽 한글 뜻(다음 줄로 넘어가기도 함)
+    const words = [
+      W('take', 100, 100), W('a', 196, 108, 95, 20, 32), W('break', 226, 100), W('잠시', 440, 100), W('쉬다', 530, 100),
+      W('look', 100, 300), W('forward', 196, 300), W('to', 100, 370), W('~을', 440, 300), W('기대하다', 510, 300),
+      W('give', 100, 500, 95, 60), W('아', 150, 492, 50, 26, 56), W('up', 180, 500, 60, 40), W('포기하다', 440, 500),
+      W('hold', 100, 700), W('on', 196, 700), W('기다리다,', 440, 700), W('버티다', 600, 700), W('(전화를)', 440, 770), W('끊지', 600, 770), W('않다', 690, 770)
+    ];
+    assert.deepEqual(p.json(`ocrPairs(${JSON.stringify(words)}, new Map(${dict}))`),
+      ['take a break - 잠시 쉬다', 'look forward to - ~을 기대하다', 'give up - 포기하다', 'hold on - 기다리다, 버티다 (전화를) 끊지 않다']);
+    // 영어·한국어로 두 번 읽은 것 합치기: 영어 사이 'of'를 '아'로 읽은 것은 영어로, 한글 뜻 속 '의'를 'of'로 읽은 것은 한글로,
+    // 한글 획 아랫부분만 읽은 낮은 조각('LS')은 버림
+    const A = [W('아', 172, 100, 30, 30), W('~', 440, 300, 80, 20), W('의', 470, 300, 93, 30), W('기분을', 510, 300)];
+    const E = [W('lot', 100, 100, 97, 60), W('of', 172, 100, 96, 40), W('of', 470, 300, 71, 30), W('LS', 620, 324, 80, 40, 16), W('break', 100, 500, 96)];
+    assert.deepEqual(p.json(`ocrMerge(${JSON.stringify(A)}, ${JSON.stringify(E)}, new Map(${dict})).map(w => w.t).sort()`), ['break', 'lot', 'of', '~', '기분을', '의'].sort());
+    // 띄어쓰기를 못 읽어 붙은 영어
+    assert.equal(p.json(`ocrFix('takeabreak', new Map(${dict}))`), 'take a break');
+    assert.equal(p.json(`ocrFix('tumaway', new Map(${dict}))`), 'turn away');
+    assert.equal(p.json(`ocrFix('ata', new Map(${dict}))`), 'at a');
+    // 붙어 읽힌 한글 뜻 나누기, 쉼표를 못 읽은 뜻 나누기 (명사 둘은 그대로)
+    assert.deepEqual(p.json(`koFixWord('결정을내리다', window.__L, true)`), ['결정을 내리다', 0.5]);
+    assert.deepEqual(p.json(`koFixWord('~에게도움을주다', window.__L, true)`), ['~에게 도움을 주다', 0.5]);
+    assert.deepEqual(p.json(`koListSplit('빠르게 신속하게', window.__L)`), ['빠르게', '신속하게']);
+    assert.deepEqual(p.json(`koListSplit('맑은 깨끗한', window.__L)`), ['맑은', '깨끗한']);
+    assert.deepEqual(p.json(`koListSplit('출발 시간', window.__L)`), ['출발 시간']);
+    // 모든 영어 단어가 같은 크기인 단어장 화면은 사전식 쪽(큰 표제어)으로 보지 않음 (한글을 영어로 잘못 읽은 작은 잡티가 많아도)
+    const list = ['river', 'borrow', 'ancient', 'whisper', 'courage', 'explain'].map((t, i) => W(t, 100, 100 + i * 150))
+      .concat(Array.from({ length: 12 }, (_, i) => W('Xq', 440 + (i % 3) * 120, 110 + (i >> 1) * 140, 30, 40, 18)));
+    assert.equal(p.json(`ocrHeadwords(${JSON.stringify(list)}, new Map(${JSON.stringify(['river', 'borrow', 'ancient', 'whisper', 'courage', 'explain'].map(w => [w, 1]))}), 1080).length`), 0);
+  } finally { p.close(); }
+});
+
 test('typed list parser reads numbered, colon, tab and Korean-first lines', () => {
   const p = bootPage();
   try {
