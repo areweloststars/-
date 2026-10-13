@@ -2,10 +2,10 @@
 
 목소리
 - en-joe.*.wasm: Piper en_US-joe-medium 음성(int8, npm vowel-lab-voices-int8), CC0-1.0. 영어 발음용이며, 기기에 영어 목소리가 없을 때만 받아서 써요.
-- espeak-ng.js / espeak-ng-gz.wasm: eSpeak NG (npm espeak-ng 1.0.2), GPL-3.0 — LICENSE.txt 참고. 글자를 발음기호로 바꾸고, 기기 목소리가 없을 때 목소리를 만드는 데 씀.
+- espeak-ng.js / espeak-ng-gz.wasm: eSpeak NG (npm espeak-ng 1.0.2), GPL-3.0 — LICENSE.txt 참고. 영어 글자를 발음기호로 바꾸는 데 쓰고, 영어 고품질 목소리도 못 쓰는 기기에서만 영어 단어를 읽어요.
   소스 코드: https://github.com/espeak-ng/espeak-ng
 - ort.wasm.min.js / ort-wasm-simd-threaded.*: ONNX Runtime Web 1.20.1, MIT License.
-- 한국어 문장은 기기(브라우저·운영체제) 목소리로 읽고, 없으면 eSpeak NG로 읽어요. 비상업 라이선스였던 한국어 신경망 목소리(KSS)는 뺐어요.
+- 한국어 문장은 기기(브라우저·운영체제) 목소리로 읽고, 없으면 자막으로만 보여 줘요(eSpeak NG 한국어는 알아듣기 어려워 쓰지 않아요). 비상업 라이선스였던 한국어 신경망 목소리(KSS)는 뺐어요.
 
 글자 인식 (../ocr)
 - Tesseract.js 5.1.1 (Apache-2.0), tesseract.js-core 5.1.1 (Apache-2.0), 한국어·영어 학습 데이터 tessdata 4.0.0_best_int (Apache-2.0).

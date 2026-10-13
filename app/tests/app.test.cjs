@@ -72,6 +72,20 @@ test('boots with the original demo deck and no errors', async () => {
   } finally { p.close(); }
 });
 
+test('speech: dictionary marks are read as words, and Korean is never read by the robotic fallback', async () => {
+  const p = bootPage();
+  try {
+    const ko = p.json(`['~을 설명하다, ~의 비율을 차지하다', '~에 도움이 되다', '~가 되다', '~할 수 있다', '(값을) 지불하다', '사과/배'].map(sayKo)`);
+    assert.deepEqual(ko, ['무엇을 설명하다, 무엇의 비율을 차지하다', '무엇에 도움이 되다', '무엇이 되다', '할 수 있다', '값을 지불하다', '사과, 배']);
+    const en = p.json(`['give sth to sb', 'be capable of ~', '(be) aware of', 'look up/down'].map(sayEn)`);
+    assert.deepEqual(en, ['give something to somebody', 'be capable of', 'be aware of', 'look up, down']);
+    // 이 화면에는 음성 기능이 없어요: 한국어는 자막으로 넘어가라는 신호만, eSpeak는 부르지 않아요
+    const r = await p.run(`(async () => { let esp = 0; const f = Esp.speak; Esp.speak = () => { esp++; return Promise.resolve(); };
+      try { await tts('기사가 길을 설명했어요.', 'ko-KR', 1); return 'spoke'; } catch (e) { return (e && e.name) + ':' + esp; } finally { Esp.speak = f; } })()`);
+    assert.equal(r, 'NoKoVoice:0');
+  } finally { p.close(); }
+});
+
 test('demo deck: each story line marks its own words once, every word has answers', () => {
   const p = bootPage();
   try {

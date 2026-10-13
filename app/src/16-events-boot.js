@@ -58,6 +58,8 @@ function bindEvents() {
       }
       else if (act === 'start') { Sound.unlock(); startPlay(); }
       else if (act === 'vfull') { Sound.unlock(); Narr.unlock(); if (FS.on) exitFS(); else enterFS(); }
+      else if (act === 'vcopy') copyLink();
+      else if (act === 'vout') openOutside();
       return;
     }
     const sb = e.target.closest('.seg button');
@@ -98,7 +100,7 @@ function bindEvents() {
       } else if (act === 'zoom') { if (!M.full) zoomOutFull(); else if (showing()) zoomIn(); else zoomCard(); }
       return;
     }
-    if (e.target.closest('#say')) { const id = curId(); Narr.unlock(); sayWord(id, wordRate()).catch(() => { }); return; }
+    if (e.target.closest('#say')) { const id = curId(); Narr.unlock(); sayWord(id, wordRate()).catch(voiceWait); return; }
     if (e.target.closest('#picbtn')) { togglePic(); return; }
     const fresh = performance.now() - (M.barAt || 0) < 400;
     if (e.target.closest('#dont')) { if (fresh) return; Sound.unlock(); dont(); return; }
