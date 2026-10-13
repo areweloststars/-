@@ -366,8 +366,8 @@ function voiceWarm(note) {
     if (note) toast('영어 발음용 고품질 목소리를 준비하고 있어요 · 처음 한 번만 약 37MB를 받아요');
   });
 }
-// 앱 안 화면(카카오톡·인스타그램 등 앱 속 브라우저): 휴대폰 목소리를 쓸 수 없는 경우가 많아요
-const inApp = /; wv\)|KAKAOTALK|NAVER\(inapp|Instagram|FBA[NV]|\bLine\/|DaumApps|everytimeApp/i.test(navigator.userAgent || '');
+// 앱 안 화면(Claude 앱·카카오톡·인스타그램 등 앱 속 브라우저): 휴대폰 목소리를 쓸 수 없는 경우가 많아요
+const inApp = /; wv\)|\bClaude\/|KAKAOTALK|NAVER\(inapp|Instagram|FBA[NV]|\bLine\/|DaumApps|everytimeApp/i.test(navigator.userAgent || '');
 const inKakao = /KAKAOTALK/i.test(navigator.userAgent || '');
 // 지금 게임을 여는 링크 (열쇠는 이 기기에 기억된 것)
 function gameLink() { let k = ''; try { k = localStorage.getItem('word-game-site-key') || ''; } catch (e) { } return location.origin + location.pathname + (k ? '#k=' + k : ''); }
@@ -383,7 +383,7 @@ function openOutside() { location.href = 'kakaotalk://web/openExternal?url=' + e
 function voiceOutsideHTML() {
   if (!SAVE.narr || devVoice('ko-KR')) return '';
   if (!inApp) return `이 기기에는 한국어 목소리가 없어서 한국어 자막은 글로만 보여 주고, 영어 단어는 소리로 들려줘요. 휴대폰 <b>설정 → 텍스트 음성 변환(TTS)</b>에서 한국어 음성을 받으면 자막도 읽어 줘요.`;
-  return `이 앱 안 화면에서는 휴대폰 목소리를 쓸 수 없어서 한국어 자막은 글로만 보여 줘요. <b>Chrome</b>이나 <b>삼성 인터넷</b>에서 열면 휴대폰의 자연스러운 목소리로 자막과 영어 발음을 읽어 줘요.
+  return `이 앱 안 화면(Claude 앱·카카오톡 등)에서는 휴대폰 목소리를 쓸 수 없어서 한국어 자막은 글로만 보여 줘요. <b>Chrome</b>이나 <b>삼성 인터넷</b>에서 열면 휴대폰의 자연스러운 목소리로 자막과 영어 발음을 읽어 줘요. 아래 단추로 링크를 복사해 주소창에 붙여 넣으면 돼요.
     ${inKakao ? '<button type="button" class="linkbtn" data-act="vout">다른 브라우저로 열기</button> ' : ''}<button type="button" class="linkbtn" data-act="vcopy">링크 복사</button>`;
 }
 // 설정 화면에 보여 줄 이 기기 목소리 상태
