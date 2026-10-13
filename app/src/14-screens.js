@@ -105,6 +105,7 @@ function renderHome() {
       <div class="setrow"><span class="setlab">단어 1개당 제한 시간 <small>(뜻이 하나 늘 때마다 +${DIFF[SAVE.diff].extra}초)</small></span><div class="seg" data-set="diff">${diffSeg()}</div></div>
       <div class="setrow"><span class="setlab">스토리 음성(더빙)</span><div class="seg" data-set="narr">${segBtn('narr', true, '켜기')}${segBtn('narr', false, '끄기')}</div></div>
       <div class="setrow"><span class="setlab">음성 속도</span><div class="seg" data-set="rate">${rateSeg()}</div></div>
+      <div class="setrow"><span class="setlab">이 기기 목소리 <small id="vstat">${esc(voiceStat())}</small></span></div>
       <div class="setrow"><span class="setlab">효과음</span><div class="seg" data-set="sound">${segBtn('sound', true, '켜기')}${segBtn('sound', false, '끄기')}</div></div>
     </div></details>
     <div class="sectlab">에피소드 <span>차례로 깨면 다음 에피소드가 열려요</span></div>
@@ -331,8 +332,9 @@ async function svTTS(L, ms, after) {
   try { await tts(L.plain, 'ko-KR', SAVE.rate); SV.failN = 0; }
   catch (e) {
     if (e && e.name === 'AbortError') return;
-    ok = false;
-    if (++SV.failN >= 3) { SV.narrFail = true; svCtl(); } // 세 번 연달아 안 될 때만 자막으로 바꿈
+    // 한국어 목소리가 없는 기기: 실패로 치지 않고 자막을 읽을 시간만큼 기다렸다가 영어 단어는 들려줘요
+    if (e && e.name === 'NoKoVoice') await sleep(Math.max(300, ms - (L.word ? 700 : 0) - (Date.now() - t0)));
+    else { ok = false; if (++SV.failN >= 3) { SV.narrFail = true; svCtl(); } } // 세 번 연달아 안 될 때만 자막으로 바꿈
   }
   if (!live()) return;
   // 영어 단어 발음은 따로: 안 돼도 이야기는 계속
@@ -342,14 +344,16 @@ async function svTTS(L, ms, after) {
 }
 // 복습 때 읽어 줄 뜻: 게임이 정답으로 받는 뜻(정리된 뜻) 그대로
 const meanSay = id => { const w = WORDS[id] || {}; const t = (w.ans || []).map(g => g.t).filter(Boolean).join(', '); return (t || String(w.m || '')).replace(/\([^)]*\)/g, '').trim(); };
-// 이야기 속 영어 단어 발음을 순서대로 미리 만들어 둠 (기기 안 영어 목소리를 쓸 때만)
+// 이야기 속 영어 단어 발음을 순서대로 미리 만들어 둠 (기기 안 영어 목소리를 쓸 때만. tts()와 같은 글·빠르기로)
 function voicePrefetch() {
-  if (!Voice.ready('en') || (hasSS && ssHas('en')) || !SV.lines || !SV.lines.length) return;
-  for (const L of SV.lines) if (L.word && WORDS[L.word]) Voice.synth(WORDS[L.word].say || shortW(L.word), 'en-US', Math.min(SAVE.rate, 1) * .85).catch(() => { });
+  if (!Voice.ready('en') || devVoice('en-US') || !SV.lines || !SV.lines.length) return;
+  for (const L of SV.lines) if (L.word && WORDS[L.word]) { const t = sayEn(wordSay(L.word)); if (t) Voice.synth(t, 'en-US', Math.min(SAVE.rate, 1) * .85).catch(() => { }); }
 }
+let voicePct = -1;
 Voice.onChange(() => {
   if (Voice.ready('en') && !Voice._told) { Voice._told = true; if (!$('#story').hidden) toast('영어 발음용 고품질 목소리가 준비됐어요'); }
-  if (!$('#story').hidden) voicePrefetch();
+  const vs = $('#vstat'); if (vs) vs.textContent = voiceStat();
+  if (!$('#story').hidden) { voicePrefetch(); const p = Math.round(Voice.progress * 100); if (p !== voicePct) { voicePct = p; svCtl(); } }
 });
 // 복습: 영어 발음 → 잠깐 쉼 → 한국어 뜻
 function svRecap(L, ms, after) {
@@ -357,11 +361,12 @@ function svRecap(L, ms, after) {
   if (!narrOn() || !canSpeak) { SV.t = setTimeout(after, ms); return; }
   const live = () => tok === SV.tok;
   sayWord(L.word, wordRate())
+    .catch(e => { if (e && e.name === 'AbortError') throw e; }) // 영어 발음이 안 나와도 뜻은 읽어요
     .then(() => live() && sleep(120))
     .then(() => live() && tts(meanSay(L.word), 'ko-KR', SAVE.rate))
     .then(() => live() && sleep(200))
     .then(() => { if (live()) after(); })
-    .catch(e => { if (!live()) return; if (!(e && e.name === 'AbortError') && ++SV.failN >= 3) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
+    .catch(e => { if (!live()) return; if (!(e && /^(AbortError|NoKoVoice|VoiceLoading)$/.test(e.name)) && ++SV.failN >= 3) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
 }
 function svShow(single) {
   if (!SP || !SV.lines.length) return;
@@ -413,7 +418,7 @@ function svWord(id) {
   setSub(`<p><mark><i>${esc(shortW(id))}</i>${mHTML(w.m)}</mark> ${esc(w.pic)}</p>`);
   markChip(id);
   svCamera(id);
-  if (SAVE.narr) sayWord(id, wordRate()).catch(() => { });
+  if (SAVE.narr) sayWord(id, wordRate()).catch(voiceWait);
 }
 function leaveStory() { svHalt(); exitFS(); }
 function svCtl() {
@@ -431,6 +436,15 @@ function svCtl() {
     voice.setAttribute('aria-pressed', String(SAVE.narr));
   }
   if (speed) { speed.textContent = SAVE.rate.toFixed(1) + '×'; speed.setAttribute('aria-label', `음성 속도 ${SAVE.rate.toFixed(1)}배. 누르면 바뀌어요`); }
+  // 한국어 기기 목소리가 없으면(앱 안 화면 등) 왜 자막만 나오는지, 어떻게 하면 들리는지 안내
+  // (진행률만 바뀔 때는 글자만 바꿔서, 누르려던 단추가 사라지지 않게)
+  const out = hint && M.kind === 'scene' && !SV.narrFail ? voiceOutsideHTML() : '';
+  if (out) {
+    if (hint.dataset.out !== out) { hint.innerHTML = out + ' <span></span>'; hint.dataset.out = out; }
+    hint.lastElementChild.textContent = Voice.loading && !devVoice('en-US') ? `영어 발음용 목소리 준비 중 (${Math.round(Voice.progress * 100)}%)` : '';
+    return;
+  }
+  if (hint) hint.dataset.out = '';
   if (hint) hint.textContent = M.kind === 'review' ? (SAVE.narr ? '단어를 누르면 그 단어가 그려진 칸을 크게 보여 주고, 영어 발음과 그림해석을 들려줘요.' : '단어를 누르면 그 단어가 그려진 칸을 크게 보여 주고 그림해석을 보여 줘요. 발음은 ‘음성’ 버튼으로 켤 수 있어요.')
     : !SAVE.narr ? '음성이 꺼져 있어요. 그림 아래 ‘음성’ 버튼으로 켤 수 있어요.'
     : SV.narrFail ? '이 화면에서는 소리를 재생하지 못해 자막으로만 보여 줘요. 휴대폰 미디어 음량도 확인해 주세요.'

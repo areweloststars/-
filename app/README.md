@@ -51,7 +51,7 @@ npm test                             # 빌드가 최신인지 + 회귀 테스트
 | `09-picture-editor.js` | 그림 꾸미기 |
 | `10-make-deck.js` | 정답 묶음 만들기, 에피소드 만들기, 저장 |
 | `11-app-core.js` | 저장 기록, 난이도, 공용 아이콘 |
-| `12-voice.js` | 효과음, 기기 음성·생성 음성·eSpeak 읽기 |
+| `12-voice.js` | 효과음, 기기 음성(한국어·영어)·영어 생성 음성(Piper)·eSpeak(영어 마지막 수단) 읽기, 앱 안 화면 안내 |
 | `13-zoom-panel.js` | 확대되는 그림 패널 |
 | `14-screens.js` | 홈·스토리 화면 |
 | `15-mission.js` | 뜻 입력 미션·보스·복습 |
