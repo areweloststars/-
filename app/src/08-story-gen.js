@@ -96,39 +96,51 @@ function mkAutoPanel(en, ko, pos, i) {
 // 이야기 틀: 주인공(H)·친구(F)·말썽꾼(V)·장소(P)·찾는 물건(G)·사건(E)
 const SF = [
   { title: '용과 기사 레오', H: '기사 레오', F: '꼬마 공주', V: '배고픈 용', P: '하늘 성', G: '황금 방패', E: '용 달래기 작전', bg: 'sky', hero: { kind: 'person', hat: 'helm', outfit: 'grey', hair: 'short' },
+    S: { H: '레오', F: '공주', V: '용' },
     N: { aim: '황금 방패를 지키는 것', won: '황금 방패를 지켜 낸', doc: '작전 계획서', parcel: '떡볶이 도시락', food: '매운 떡볶이', gear: '투구', book: '용 백과사전', tool: '튼튼한 밧줄', device: '용 간식 발사기', room: '성 연회장', plant: '사과나무 묘목', animal: '아기 용', booking: '성 연회장 맨 앞자리', party: '성 축제', secret: '용의 약점', broken: '부서진 성문', supply: '떡볶이' },
-    intro: ['옛날 옛적 {P}에 {H:이} 살았어요.', '어느 날 {V:이} 성 앞에 나타나 {G:을} 노렸어요!'], outro: ['결국 {V:은} 떡볶이를 얻어먹고 {H:와} 친구가 됐답니다.'] },
+    intro: ['옛날 옛적 {P}에 {H:이} 살았어요.', '어느 날 {V:이} 성 앞에 나타나 {G:을} 노렸어요!'], outro: ['{H:이} 매운 떡볶이 한 접시를 내밀자, {V:은} 꿀꺽 먹고 {H:와} 친구가 됐답니다.'] },
   { title: '거북이 토토의 역전승', H: '거북이 토토', F: '다람쥐 응원단', V: '잘난 척 토끼', P: '숲속 운동장', G: '우승 메달', E: '숲속 달리기 대회', bg: 'mint', hero: { kind: 'tortoise' },
+    S: { H: '토토', F: '응원단', V: '토끼' },
     N: { aim: '우승 메달을 따는 것', won: '우승 메달을 딴', doc: '참가 신청서', parcel: '물병 상자', food: '당근 케이크', gear: '운동화', book: '달리기 비법 책', tool: '줄넘기 줄', device: '물 마시는 쉼터', room: '숲속 운동장', plant: '해바라기 씨앗', animal: '아기 다람쥐', booking: '결승선 앞 응원석', party: '시상식', secret: '토끼의 낮잠 습관', broken: '부러진 결승선 깃대', supply: '물' },
     intro: ['{P}에서 {E:이} 열렸어요.', '{V:은} “이번에도 1등은 나야!”라며 {G:을} 미리 목에 걸어 봤죠.'], outro: ['결승선! {H:이} {G:을} 목에 걸었어요. 꾸준함이 최고예요!'] },
   { title: '막내 돼지의 튼튼한 집', H: '막내 돼지', F: '첫째 형', V: '심술쟁이 늑대', P: '언덕 마을', G: '벽돌집', E: '집 짓기', bg: 'warm', hero: { kind: 'pig' },
+    S: { H: '막내', F: '첫째 형', V: '늑대' },
     N: { aim: '벽돌집을 다 짓는 것', won: '벽돌집을 다 지은', doc: '집 설계도', parcel: '벽돌 꾸러미', food: '옥수수 수프', gear: '목장갑', book: '집 짓기 책', tool: '튼튼한 망치', device: '튼튼한 굴뚝', room: '새 벽돌집', plant: '호박 씨앗', animal: '아기 병아리', booking: '벽돌 배달 트럭', party: '집들이 잔치', secret: '늑대의 콧바람 비밀', broken: '금 간 굴뚝', supply: '벽돌' },
-    intro: ['{P}에 돼지 삼형제가 살았어요.', '{H:은} 늑대도 못 부수는 {G:을} 짓기로 했어요.'], outro: ['후우 불어도 끄떡없는 집! {V:은} 콧물만 흘리고 돌아갔어요.'] },
+    intro: ['{P}에 돼지 삼형제가 살았어요.', '{H:은} 늑대도 못 부수는 {G:을} 짓기로 했어요.'], outro: ['{V:이} 후우 불어도 {G:은} 끄떡없었어요! {V:은} 콧물만 흘리고 돌아갔어요.'] },
   { title: '알라딘과 수다쟁이 지니', H: '알라딘', F: '램프 요정 지니', V: '욕심쟁이 대신', P: '사막 왕국', G: '마법 램프', E: '소원 빌기', bg: 'sand', hero: { kind: 'person', hat: 'turban', outfit: 'purple', hair: 'short', skin: 1 },
+    S: { H: '알라딘', F: '지니', V: '대신' },
     N: { aim: '마법 램프를 지키는 것', won: '마법 램프를 지켜 낸', doc: '소원 목록', parcel: '양탄자 꾸러미', food: '대추야자 과자', gear: '터번', book: '마법 사전', tool: '마법 양탄자', device: '양탄자 착륙장', room: '왕궁 계단', plant: '무화과나무 묘목', animal: '아기 낙타', booking: '낙타 택시', party: '왕궁 무도회', secret: '램프의 비밀', broken: '구멍 난 양탄자', supply: '소원' },
     intro: ['{P}의 골목에서 {H:이} 낡은 {G:을} 주웠어요.', '쓱쓱 문지르자 {F:이} 펑! 나타났어요.'], outro: ['마지막 소원은 “모두 함께 간식 파티!” 왕국이 들썩였어요.'] },
   { title: '마법 학교의 루나', H: '견습 마법사 루나', F: '부엉이 선생님', V: '장난꾸러기 유령', P: '구름 위 마법 학교', G: '마법 지팡이', E: '주문 시험', bg: 'lavender', hero: { kind: 'person', hat: 'pointy', extra: 'robe', outfit: 'purple', hair: 'long' },
+    S: { H: '루나', F: '부엉이 선생님', V: '유령' },
     N: { aim: '주문 시험에 붙는 것', won: '주문 시험에 붙은', doc: '마법 숙제', parcel: '물약 상자', food: '호박 쿠키', gear: '마법 모자', book: '주문책', tool: '마법 빗자루', device: '물약 끓이는 솥', room: '마법 교실', plant: '마법 콩 씨앗', animal: '아기 부엉이', booking: '빗자루 정비소', party: '할로윈 파티', secret: '사라지는 주문의 비밀', broken: '부러진 빗자루', supply: '물약' },
-    intro: ['{P}에 첫 수업 종이 울렸어요.', '{H:은} 오늘 {E:을} 봐야 했죠.'], outro: ['시험 합격! {V}마저 박수를 쳤답니다.'] },
+    intro: ['{P}에 첫 수업 종이 울렸어요.', '{H:은} 오늘 {E:을} 봐야 했죠.'], outro: ['{H:은} {E}에 멋지게 합격했어요. {V}마저 박수를 쳤답니다.'] },
   { title: '우주비행사 민의 모험', H: '우주비행사 민', F: '로봇 삐삐', V: '장난꾸러기 외계인', P: '달 기지', G: '연료 상자', E: '우주 탐사', bg: 'night', hero: { kind: 'person', hat: 'helm', outfit: 'white', hair: 'short' },
+    S: { H: '민', F: '삐삐', V: '외계인' },
     N: { aim: '연료 상자를 되찾는 것', won: '연료 상자를 되찾은', doc: '탐사 보고서', parcel: '우주 식량 상자', food: '우주 아이스크림', gear: '우주 헬멧', book: '별자리 책', tool: '로봇 팔', device: '산소 발생기', room: '로켓 조종실', plant: '감자 싹', animal: '아기 외계 고양이', booking: '우주 정거장 숙소', party: '달 기지 축하 파티', secret: '외계인의 비밀 기지', broken: '고장 난 안테나', supply: '산소' },
-    intro: ['카운트다운 3, 2, 1! 로켓이 {P:로} 날아갔어요.', '그런데 {V:이} {G:을} 몰래 숨겨 버렸어요!'], outro: ['{V:와} 화해한 {H}, 이제 우주 친구가 생겼어요.'] },
+    intro: ['카운트다운 3, 2, 1! 로켓이 {P:로} 날아갔어요.', '그런데 {V:이} {G:을} 몰래 숨겨 버렸어요!'], outro: ['{G:을} 되찾은 {H:은} {V:와} 화해하고 우주 친구가 됐어요.'] },
   { title: '해적 선장 해나', H: '선장 해나', F: '수다쟁이 앵무새', V: '졸린 바다 괴물', P: '보물섬', G: '보물 상자', E: '보물찾기', bg: 'sea', hero: { kind: 'person', hat: 'cap', outfit: 'red', hair: 'pony' },
+    S: { H: '해나', F: '앵무새', V: '바다 괴물' },
     N: { aim: '보물 상자를 찾는 것', won: '보물 상자를 찾아낸', doc: '항해 일지', parcel: '과일 상자', food: '생선 구이', gear: '장화', book: '바다 지도책', tool: '굵은 밧줄', device: '망원경 받침대', room: '배 갑판', plant: '야자나무 묘목', animal: '아기 거북', booking: '항구 정박 자리', party: '선원 잔치', secret: '보물 지도의 비밀', broken: '구멍 난 돛', supply: '마실 물' },
     intro: ['{H:이} 낡은 보물 지도를 펼쳤어요.', '목적지는 바로 {P}! {G:이} 거기 묻혀 있대요.'], outro: ['{G} 안에는… 단어 카드가 가득! 진짜 보물이었어요.'] },
   { title: '탐정 셜리의 사건 수첩', H: '탐정 셜리', F: '강아지 조수 왓슨', V: '괴도 X', P: '안개 낀 도시', G: '딸기 케이크', E: '케이크 도둑 잡기', bg: 'grey', hero: { kind: 'person', extra: 'glasses', outfit: 'brown', hat: 'cap', hair: 'bob' },
+    S: { H: '셜리', F: '왓슨', V: '괴도 X' },
     N: { aim: '딸기 케이크를 되찾는 것', won: '딸기 케이크를 되찾은', doc: '수사 보고서', parcel: '증거 상자', food: '샌드위치', gear: '탐정 모자', book: '추리 소설', tool: '돋보기', device: '도둑 잡는 덫', room: '탐정 사무소', plant: '장미 화분', animal: '길 잃은 고양이', booking: '기차 일등석', party: '케이크 시식회', secret: '괴도 X의 정체', broken: '망가진 자물쇠', supply: '단서' },
     intro: ['{P}에서 {G:이} 감쪽같이 사라졌어요!', '{H:은} 돋보기를 꺼내 들었어요.'], outro: ['범인은 배고팠던 {F}! 모두 웃으며 {G:을} 나눠 먹었어요.'] },
   { title: '흥부와 보은 제비', H: '흥부', F: '아기 제비', V: '욕심쟁이 놀부', P: '초가집 마을', G: '황금 박', E: '박 타기', bg: 'warm', hero: { kind: 'person', outfit: 'brown', hair: 'bun', extra: 'beard' },
+    S: { H: '흥부', F: '제비', V: '놀부' },
     N: { aim: '황금 박을 얻는 것', won: '황금 박을 얻은', doc: '박씨 심는 법 쪽지', parcel: '쌀자루', food: '따끈한 호박죽', gear: '짚신', book: '농사 책', tool: '커다란 톱', device: '제비 둥지', room: '초가집 마당', plant: '박씨', animal: '배고픈 강아지', booking: '장터 자리', party: '박 타기 잔치', secret: '박씨의 비밀', broken: '부서진 초가지붕', supply: '쌀' },
     intro: ['{P}에 마음씨 착한 {H:이} 살았어요.', '그런데 {V:이} {H:의} 쌀독까지 몽땅 가져가 버렸어요!'], outro: ['{G:을} 타자 금은보화가 와르르! {V}도 반성하고 다 함께 나눠 가졌답니다.'] },
   { title: '신데렐라의 유리 구두', H: '신데렐라', F: '요정 할머니', V: '심술궂은 새언니', P: '왕궁', G: '유리 구두', E: '무도회', bg: 'lavender', hero: { kind: 'person', outfit: 'blue', hair: 'long', hairColor: 'blond' },
+    S: { H: '신데렐라', F: '요정 할머니', V: '새언니' },
     N: { aim: '무도회에 가는 것', won: '무도회에 간', doc: '무도회 초대장', parcel: '드레스 상자', food: '호박 파이', gear: '드레스', book: '춤 교본', tool: '요술 지팡이', device: '호박 마차', room: '부엌 바닥', plant: '호박 씨앗', animal: '생쥐 친구', booking: '호박 마차', party: '티 파티', secret: '마법이 풀리는 시간', broken: '찢어진 드레스', supply: '시간' },
     intro: ['{P}에서 {E:이} 열린대요!', '그런데 {V:이} {H:의} 드레스를 꽁꽁 숨겨 버렸어요.'], outro: ['열두 시 종이 울려도 걱정 없어요. {H:은} {G:을} 신고 신나게 춤췄답니다.'] },
   { title: '헨젤과 그레텔의 과자 집', H: '헨젤', F: '동생 그레텔', V: '과자 집 마녀', P: '깊은 숲', G: '집으로 가는 지도', E: '숲 탈출 작전', bg: 'mint', hero: { kind: 'person', outfit: 'green', hair: 'short' },
+    S: { H: '헨젤', F: '그레텔', V: '마녀' },
     N: { aim: '집으로 돌아가는 것', won: '집으로 가는 지도를 찾아낸', doc: '탈출 계획서', parcel: '과자 바구니', food: '생강 쿠키', gear: '털모자', book: '숲 지도책', tool: '튼튼한 막대기', device: '과자 문 여는 장치', room: '과자 집 창문', plant: '사과 씨앗', animal: '길 잃은 아기 토끼', booking: '숲속 오두막', party: '과자 파티', secret: '마녀의 진짜 이름', broken: '부서진 과자 문', supply: '빵 부스러기' },
     intro: ['{H:과} {F:이} {P}에서 길을 잃었어요.', '배가 고파 과자 집을 한 입 깨물었는데, 바로 {V:의} 집이었어요!'], outro: ['{V:은} 과자 굽는 법을 알려 주는 착한 이웃이 됐어요. 숲에는 달콤한 냄새가 가득!'] },
   { title: '손오공과 파초선', H: '손오공', F: '삼장 법사', V: '고집쟁이 요괴', P: '불타는 산', G: '파초선 부채', E: '서쪽 나라 여행', bg: 'warm', hero: { kind: 'person', outfit: 'orange', hat: 'cap', hair: 'short' },
+    S: { H: '손오공', F: '삼장 법사', V: '요괴' },
     N: { aim: '불타는 산의 불을 끄는 것', won: '파초선 부채를 손에 넣은', doc: '여행 일지', parcel: '복숭아 바구니', food: '천도복숭아', gear: '머리띠', book: '도술 책', tool: '여의봉', device: '물 뿌리는 펌프', room: '절 마당', plant: '복숭아나무 묘목', animal: '아기 원숭이', booking: '구름 택시', party: '복숭아 잔치', secret: '요괴의 약점', broken: '부러진 나무다리', supply: '물' },
     intro: ['{H:은} {F:과} 함께 {E:을} 떠났어요.', '그런데 {P:이} 길을 가로막았어요! 불을 끄려면 {G:이} 필요했죠.'], outro: ['부채질 한 번에 불이 꺼졌어요! {V}도 함께 여행을 떠나기로 했답니다.'] }
 ];
@@ -860,10 +872,10 @@ const ST_ADJ = {
 // 뜻 속 '~' 자리 채우기: 조사에 맞춰 이야기 속 말을 넣어요 ('~을 고대하다' → '황금 방패를 고대하다', '~와 잘 지내다' → '배고픈 용과 잘 지내다')
 const ST_SLOT = '(에게서|에서는|에서|에게|에도|에는|으로|이나|보다|까지|부터|처럼|만큼|을|를|이|가|은|는|과|와|로|에|의|도|만)';
 // 그 자리에 들어갈 이야기 속 이름 (같은 문장에 이미 나온 이름은 피함)
-function stSlot(p, f, used) {
+function stSlot(p, f, used, nm = k => f[k]) {
   p = p || '';
   const pick = keys => keys.find(k => !used || !used.has(k)) || keys[0];
-  if (/^(과|와|에게|에게서|보다|처럼)$/.test(p)) { const k = pick(['F', 'V', 'H']); return /^(과|와)$/.test(p) ? koP(f[k], p) : f[k] + p; }
+  if (/^(과|와|에게|에게서|보다|처럼)$/.test(p)) { const k = pick(['F', 'V', 'H']); return /^(과|와)$/.test(p) ? koP(nm(k), p) : nm(k) + p; }
   if (/^(에서|에서는)$/.test(p)) return f.P + p;
   if (/^(으로|로)$/.test(p)) return koP(f.P, '로');
   if (/^(에|에도|에는|까지|부터)$/.test(p)) return f[pick(['E', 'G'])] + p;
@@ -944,10 +956,11 @@ function stOk(t, w) {
 // 이야기마다 정해 둔 물건·장소 이름이 없을 때 쓰는 이름 ({doc} 서류 · {parcel} 나를 짐 · {gear} 입는 것 · {device} 만들 장치 · {room} 치울 곳 …)
 const ST_NOUN = { aim: '목표를 이루는 것', won: '목표를 이룬', doc: '계획서', parcel: '도시락 바구니', food: '따끈한 수프', gear: '모자', book: '지도책', tool: '튼튼한 밧줄', device: '새 장치', room: '연회장', plant: '해바라기 씨앗', animal: '아기 새', booking: '맨 앞자리', party: '축제', secret: '숨겨진 비밀', broken: '부서진 문', supply: '간식' };
 // 문장 틀 채우기. prefix는 '~' 자리에 들어간 말 ('황금 방패를 ')
-function stFill(t, f, w, prefix = '') {
+// nm: 인물 이름 고르기 (이야기에 한 번 나온 인물은 짧은 이름으로: '기사 레오' → '레오')
+function stFill(t, f, w, prefix = '', nm = k => f[k]) {
   return t.replace(/\{(Wq|[HFVPGEW]|[a-z]+)(?::([^}]+))?\}/g, (all, k, form) => {
     if (/^[a-z]/.test(k)) { const x = (f.N && f.N[k]) || ST_NOUN[k] || k; return form ? koP(x, form) : x; }
-    if (k !== 'W' && k !== 'Wq') return form ? koP(f[k], form) : f[k];
+    if (k !== 'W' && k !== 'Wq') return form ? koP(nm(k), form) : nm(k);
     const isForm = form && ST_FORMS.has(form), core = isForm ? w.forms[form] : w.base;
     let s = `{${w.id}|${core}}`;
     if (k === 'Wq') s = `‘${s}’`;
@@ -961,8 +974,8 @@ const ST_SELF = /(되다|해지다|어지다|아지다|워지다|여지다)$|^(�
 // (말썽꾼이 하는 줄은 v: '한편 배고픈 용은 …', '결국 배고픈 용은 …')
 const ST_LINK = {
   first: ['그런데', '그날 아침', '바로 그때'], '00': ['설상가상으로', '게다가', '엎친 데 덮친 격으로'], '01': ['우선', '먼저'], '02': ['다행히', '그 덕분에'],
-  '11': ['그다음', '잠시 뒤', '그러자', '얼마 뒤'], '12': ['그 덕분에', '마침내'], '22': ['게다가', '그리고'], '10': ['그런데', '하지만'], '20': ['그런데', '하지만'], '21': ['그다음', '잠시 뒤'],
-  end: ['마침내', '마지막으로'],
+  '11': ['그다음', '잠시 뒤', '얼마 뒤'], '12': ['그 덕분에', '마침내'], '22': ['게다가', '그리고'], '10': ['그런데', '하지만'], '20': ['그런데', '하지만'], '21': ['그다음', '잠시 뒤'],
+  end: ['마침내', '드디어'],
   v01: ['한편'], v11: ['한편', '그런데'], v12: ['결국'], v02: ['결국'], v22: ['결국'], vend: ['결국']
 };
 // 말썽이 다 나온 뒤 해결로 넘어갈 때 넣는 다짐 한 줄 (단어 없음)
@@ -976,7 +989,9 @@ function stSlotFits(t, p) {
 // 에피소드 하나: 이야기 자막 + 단어마다 그림 칸·그림 설명·팁
 function mkStory(epWords, rows, n) {
   const f = SF[((n % SF.length) + SF.length) % SF.length];
-  const lines = f.intro.map(t => stFill(t, f, null)), words = {}, usedT = new Set(), usedLink = new Set();
+  // 처음 나올 때는 온이름, 그다음부터는 짧은 이름
+  const seen = new Set(), nm = k => { const x = seen.has(k) && f.S && f.S[k] ? f.S[k] : f[k]; if (/^[HFV]$/.test(k)) seen.add(k); return x; };
+  const lines = f.intro.map(t => stFill(t, f, null, '', nm)), words = {}, usedT = new Set(), usedLink = new Set();
   let bridged = false;
   const N = epWords.length;
   // 문제가 생기는 단어 → 해결하는 단어 순서로 (같은 자리끼리는 원래 순서)
@@ -994,11 +1009,11 @@ function mkStory(epWords, rows, n) {
     const t = order.find(x => !usedT.has(x)) || order[0] || '{H:은} {Wq:이라는} 말을 수첩에 적었어요.';
     usedT.add(t);
     // 장면 문장은 '~' 자리를 스스로 채우니 앞말을 붙이지 않음
-    const prefix = w.slot != null && !own.includes(t) ? stSlot(w.slot, f, stNames(t)) + ' ' : '';
-    let line = stFill(t, f, w, prefix);
+    const prefix = w.slot != null && !own.includes(t) ? stSlot(w.slot, f, stNames(t), nm) + ' ' : '';
+    let line = stFill(t, f, w, prefix, nm);
     // 말썽 단어가 다 나오고 해결 쪽으로 넘어가는 자리에 다짐 한 줄
     const prevSt = i ? lex[i - 1].w.stage : -1, stg = w.stage;
-    if (!bridged && prevSt === 0 && stg > 0) { lines.push(stFill(ST_BRIDGE[(n + i) % ST_BRIDGE.length], f, null)); bridged = true; }
+    if (!bridged && prevSt === 0 && stg > 0) { lines.push(stFill(ST_BRIDGE[(n + i) % ST_BRIDGE.length], f, null, '', nm)); bridged = true; }
     // 이음말: 이름으로 시작하는 줄에만. 첫 줄·마지막 줄·자리가 바뀌는 줄, 그 밖에는 하나 걸러. 한 이야기에서 같은 말은 한 번만
     const key = i === 0 ? 'first' : i === N - 1 && stg === 2 ? 'end' : `${Math.max(0, prevSt)}${stg}`;
     if ((i === 0 || i === N - 1 || stg !== prevSt || i % 2) && w.kind !== 'd' && /^\{[HFV]/.test(t) && !/드디어|마침내|그제야|갑자기|그때|결국|끝내|이번에도|이번엔|하필/.test(t)) {
@@ -1026,7 +1041,7 @@ function mkStory(epWords, rows, n) {
     const plain = line.replace(/\{[^|}]+\|([^}]+)\}/g, '$1');
     words[id] = { panel, pic: plain.slice(0, 120), tip: mkTip(id, w.m) };
   });
-  f.outro.forEach(o => lines.push(stFill(o, f, null)));
+  f.outro.forEach(o => lines.push(stFill(o, f, null, '', nm)));
   return { title: f.title, lines, words };
 }
 // 접두사·접미사로 만드는 암기 팁 (뜻과 맞을 때만: 'reluctant'를 re-(다시)로 풀지 않게)

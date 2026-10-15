@@ -120,8 +120,12 @@ test('auto story: verbs get a scene with fitting things from the story world, tr
   assert.ok(l2.slice(iS + 1, iR).some(l => !/\{[^|}]+\|/.test(l) && /포기하지|물러설|같이 해 보자/.test(l)), l2.join('\n'));
   // 나쁜 성품은 말썽꾼 쪽, 좋은 성품은 주인공 쪽
   const l3 = st(['generous', 'lazy']);
-  assert.match(l3.find(l => l.includes('{lazy|')), /배고픈 용/);
-  assert.doesNotMatch(l3.find(l => l.includes('{generous|')), /배고픈 용[은이]/);
+  assert.match(l3.find(l => l.includes('{lazy|')), /용[은이] /);
+  assert.doesNotMatch(l3.find(l => l.includes('{generous|')), /용[은이] /);
+  // 인물은 처음에 온이름('기사 레오'), 그다음부터 짧은 이름('레오')
+  const all = [...lines, ...l2].join('\n');
+  assert.match(all, /기사 레오/);
+  assert.match(all, /(?<!기사 )레오[는가이와]/);
   // 이음말: '이번에는 …는'처럼 겹치는 말은 쓰지 않음
   for (const l of [...lines, ...l2, ...l3]) assert.doesNotMatch(l, /^이번에는 /);
 });
