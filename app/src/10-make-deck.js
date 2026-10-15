@@ -139,6 +139,25 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
       if (typeof plan.deckName === 'string' && !mkCleanKo(MK.name)) deck.name = mkCleanKo(plan.deckName).slice(0, 24) || deck.name;
     }
     if (!eps.length) eps = mkChunk(rows0.map(r => r.en)).map((ws, i) => ({ title: `단어 미션 ${i + 1}`, theme: '', words: ws }));
+    // 휴대폰 안 이야기 AI(Gemma) 준비: 처음이면 한 번 내려받아요. 못 돌리는 기기나 실패면 앱이 만든 문장 그대로
+    let ai = null, aiMsg = '';
+    if (!(MK.useAI && mkCanAI())) {
+      if (await aiGpuOk()) {
+        const first = !aiReadyBefore(), lab = first ? `이야기 AI(Gemma) 받는 중 · ${AI_SIZE}, 처음 한 번만` : '이야기 AI 준비 중';
+        const li = mkLog(lab);
+        let last = -1;
+        const aborted = new Promise((_, no) => ctl.signal.addEventListener('abort', () => no({ code: 'cancelled' }), { once: true }));
+        try {
+          ai = await Promise.race([aiLoad(p => { const pct = Math.floor(clamp(p, 0, 1) * 100); if (pct !== last) { last = pct; mkLogSet(li, 'run', `${lab} ${pct}%`); } }), aborted]);
+          mkLogSet(li, 'ok', '이야기 AI 준비 완료');
+        } catch (e) {
+          if (e && e.code === 'cancelled') throw e;
+          mkLogSet(li, 'warn', '이야기 AI를 준비하지 못해서 기본 문장으로 만들어요');
+          aiMsg = '이야기 AI를 준비하지 못해서(인터넷 연결이나 저장 공간을 확인해 주세요) 기본 문장으로 만들었어요. 다음에 만들 때 다시 시도해요.';
+        }
+      } else aiMsg = '이 기기(브라우저)에서는 이야기 AI를 돌릴 수 없어서 기본 문장으로 만들었어요. 휴대폰의 최신 크롬에서 열면 AI가 이야기를 써요.';
+    }
+    let aiLines = 0;
     // 너무 작은 에피소드(1~2단어)는 앞 에피소드와 합침(최대 8단어)
     for (let i = eps.length - 1; i > 0; i--) if (eps[i].words.length < 3 && eps[i - 1].words.length + eps[i].words.length <= 8) { eps[i - 1].words.push(...eps[i].words); eps.splice(i, 1); }
     for (let k = 0; k < eps.length; k++) {
@@ -178,6 +197,17 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
         // Claude 없이: 이야기 틀로 바로 (에피소드마다 다른 이야기)
         res = mkStory(ep.words, rows, storySeed + k);
         ep.title = res.title;
+        if (ai) {
+          const li = mkLog(`에피소드 ${k + 1}/${eps.length} ‘${ep.title}’ 이야기 AI가 쓰는 중`);
+          try {
+            const c = await aiRewrite(ai, res, rows, storySeed + k, ctl.signal);
+            aiLines += c;
+            mkLogSet(li, c ? 'ok' : 'warn', c ? `에피소드 ${k + 1} ‘${ep.title}’ 완성 (AI 문장 ${c}줄)` : `에피소드 ${k + 1}: AI 문장이 단어와 맞지 않아 기본 문장으로`);
+          } catch (e) {
+            if (e && e.code === 'cancelled') throw e;
+            mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI가 쓰지 못해서 기본 문장으로`);
+          }
+        }
       }
       const out = mkEpisode(key, ep.title, ep.words, rows, res);
       deck.scenes.push(out.scene); Object.assign(deck.words, out.words); deck.panels[key] = out.specs;
@@ -185,7 +215,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     deck.scenes = deck.scenes.filter(sc => sc.words.length);
     if (!deck.scenes.length) throw { code: 'empty_completion' };
     const saved = await DeckStore.put(deck);
-    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') + (MK.useAI ? '' : '이야기와 그림은 이 기기에서 바로 만들었어요. ') +
+    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') + (MK.useAI ? '' : aiMsg ? aiMsg + ' ' : aiLines ? '이야기는 이 기기 안의 AI(Gemma)가 썼어요. ' : '이야기와 그림은 이 기기에서 바로 만들었어요. ') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');

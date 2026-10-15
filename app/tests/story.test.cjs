@@ -78,7 +78,7 @@ test('auto story: problems come before resolutions, meanings drive the scene', (
   const s = P().json(`(() => {
     const rows = {}; for (const [en, ko] of [['friendship', '우정, 친분'], ['tie', '묶다'], ['fence', '울타리, 담장']]) rows[en] = { en, ko, pos: 'x' };
     const st = mkStory(['friendship', 'tie', 'fence'], rows, 0);
-    return { lines: st.lines, pic: Object.fromEntries(Object.entries(st.words).map(([k, w]) => [k, w.panel.subject.emoji || w.panel.subject.kind])) };
+    return { lines: st.lines, pic: Object.fromEntries(Object.entries(st.words).map(([k, w]) => [k, w.panel.subject.emoji || w.panel.hold || w.panel.subject.kind])) };
   })()`);
   const at = id => s.lines.findIndex(l => l.includes(`{${id}|`));
   assert.ok(at('fence') < at('tie') && at('tie') < at('friendship'), s.lines.join('\n'));

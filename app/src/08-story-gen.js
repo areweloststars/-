@@ -79,7 +79,8 @@ function autoPicHit(ko) {
 function mkAutoPanel(en, ko, pos, i) {
   const hit = autoPicHit(ko);
   const h = hit ? hit[1] : (pos === 'v' || (pos !== 'n' && i % 2)) ? { p: AUTO_POSE[i % AUTO_POSE.length], mark: i % 3 ? 'none' : 'exclaim' } : { e: AUTO_EMO[i % AUTO_EMO.length] };
-  const spec = { bg: AUTO_BG[i % AUTO_BG.length], sign: shortW(en).slice(0, 18), signStyle: h.p ? 'bubble' : 'board' };
+  // 그림에 영어 단어를 쓰지 않아요 (한→영 문제에서 답이 보이지 않게)
+  const spec = { bg: AUTO_BG[i % AUTO_BG.length] };
   if (h.e) spec.subject = { kind: 'emoji', emoji: h.e };
   else if (h.a) spec.subject = { kind: h.a };
   else spec.subject = { kind: 'person', pose: h.p || 'stand', hair: AUTO_HAIR[i % AUTO_HAIR.length], outfit: AUTO_OUT[i % AUTO_OUT.length], skin: i % 3 === 2 ? 1 : 0, face: h.face };
@@ -1024,20 +1025,9 @@ function mkStory(epWords, rows, n) {
     if (/\}$/.test(line)) line += '.';
     if (lines.includes(line)) line = line.replace(/[.!]?$/, '!');
     lines.push(line);
-    // 그림 칸: 뜻 갈래 그림 → 뜻에 맞는 자동 그림 → 주인공 자세
+    // 그림 칸: 그 줄을 하는 인물로, 뜻이 보이는 그림 (09-story-pics.js). 그림에는 영어 단어·뜻 글자를 쓰지 않아요
     const hit = (w.sem && w.sem[2]) || (autoPicHit(w.m) || autoPicHit(r.ko) || [])[1] || {};
-    let panel;
-    if (hit.e) panel = { subject: { kind: 'emoji', emoji: hit.e } };
-    else if (hit.a) panel = { subject: { kind: hit.a } };
-    else {
-      const sj = Object.assign({}, f.hero);
-      if (sj.kind === 'person') { sj.pose = hit.p || AUTO_POSE[i % AUTO_POSE.length]; if (hit.face) sj.face = hit.face; }
-      else sj.pose = hit.p === 'run' || hit.p === 'sleep' ? hit.p : ['wave', 'cheer', 'hold'][i % 3];
-      panel = { subject: sj };
-      if (hit.hold) panel.hold = hit.hold;
-      else if (!hit.p && i % 2) panel.hold = AUTO_EMO[i % AUTO_EMO.length];
-    }
-    Object.assign(panel, { bg: f.bg, sign: shortW(id).slice(0, 18), signStyle: panel.subject.kind === 'emoji' ? 'board' : 'bubble', mark: hit.mark || (i % 3 ? 'none' : 'exclaim') });
+    const panel = stPanel(w, r, f, i, stRoleOf(t), hit);
     const plain = line.replace(/\{[^|}]+\|([^}]+)\}/g, '$1');
     words[id] = { panel, pic: plain.slice(0, 120), tip: mkTip(id, w.m) };
   });
