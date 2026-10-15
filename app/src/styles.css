@@ -742,34 +742,4 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mkalt { display: grid; gap: 8px; margin-top: 10px; }
 .mkalt .btn { font-size: 15px; }
 
-/* ---------- 그림 꾸미기: 단어마다 그림 칸을 골라 만들기 ---------- */
-.argrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin: 10px 0 14px; }
-.arcard { display: grid; gap: 4px; padding: 6px; border: 2px solid var(--frame); border-radius: 12px; background: var(--surface); cursor: pointer; text-align: left; box-shadow: 3px 3px 0 var(--frame); min-width: 0; }
-.arcard:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--frame); }
-.arcard svg { display: block; width: 100%; height: auto; border-radius: 8px; border: 2px solid var(--frame); }
-.arcard b { font-family: var(--f-word); font-weight: 400; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.arcard small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.areps { font-family: var(--f-display); font-size: 16px; margin: 16px 0 0; }
-.ared { display: grid; gap: 12px; }
-.arprev { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); padding-block: 4px 6px; }
-.arprev svg { display: block; width: 100%; max-width: min(340px, 72%); height: auto; margin: 0 auto; border: 3px solid var(--frame); border-radius: 12px; box-shadow: 4px 4px 0 var(--frame); }
-.arword { text-align: center; margin: 6px 0 0; font-size: 13px; color: var(--muted); }
-.arword b { font-family: var(--f-word); font-weight: 400; font-size: 20px; color: var(--fg); margin-right: 6px; }
-.arsec { display: grid; gap: 6px; background: var(--surface); border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; }
-.arsec > b { font-size: 12.5px; color: var(--muted); }
-.archips { display: flex; flex-wrap: wrap; gap: 6px; }
-.archips button { border: 2px solid var(--line); background: var(--surface2); color: var(--fg); border-radius: 10px; padding: 5px 10px; font-size: 13.5px; font-weight: 600; cursor: pointer; min-height: 38px; }
-.archips button.on { border-color: var(--frame); background: var(--seg-on); color: var(--seg-on-fg); }
-.archips.emo button { font-size: 22px; padding: 2px 6px; min-width: 42px; line-height: 1.2; font-family: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; }
-.archips.emo button.on { background: var(--hl); color: var(--on-hl); }
-.archips.sw button { width: 38px; height: 38px; padding: 0; border-radius: 50%; border-color: var(--line); }
-.archips.sw button.on { box-shadow: 0 0 0 3px var(--frame); border-color: var(--surface); }
-.arin { display: flex; gap: 6px; }
-.arin input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--fg); background: var(--surface2); border: 2px solid var(--line); border-radius: 10px; padding: 7px 10px; }
-.arin input:focus { outline: none; border-color: var(--meaning); }
-.arbtns { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 8px; padding-block: 10px calc(8px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to top, var(--bg) 75%, transparent); }
-.arbtns .btn { font-size: 16px; padding: 10px 6px; }
-.mkdone .ractions { margin-top: 10px; }
-.deckart { flex: none; width: 44px; border: 2px solid var(--line); border-radius: 12px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; }
-.deckart svg { width: 18px; height: 18px; }
 

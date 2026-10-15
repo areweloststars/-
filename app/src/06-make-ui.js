@@ -1,9 +1,8 @@
 /* ================= 사진으로 새 단어장 만들기 =================
    1) 단어장 사진 → 이 기기 안에서 글자 인식(OCR)으로 영어 단어와 뜻을 읽음 (API 없이)  2) 학생이 확인·수정
    3) 바로 만들기: 단어를 에피소드로 나누고, 뜻을 보고 그림 칸(이모지·사람·동물)을 자동으로 골라 게임으로
-      (Claude를 쓸 수 있는 화면에서는 고르면 이야기·팁·예문까지 Claude가 써 줌)
-   4) 그림 꾸미기: 단어마다 그림 칸을 눌러서 주인공·배경·글씨를 바꿈 → genScene()이 만화 한 쪽으로 그림 */
-const MK = { useAI: false, run: null, art: null, step: 'pick', images: [], rows: [], name: '', ctl: null, err: '', note: '', log: [], sample: null, caps: null, ready: false, deck: null, paste: '', pasteOpen: null };
+      (Claude를 쓸 수 있는 화면에서는 고르면 이야기·팁·예문까지 Claude가 써 줌) */
+const MK = { useAI: false, run: null, step: 'pick', images: [], rows: [], name: '', ctl: null, err: '', note: '', log: [], sample: null, caps: null, ready: false, deck: null, paste: '', pasteOpen: null };
 const MK_MIN = 4, MK_MAX = 80;
 const POS_KEYS = ['n', 'v', 'a', 'd', 'p', 'x'];
 
@@ -45,17 +44,15 @@ const mkValidRows = () => mkDedupe(MK.rows).filter(mkRowOk);
 function openMake() {
   closeOverlay();
   if (MK.step === 'making') { showScreen('make'); renderMake(); return; }
-  if (MK.step === 'art') MK.step = MK.deck ? 'done' : 'pick';
   if (MK.step === 'done' && !MK.deck) MK.step = 'pick'; // 완성된 단어장이 있으면 완성 화면을 다시 보여 줌
   showScreen('make'); renderMake();
 }
 function renderMake() {
   const el = $('#make'); if (!el) return;
-  const head = `<div class="topbar"><button type="button" class="iconbtn" data-mk="home" aria-label="미션 목록으로">${ICON.back}</button><span class="toplab">${MK.step === 'art' ? 'DRAW PICTURES' : 'NEW WORD BOOK'}</span></div><h2 class="stitle">${MK.step === 'art' ? '그림 꾸미기' : '사진으로 새 단어장 만들기'}</h2>`;
+  const head = `<div class="topbar"><button type="button" class="iconbtn" data-mk="home" aria-label="미션 목록으로">${ICON.back}</button><span class="toplab">NEW WORD BOOK</span></div><h2 class="stitle">사진으로 새 단어장 만들기</h2>`;
   let body = '';
   if (MK.step === 'pick') body = mkPickHTML();
   else if (MK.step === 'reading') body = `<div class="mkwait ocr"><div class="spin" aria-hidden="true"></div><p><b>사진 속 단어를 읽고 있어요</b><br><small id="ocrlab">글자 읽는 도구 준비 중</small></p><button type="button" class="btn" data-mk="stop">그만두기</button><div class="ocrbar" aria-hidden="true"><i id="ocrbar"></i></div></div><p class="mksmall mkslow" id="ocrslow" hidden>오래 걸리고 있어요. 사진이 흐리거나 기울었으면 ‘그만두기’를 누르고 더 밝고 가깝게 다시 찍어 보세요. 단어를 직접 입력해도 돼요.</p><p class="mksmall">사진은 이 기기 안에서만 읽어요. 어디에도 보내지 않아요.</p>`;
-  else if (MK.step === 'art') body = MK.art && MK.art.sel ? arEditHTML() : arGridHTML();
   else if (MK.step === 'review') body = mkReviewHTML();
   else if (MK.step === 'making') body = mkMakingHTML();
   else if (MK.step === 'done') body = mkDoneHTML();
@@ -115,8 +112,7 @@ function mkDoneHTML() {
     <div class="mkthumbs">${d.scenes.map(s => `<div><img src="${'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">${genScene(d.panels[s.key] || [])}</svg>`)}" alt=""><span>${esc(s.title)}</span></div>`).join('')}</div>
     ${MK.saveNote ? `<p class="mksmall">${esc(MK.saveNote)}</p>` : ''}
     <p class="mksmall">교재로 만든 단어장은 개인 공부용으로만 써 주세요. 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
-    <button type="button" class="startbtn" data-mk="play">${ICON.play}이 단어장으로 게임 시작</button>
-    <div class="ractions"><button type="button" class="btn" data-mk="art">${ICON.pen}그림 꾸미기</button></div></div>`;
+    <button type="button" class="startbtn" data-mk="play">${ICON.play}이 단어장으로 게임 시작</button></div>`;
 }
 function mkLog(text, state = 'run') { MK.log.push({ text, state }); if (!$('#make').hidden) renderMake(); return MK.log.length - 1; }
 function mkLogSet(i, state, text) { if (MK.log[i]) { MK.log[i].state = state; if (text) MK.log[i].text = text; } if (!$('#make').hidden) renderMake(); }
