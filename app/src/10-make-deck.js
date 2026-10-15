@@ -185,7 +185,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     deck.scenes = deck.scenes.filter(sc => sc.words.length);
     if (!deck.scenes.length) throw { code: 'empty_completion' };
     const saved = await DeckStore.put(deck);
-    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') + (MK.useAI ? '' : '이야기와 그림은 이 기기에서 바로 만들었어요. 그림은 ‘그림 꾸미기’에서 바꿀 수 있어요. ') +
+    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') + (MK.useAI ? '' : '이야기와 그림은 이 기기에서 바로 만들었어요. ') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');
@@ -205,8 +205,6 @@ function bindMake() {
   // 직접 입력한 단어 목록은 화면이 다시 그려져도 남게
   el.addEventListener('input', e => {
     if (e.target.id === 'mkpaste') MK.paste = e.target.value;
-    else if (e.target.id === 'arsign' && MK.art && MK.art.spec) { MK.art.spec.sign = e.target.value; arPreview(); }
-    else if (e.target.id === 'aremo' && MK.art && MK.art.spec && e.target.value.trim()) { const sp = genNormalize({ subject: { kind: 'emoji', emoji: e.target.value } }); if (sp.subject.emoji !== '⭐' || e.target.value.includes('⭐')) { MK.art.spec.subject = sp.subject; arPreview(); } }
   });
   el.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('mkpaste')) MK.pasteOpen = e.target.open; }, true);
   // 사진 붙여넣기 (파일 고르기 창이 안 열리는 앱 화면에서도 됨)
@@ -229,16 +227,10 @@ function bindMake() {
     const b = e.target.closest('[data-mk]'); if (!b) return;
     const a = b.dataset.mk;
     Sound.unlock();
-    if (a.startsWith('ar') && a !== 'arpick' && a !== 'ardone' && a !== 'arcancel' && a !== 'arsave' && MK.art && MK.art.spec) { arAct(a, b.dataset.v || ''); const y = window.scrollY; renderMake(); window.scrollTo(0, y); return; }
     if (a === 'home') { if (MK.step === 'reading' || MK.step === 'making') { toast('만드는 중이에요. 다 만들면 알려 드릴게요'); } goHome(); }
     else if (a === 'rmimg') { const i = +b.dataset.i, im = MK.images[i]; if (im) { URL.revokeObjectURL(im.url); MK.images.splice(i, 1); } renderMake(); }
     else if (a === 'read') mkRead();
     else if (a === 'stop') { if (MK.step === 'reading') { ocrStop(); MK.step = 'pick'; renderMake(); } else if (MK.ctl) MK.ctl.abort(); }
-    else if (a === 'art') { if (MK.deck) openArt(MK.deck.id); }
-    else if (a === 'arpick') { const d = arDeck(); if (!d) return; const key = b.dataset.key, k = +b.dataset.k; MK.art.sel = { key, k }; MK.art.spec = genNormalize(JSON.parse(JSON.stringify(((d.panels || {})[key] || [])[k] || {}))); renderMake(); window.scrollTo(0, 0); }
-    else if (a === 'arcancel') { MK.art.sel = null; MK.art.spec = null; renderMake(); }
-    else if (a === 'arsave') arSave();
-    else if (a === 'ardone') { const back = MK.art && MK.art.back; MK.art = null; if (back === 'done' && MK.deck) { MK.step = 'done'; renderMake(); window.scrollTo(0, 0); } else { MK.step = 'pick'; goHome(); } }
     else if (a === 'parse') {
       MK.paste = ($('#mkpaste') || {}).value || '';
       const parsed = mkParse(MK.paste), rows = mkDedupe(parsed);
@@ -257,7 +249,7 @@ function bindMake() {
 /* ---------- 단어장 고르기 (홈 위쪽 단추) ---------- */
 function openDecks() {
   const decks = DeckStore.list();
-  const row = (id, name, n, eps, cur, builtin) => `<li class="${cur ? 'cur' : ''}"><button type="button" class="deckpick" data-deck="${esc(id)}"><b>${esc(name)}</b><small>${n}단어 · 에피소드 ${eps}개${builtin ? ' · 기본' : ''}${cur ? ' · <em>지금 쓰는 중</em>' : ''}</small></button>${builtin ? '' : `<button type="button" class="deckart" data-deckart="${esc(id)}" aria-label="${esc(name)} 그림 꾸미기">${ICON.pen}</button><button type="button" class="deckdel" data-deckdel="${esc(id)}" aria-label="${esc(name)} 지우기">${ICON.close}</button>`}</li>`;
+  const row = (id, name, n, eps, cur, builtin) => `<li class="${cur ? 'cur' : ''}"><button type="button" class="deckpick" data-deck="${esc(id)}"><b>${esc(name)}</b><small>${n}단어 · 에피소드 ${eps}개${builtin ? ' · 기본' : ''}${cur ? ' · <em>지금 쓰는 중</em>' : ''}</small></button>${builtin ? '' : `<button type="button" class="deckdel" data-deckdel="${esc(id)}" aria-label="${esc(name)} 지우기">${ICON.close}</button>`}</li>`;
   openOverlay(`<h2>단어장</h2>
     <ul class="decklist">
       ${row(DECK_BUILTIN.id, DECK_BUILTIN.name, Object.keys(BUILTIN.words).length, BUILTIN.scenes.length, DECK.id === DECK_BUILTIN.id, true)}

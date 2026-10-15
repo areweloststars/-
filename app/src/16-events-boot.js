@@ -119,8 +119,6 @@ function bindEvents() {
   document.addEventListener('click', e => {
     const dk = e.target.closest('[data-deck]');
     if (dk) { Sound.unlock(); Sound.play('tap'); if (dk.dataset.deck !== DECK.id && switchDeck(dk.dataset.deck)) toast(`‘${DECK.name}’ 단어장으로 바꿨어요`); goHome(); return; }
-    const da = e.target.closest('[data-deckart]');
-    if (da) { Sound.unlock(); Sound.play('tap'); openArt(da.dataset.deckart); return; }
     const dd = e.target.closest('[data-deckdel]');
     if (dd) {
       // 한 번 더 눌러야 지움 (실수 방지)
