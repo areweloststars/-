@@ -35,7 +35,8 @@ function mkErrText(e) {
 const POS_TOK = /(^|\s)\(?(?:n|v|a|adj|adv|ad|prep|conj|vt|vi|pron|int)\.\)?(?=\s|$)/gi;
 const IPA_TOK = /\[[^\]가-힣]*\]|\/[^/\s가-힣][^/가-힣]{0,30}\//g;
 function mkCleanEn(s) { return String(s || '').replace(IPA_TOK, ' ').replace(POS_TOK, ' ').replace(/[{}|<>"]/g, '').replace(/\s+/g, ' ').replace(/^[\s\-–—:=~.,]+|[\s\-–—:=~.,]+$/g, '').trim().slice(0, 40); }
-function mkCleanKo(s) { return String(s || '').replace(IPA_TOK, ' ').replace(POS_TOK, ' ').replace(/[{}|<>]/g, '').replace(/\s+/g, ' ').replace(/^[\s\-–—:=.,]+|[\s\-–—:=,]+$/g, '').trim().slice(0, 60); }
+// 뜻 맨 앞의 '-'는 '-하는 것을'처럼 한글 바로 앞에 붙은 자리 표시면 남김
+function mkCleanKo(s) { return String(s || '').replace(IPA_TOK, ' ').replace(POS_TOK, ' ').replace(/[{}|<>]/g, '').replace(/\s+/g, ' ').replace(/^(?:[\s–—:=.,]|-(?![가-힣]))+|[\s\-–—:=,]+$/g, '').trim().slice(0, 60); }
 // 쓸 수 있는 줄: 영어와 (글자가 있는) 뜻이 다 있음
 const mkRowOk = r => !!(mkCleanEn(r.en) && mkCleanKo(r.ko) && mkAnsFrom(null, mkCleanKo(r.ko)).length);
 const mkValidRows = () => mkDedupe(MK.rows).filter(mkRowOk);

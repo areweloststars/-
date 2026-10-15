@@ -1,6 +1,6 @@
 /* ================= 앱 동작 ================= */
 const STORE_KEY = 'day02-voca-mission-v1';
-const SAVE = { v: 2, dir: 'en', diff: 'normal', sound: true, narr: true, rate: 1, best: {}, wrong: {}, seen: {}, lives: 3, bank: 0, done: 0 };
+const SAVE = { v: 2, dir: 'en', diff: 'normal', sound: true, narr: true, rate: 1, koVoice: '', enVoice: '', best: {}, wrong: {}, seen: {}, lives: 3, bank: 0, done: 0 };
 function loadSave() {
   try {
     const raw = localStorage.getItem(STORE_KEY);

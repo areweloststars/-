@@ -12,6 +12,14 @@ function closeOverlay() { const o = $('#ov'); if (o) o.remove(); }
 
 /* ---------- 이벤트 ---------- */
 function bindEvents() {
+  // 설정에서 목소리를 바꾸면 바로 들려줌
+  $('#home').addEventListener('change', e => {
+    const vs = e.target.closest('select[data-voice]');
+    if (!vs) return;
+    SAVE[vs.dataset.voice + 'Voice'] = vs.value; persist();
+    const st = $('#vstat'); if (st) st.textContent = voiceStat();
+    voiceTry(vs.dataset.voice === 'ko' ? 'ko-KR' : 'en-US');
+  });
   $('#home').addEventListener('click', e => {
     const sb = e.target.closest('.seg button');
     if (sb) {
@@ -32,6 +40,8 @@ function bindEvents() {
     if (e.target.closest('[data-review]')) { Sound.unlock(); Sound.play('tap'); openMission('review'); return; }
     if (e.target.closest('[data-decks]')) { Sound.unlock(); Sound.play('tap'); openDecks(); return; }
     if (e.target.closest('[data-make]')) { Sound.unlock(); Sound.play('tap'); openMake(); return; }
+    const vt = e.target.closest('[data-act="vtry"]');
+    if (vt) { voiceTry(vt.dataset.lang); return; }
     const rs = e.target.closest('[data-reset]');
     if (rs) {
       // 한 번 더 눌러야 초기화 (실수 방지)

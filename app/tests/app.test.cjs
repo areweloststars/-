@@ -83,6 +83,18 @@ test('speech: dictionary marks are read as words, and Korean is never read by th
     const r = await p.run(`(async () => { let esp = 0; const f = Esp.speak; Esp.speak = () => { esp++; return Promise.resolve(); };
       try { await tts('기사가 길을 설명했어요.', 'ko-KR', 1); return 'spoke'; } catch (e) { return (e && e.name) + ':' + esp; } finally { Esp.speak = f; } })()`);
     assert.equal(r, 'NoKoVoice:0');
+    // 가운뎃점은 짧게 쉬어 읽기
+    assert.equal(p.json(`sayKo('(계획·행사를) 취소하다')`), '계획, 행사를 취소하다');
+    // 목소리 고르기: 인터넷으로 받는 목소리보다 기기 안 목소리, 설정에서 고른 목소리가 있으면 그것
+    p.run(`ssVoices = [{ name: 'Google 한국의', lang: 'ko-KR', localService: false, voiceURI: 'net-ko' }, { name: 'Yuna', lang: 'ko-KR', localService: true, voiceURI: 'local-ko' }, { name: 'Samantha', lang: 'en-US', localService: true, voiceURI: 'local-en' }]`);
+    assert.equal(p.json(`bestVoice('ko-KR').voiceURI`), 'local-ko');
+    p.run(`SAVE.koVoice = 'net-ko'`);
+    assert.equal(p.json(`bestVoice('ko-KR').voiceURI`), 'net-ko');
+    const pick = p.json(`voicePickHTML()`);
+    assert.match(pick, /<option value="net-ko" selected>Google 한국의 · 인터넷<\/option>/);
+    assert.match(pick, /data-voice="en"/);
+    p.run(`SAVE.koVoice = 'gone'; ssVoices = []`);
+    assert.equal(p.json(`voicePickHTML()`), '');
   } finally { p.close(); }
 });
 
@@ -159,7 +171,7 @@ test('OCR layout: pairs words with meanings on the same row or below, column by 
       W('river', 520, 10), W('강', 640, 10), W('quickly', 520, 60), W('빠르게', 640, 60)
     ];
     const dict = [['garden', 1], ['fence', 2], ['parcel', 3], ['river', 4], ['quickly', 5]];
-    const rows = p.json(`ocrPairs(${JSON.stringify(words)}, new Map(${JSON.stringify(dict)}))`);
+    const rows = p.json(`ocrPairs(${JSON.stringify(words)}, new Map(${JSON.stringify(dict)})).map(l => l.replace(OCR_SPACED, ''))`);
     assert.deepEqual(rows, ['garden - 정원', 'fence - 울타리, 담장', 'parcel - 소포', 'river - 강', 'quickly - 빠르게']);
     // 확인 화면용 '사진 속 원래 줄' 상자: 영어 단어와 뜻을 함께 감쌈 (기울기를 펴도 원래 위치로)
     const boxes = p.json(`(() => { OCR.boxes = new Map(); ocrPairs(${JSON.stringify(words)}, new Map(${JSON.stringify(dict)}), 0.01); const b = Object.fromEntries(OCR.boxes); OCR.boxes = null; return b; })()`);
@@ -223,7 +235,7 @@ test('OCR app screenshots: two-line words, articles, stray letters and glued wor
       W('give', 100, 500, 95, 60), W('아', 150, 492, 50, 26, 56), W('up', 180, 500, 60, 40), W('포기하다', 440, 500),
       W('hold', 100, 700), W('on', 196, 700), W('기다리다,', 440, 700), W('버티다', 600, 700), W('(전화를)', 440, 770), W('끊지', 600, 770), W('않다', 690, 770)
     ];
-    assert.deepEqual(p.json(`ocrPairs(${JSON.stringify(words)}, new Map(${dict}))`),
+    assert.deepEqual(p.json(`ocrPairs(${JSON.stringify(words)}, new Map(${dict})).map(l => l.replace(OCR_SPACED, ''))`),
       ['take a break - 잠시 쉬다', 'look forward to - ~을 기대하다', 'give up - 포기하다', 'hold on - 기다리다, 버티다 (전화를) 끊지 않다']);
     // 영어·한국어로 두 번 읽은 것 합치기: 영어 사이 'of'를 '아'로 읽은 것은 영어로, 한글 뜻 속 '의'를 'of'로 읽은 것은 한글로,
     // 한글 획 아랫부분만 읽은 낮은 조각('LS')은 버림
@@ -244,6 +256,53 @@ test('OCR app screenshots: two-line words, articles, stray letters and glued wor
     const list = ['river', 'borrow', 'ancient', 'whisper', 'courage', 'explain'].map((t, i) => W(t, 100, 100 + i * 150))
       .concat(Array.from({ length: 12 }, (_, i) => W('Xq', 440 + (i % 3) * 120, 110 + (i >> 1) * 140, 30, 40, 18)));
     assert.equal(p.json(`ocrHeadwords(${JSON.stringify(list)}, new Map(${JSON.stringify(['river', 'borrow', 'ancient', 'whisper', 'courage', 'explain'].map(w => [w, 1]))}), 1080).length`), 0);
+  } finally { p.close(); }
+});
+
+test('OCR app screenshots: gray meanings keep their spacing, marks and leading parts', () => {
+  const p = bootPage();
+  try {
+    p.window.__lex = fs.readFileSync(require('node:path').join(__dirname, '../../word-game/ocr/ko-lex.txt'), 'utf8');
+    p.run('window.__L = new Set(window.__lex.split("\\n").filter(Boolean)); window.__lex = ""; OCR.low = new Set();');
+    // 회색 뜻은 글자마다 떼어 읽혀요: 글자 사이 틈(글자 높이 40에 대한 비율)과 낱말 목록으로 띄어쓰기를 되살림
+    const row = toks => { let x = 400; return toks.map(([t, g]) => { x += Math.round((g || 0) * 40); const w = { t, x0: x, y0: 100, x1: x + 30 * Math.max(1, (t.match(/[가-힣]/g) || []).length) * (/^[~(),·\-]$/.test(t) ? 0.4 : 1), y1: 140, c: 93 }; x = w.x1; return w; }); };
+    const sp = toks => p.json(`koSpace(${JSON.stringify(row(toks))}, window.__L, 40, 30)`);
+    assert.equal(sp([['빌'], ['리', 0.45], ['다,', 0.35], ['꾸', 0.6], ['다', 0.3]]), '빌리다, 꾸다');
+    assert.equal(sp([['범'], ['위', 0.5], ['를', 0.5], ['좁', 0.8], ['히', 0.47], ['다', 0.45]]), '범위를 좁히다');
+    assert.equal(sp([['~'], ['을', 0.1], ['기', 0.68], ['대', 0.4], ['하', 0.45], ['다', 0.28]]), '~을 기대하다');
+    assert.equal(sp([['~'], ['에', 0.1], ['더하여,', 0.43], ['~', 0.34], ['외에도', 0.34]]), '~에 더하여, ~ 외에도');
+    assert.equal(sp([['반'], ['드', 0.3], ['시', 0.3], ['~', 0.7], ['하다', 0.35]]), '반드시 ~하다');
+    assert.equal(sp([['한'], ['쌍', 0.71], ['의,', 0.3], ['몇', 0.6], ['개', 0.72], ['의', 0.3]]), '한 쌍의, 몇 개의');
+    // '·'를 '-'로 읽음, 이름씨 뒤 '하다'는 틈이 넓어도 붙임, 괄호 안에서 붙어 있던 두 낱말은 가운뎃점으로
+    assert.equal(sp([['('], ['계', 0.1], ['획', 0.2], ['-', 0.1], ['행', 0.1], ['사', 0.43], ['를', 0.29], [')', 0.1], ['취', 0.77], ['소', 0.49], ['하다', 0.43]]), '(계획·행사를) 취소하다');
+    assert.equal(sp([['신'], ['청', 0.37], ['하다', 0.97]]), '신청하다');
+    assert.equal(sp([['('], ['생', 0.1], ['각', 0.23], ['해', 0.09], ['답', 0.37], ['을)', 0.29]]), '(생각·해답을)');
+    // 영어·한국어 읽기 합치기: 영어 낱말 뒤 '-ing'는 영어로, 또렷한 한글 '하'·'다'는 흐린 영어('stet')로 바꾸지 않음,
+    // 한국어 읽기가 기호만 낸 자리의 흐린 영어 사전 낱말은 살림 ('a great deal')
+    const W = (t, x, y, c = 95, w = t.length * 20, h = 40) => ({ t, x0: x, y0: y, x1: x + w, y1: y + h, c });
+    const dict = JSON.stringify(['stop', 'stet', 'a', 'great', 'deal', 'of', 'call', 'off', 'carry', 'on', 'in', 'charge', 'misunderstanding', 'ad', 'want', 'as', 'matter', 'fact'].map(w => [w, 1]));
+    const merged = p.json(`ocrMerge(${JSON.stringify([W('5601', 95, 100, 51), W('-119', 196, 96, 36), W('하', 392, 100, 93, 30), W('다', 430, 100, 97, 30)])},
+      ${JSON.stringify([W('stop', 95, 100, 93), W('-ing', 196, 96, 92), W('Stet', 392, 100, 56)])}, new Map(${dict})).map(w => w.t).sort()`);
+    assert.deepEqual(merged, ['-ing', 'stop', '다', '하'].sort());
+    const faint = p.json(`ocrMerge(${JSON.stringify([W('39169', 94, 300, 0, 236)])}, ${JSON.stringify([W('a', 94, 308, 13, 23, 26), W('great', 129, 303, 13), W('deal', 245, 300, 47)])}, new Map(${dict})).map(w => w.t)`);
+    assert.deepEqual(faint, ['a', 'great', 'deal']);
+    // 짝지은 줄 다듬기: 가운뎃점·괄호 짝, 쉼표를 못 읽은 두 번째 '~' 뜻, 'ㅐ'를 'ㅏ'로 읽은 두 글자 뜻, 두 글자 영어 'ad', '-ing'와 '-하는'
+    const chk = (en, ko) => p.json(`(() => { const r = ocrCheckRow({ en: ${JSON.stringify(en)}, ko: ${JSON.stringify(ko)} }, new Map(${dict}), window.__L); return r && [r.ko, r.flag]; })()`);
+    assert.deepEqual(chk('call off', '(계획-행사를) 취소하다'), ['(계획·행사를) 취소하다', '']);
+    assert.deepEqual(chk('call off', '계획·행사를) 취소하다'), ['(계획·행사를) 취소하다', '']);
+    assert.deepEqual(chk('call off', '(일정을 미루다'), ['(일정을) 미루다', '']);
+    assert.deepEqual(chk('carry on', '일ㆍ대화를 계속하다'), ['(일·대화를) 계속하다', '']);
+    assert.deepEqual(chk('in charge of', '~을 맡고 있는 ~을 책임지는'), ['~을 맡고 있는, ~을 책임지는', '']);
+    assert.deepEqual(chk('misunderstanding', '오하, 착각'), ['오해, 착각', '']);
+    assert.deepEqual(chk('ad', '광고'), ['광고', '']);
+    assert.deepEqual(chk('stop -ing', '-하는 것을 멈추다'), ['-하는 것을 멈추다', '']);
+    // 낱말이 아닌 덩어리: 두 글자 이하는 빼고, 세 글자 이상은 남겨서 고쳐 달라고 표시 (흐린 뜻이 통째로 빠지지 않게)
+    assert.deepEqual(chk('want ad', '구인 광고, 쬬잡'), ['구인 광고', 'drop']);
+    assert.deepEqual(chk('want ad', '구인 광고, 떡볶쬬잡'), ['구인 광고, 떡볶쬬잡', 'ko']);
+    // 다섯 낱말 숙어는 단어 줄, 문장은 아님. 뜻 맨 앞 '-하는'의 '-'는 남김
+    assert.deepEqual(p.json(`[ocrRowOk({ en: 'as a matter of fact', ko: '사실은' }), ocrRowOk({ en: 'The rain fell on the roof.', ko: '비가 왔다' })]`), [true, false]);
+    assert.equal(p.json(`mkCleanKo('-하는 것을 멈추다')`), '-하는 것을 멈추다');
+    assert.equal(p.json(`mkCleanKo('- 취소하다')`), '취소하다');
   } finally { p.close(); }
 });
 
