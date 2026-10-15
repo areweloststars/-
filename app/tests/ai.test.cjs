@@ -97,10 +97,13 @@ test('meaning pictures: the layout follows the meaning, the doer is the story ch
     assert.equal(pics.borrow.layout, 'act'); assert.equal(pics.borrow.dir, 'ba');
     assert.equal(pics.encourage.layout, 'act'); assert.equal(pics.encourage.dir, 'ab');
     assert.equal(pics.anxious.layout, 'feel');
-    assert.equal(pics.abandon.layout, 'no');
+    assert.equal(pics.abandon.layout, 'act', '버리다: 쓰레기통에 던지는 장면');
     assert.equal(pics.reduce.layout, 'change');
     assert.equal(pics.compare.layout, 'compare'); assert.equal(pics.compare.rel, 'VS');
     for (const [k, v] of Object.entries(pics)) assert.ok(!v.sign || !v.sign.includes(k), k);
+    // 거절은 금지 표시, 포기는 흰 깃발
+    const more = p.json(`['거절하다', '포기하다'].map(ko => { const f = SF[0]; const w = stLex('x', { ko }, f); const n = genNormalize(stPanel(w, { ko }, f, 0, 'H', {})); return n.layout || ('one:' + n.hold); })`);
+    assert.deepEqual(more, ['no', 'one:🏳️']);
     // 그 줄을 하는 인물(주인공·친구·말썽꾼)이 그림에 나와요: 기사 이야기의 말썽꾼은 용
     const v = p.json(`(() => { const f = SF[0]; const w = stLex('steal', { ko: '훔치다' }, f); return genNormalize(stPanel(w, { ko: '훔치다' }, f, 0, 'V', {})); })()`);
     assert.equal(v.layout, 'act'); assert.equal(v.a.kind, 'dragon'); assert.equal(v.dir, 'ba');

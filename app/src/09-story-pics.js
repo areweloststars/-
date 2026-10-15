@@ -38,7 +38,7 @@ const ST_PIC = [
   [/공격|때리|치다|싸우|다투|괴롭히|위협/, c => ({ layout: 'act', a: c.face('point', 'angry'), b: c.other, item: c.e || '💥', dir: 'ab' })],
   [/칭찬|격려|응원|축하|감사/, c => ({ layout: 'act', a: c.face('cheer', 'happy'), b: c.other, item: c.e || '👏', dir: 'ab' })],
   [/비난|비판|꾸짖|야단|혼내|불평|항의/, c => ({ layout: 'act', a: c.face('point', 'angry'), b: c.other, item: c.e || '💢', dir: 'ab' })],
-  [/줄이|줄어|감소|축소|낮추|낮아|절약|아끼|덜다|삭감|하락|떨어지|약해|약화/, c => ({ layout: 'change', from: (c.e || '📦').repeat(5), to: c.e || '📦' })],
+  [/줄이|줄어|감소|축소|낮추|낮아|절약|아끼|덜다|삭감|하락|떨어지|약해|약화/, c => ({ layout: 'change', from: (c.e || '🍪').repeat(5), to: c.e || '🍪' })],
   [/늘리|늘어|증가|확대|확장|키우|커지|성장|자라|불어나|상승|오르|강해|강화|발전/, c => ({ layout: 'change', from: c.e || '🌱', to: (c.e || '🌳').repeat(c.e ? 5 : 1) })],
   [/고치|수리|수선|복구|복원|회복|치료|낫다|나아지|개선|향상|정리하|청소/, c => ({ layout: 'change', from: c.e === '🔧' || !c.e ? '💔' : '🤕', to: c.e && c.e !== '🔧' ? c.e : '❤️' })],
   [/부수|깨뜨|망가|파괴|부서지|깨지|무너지|붕괴|고장/, c => ({ layout: 'change', from: c.e || '🏠', to: '💥' })],
@@ -47,15 +47,17 @@ const ST_PIC = [
   [/같은|같다|동일|똑같|비슷|유사|닮/, c => ({ layout: 'compare', left: c.e || '🍎', right: c.e || '🍎', rel: '=' })],
   [/다르|다른|차이|구별|구분|달리/, c => ({ layout: 'compare', left: c.e || '🍎', right: '🍊', rel: '≠' })],
   [/보다 큰|더 큰|우월|능가|뛰어나|초과/, c => ({ layout: 'compare', left: '🐘', right: '🐭', rel: '>' })],
-  [/금지|막다|막아|막았|가로막|차단|방해|거절|거부|반대|사양|피하|회피|포기|단념|버리|그만두|중단|멈추|끊다|없애|제거|삭제|취소|부정하|무시/, c => ({ layout: 'no', thing: c.e || '🍬', by: c.face('shrug', 'serious') })],
+  [/버리|내버리|던져 버리|폐기/, c => ({ layout: 'act', a: c.face('point', 'serious'), b: '🗑️', item: c.e && c.e !== '🗑️' ? c.e : '🥫', dir: 'ab' })],
+  [/포기|단념/, c => ({ subject: c.face('sad', 'worry'), hold: '🏳️' })],
+  [/금지|막다|막아|막았|가로막|차단|방해|거절|거부|반대|사양|피하|회피|그만두|중단|멈추|끊다|없애|제거|삭제|취소|부정하|무시/, c => ({ layout: 'no', thing: c.e || '🍬', by: c.face('shrug', 'serious') })],
   [/부족|결핍|모자라|없는|없다|빈|텅|가난|궁핍/, c => ({ layout: 'no', thing: c.e || '🍞' })],
   [/호기심|신기|흥미/, c => ({ layout: 'feel', who: c.face('think', 'wow'), feel: '❓✨' })],
   [/많|풍부|가득|넘치|넉넉|무수|다양|군중|대량|흔한|수많/, c => ({ layout: 'many', thing: c.e || '🍎', n: 9 })],
   [/드문|희귀|적은|소수|유일|외로|혼자|홀로/, c => ({ layout: 'many', thing: c.e || '🍎', n: 1 })],
   [/불안|걱정|두려|무서|겁|긴장|초조|떨리|조마조마/, c => ({ layout: 'feel', who: c.face('think', 'worry'), feel: '😰' })],
-  [/화나|화가|화내|분노|짜증|성나|격분/, c => ({ layout: 'feel', who: c.face('stand', 'angry'), feel: '😠💢' })],
-  [/기쁘|기쁨|행복|즐겁|즐기|신나|만족|뿌듯|자랑스/, c => ({ layout: 'feel', who: c.face('cheer', 'happy'), feel: '😄🎉' })],
-  [/슬프|슬픔|우울|눈물|서운|실망|좌절/, c => ({ layout: 'feel', who: c.face('sad', 'worry'), feel: '😢' })],
+  [/화나|화난|화가|화내|분노|짜증|성나|성난|격분|격노/, c => ({ layout: 'feel', who: c.face('stand', 'angry'), feel: '😠💢' })],
+  [/기쁘|기쁜|기쁨|행복|즐겁|즐거|즐기|신나|신난|만족|뿌듯|자랑스|흐뭇/, c => ({ layout: 'feel', who: c.face('cheer', 'happy'), feel: '😄🎉' })],
+  [/슬프|슬픈|슬픔|우울|눈물|서운|실망|좌절|비참|비통/, c => ({ layout: 'feel', who: c.face('sad', 'worry'), feel: '😢' })],
   [/놀라|놀란|당황|깜짝|충격/, c => ({ layout: 'feel', who: c.face('stand', 'wow'), feel: '😲❗' })],
   [/후회|뉘우치|반성/, c => ({ layout: 'feel', who: c.face('sad', 'worry'), feel: '😣💭' })],
   [/부러|질투|샘내/, c => ({ layout: 'feel', who: c.face('stand', 'angry'), feel: '😒' + (c.e || '🍰') })],
@@ -71,7 +73,8 @@ const ST_PIC = [
 function stPanel(w, r, f, i, role, hit) {
   hit = hit || {};
   const me = stKit(f, role), other = stKit(f, ST_OTHER[role] || 'F');
-  const e = typeof hit.e === 'string' ? hit.e : typeof hit.hold === 'string' ? hit.hold : '';
+  const e0 = typeof hit.e === 'string' ? hit.e : typeof hit.hold === 'string' ? hit.hold : '';
+  const e = /📉|📈|📊|⚖️|🔁|🔄|✅|❌|❓|❗|➕|➖|💯|🆗/.test(e0) || /[\u{1F600}-\u{1F64F}\u{1F466}-\u{1F487}\u{1F574}-\u{1F575}\u{1F645}-\u{1F64F}\u{1F6B6}\u{1F926}\u{1F937}\u{1F9B8}-\u{1F9B9}\u{1F9CD}-\u{1F9DF}]/u.test(e0) ? '' : e0;
   const face = (pose, fc) => { const k = { ...me }; if (k.kind !== 'emoji') { k.pose = pose; k.face = fc; } return k; };
   const text = [w && w.m, r && r.ko].filter(Boolean).join(' ');
   let spec = null;
