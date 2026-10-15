@@ -10,6 +10,8 @@ function koFinal(w) {
   const s = String(w || '').replace(/[\s'"’‘“”)\]}.,!?~…·]+$/u, ''), ch = s.slice(-1), sp = koSplit(ch);
   if (sp) return sp[2];
   if (/\d/.test(ch)) return [21, 8, 0, 16, 0, 0, 1, 8, 8, 0][+ch]; // 영 일 이 삼 사 오 육 칠 팔 구
+  // 영어 글자 하나('괴도 X')는 글자 이름으로 (엑스·에스는 받침 없음, 엘·엠·엔만 받침)
+  if (/(^|[^a-z])[a-z]$/i.test(s)) return /l/i.test(ch) ? 8 : /m/i.test(ch) ? 16 : /n/i.test(ch) ? 4 : 0;
   if (/[a-z]/i.test(ch)) return /[aeiouy]/i.test(ch) ? 0 : /l/i.test(ch) ? 8 : 4;
   return 0;
 }
@@ -27,7 +29,8 @@ function koP(w, p) {
 /* 동사·형용사 활용. stem은 '다'를 뺀 줄기 ('묶다' → '묶'), en은 영어 단어 (뜻이 둘인 '묻다'·'이르다' 가르기) */
 const KO_YANG = new Set([0, 2, 8]); // ㅏ ㅑ ㅗ 뒤에는 '-아'
 const koDIrr = (stem, en) => /(듣|걷|싣|깨닫|일컫|붇|긷)$/.test(stem) || (/묻$/.test(stem) && !/bur(y|ied)/i.test(en || ''));
-const koBIrr = stem => !/(잡|입|씹|접|뽑|업|좁|집|굽|수줍|뒤집|붙잡|사로잡|껴입|덮|엎)$/.test(stem);
+// '굽다'는 '빵을 굽다'(구워요)와 '허리가 굽다'(굽어요)가 달라요: 영어로 가름
+const koBIrr = (stem, en) => !/(잡|입|씹|접|뽑|업|좁|집|굽|수줍|뒤집|붙잡|사로잡|껴입|덮|엎)$/.test(stem) || (/(^|\s)굽$/.test(stem) && /bake|roast|grill|broil|toast/i.test(en || ''));
 const koSIrr = stem => /(짓|낫|붓|긋|잇|젓|잣)$/.test(stem);
 const koHIrr = stem => /[렇떻갛랗얗맣]$/.test(stem);
 const koAddFinal = (w, f) => { const sp = koSplit(w.slice(-1)); return sp && !sp[2] ? w.slice(0, -1) + koJoin(sp[0], sp[1], f) : w; };
@@ -40,7 +43,7 @@ function koInf(stem, en) {
   if (f) {
     const tail = KO_YANG.has(m) ? '아' : '어';
     if (f === 7 && koDIrr(stem, en)) return head + koJoin(i, m, 8) + tail;
-    if (f === 17 && koBIrr(stem)) return head + koJoin(i, m, 0) + (/(^|\s)(돕|곱)$/.test(stem) ? '와' : '워');
+    if (f === 17 && koBIrr(stem, en)) return head + koJoin(i, m, 0) + (/(^|\s)(돕|곱)$/.test(stem) ? '와' : '워');
     if (f === 19 && koSIrr(stem)) return head + koJoin(i, m, 0) + tail;
     if (f === 27 && koHIrr(stem)) return head + koJoin(i, m === 2 ? 3 : 1, 0); // 그렇 → 그래, 하얗 → 하얘
     return stem + tail;
@@ -67,7 +70,7 @@ function koEu(stem, en) {
   const [i, m, f] = sp;
   if (!f || f === 8) return stem;
   if (f === 7 && koDIrr(stem, en)) return head + koJoin(i, m, 8) + '으';
-  if (f === 17 && koBIrr(stem)) return head + koJoin(i, m, 0) + '우';
+  if (f === 17 && koBIrr(stem, en)) return head + koJoin(i, m, 0) + '우';
   if (f === 19 && koSIrr(stem)) return head + koJoin(i, m, 0) + '으';
   if (f === 27 && koHIrr(stem)) return head + koJoin(i, m, 0);
   return stem + '으';
@@ -88,7 +91,10 @@ function koAdjAttr(stem, en) {
 // 동사 줄기 하나로 만드는 꼴들
 function koVerbForms(stem, en) {
   const eu = koEu(stem, en);
-  return { past: koPast(stem, en), ki: stem + '기', go: stem + '고', ji: stem + '지', ryeo: eu + '려고', ryeodaga: eu + '려다가', ra: eu + '라고', neun: koVerbAttr(stem) };
+  // 말로 하는 꼴: -자(함께 하자) · -야 해(해야 해) · -ㄹ게(할게) · -ㄹ 수(할 수 있을까)
+  const l = eu.endsWith('으') ? eu.slice(0, -1) + '을' : (koSplit(eu.slice(-1)) || [])[2] === 8 ? eu : koAddFinal(eu, 8);
+  return { past: koPast(stem, en), ki: stem + '기', go: stem + '고', ji: stem + '지', ryeo: eu + '려고', ryeodaga: eu + '려다가', ra: eu + '라고', neun: koVerbAttr(stem),
+    ja: stem + '자', ya: koInf(stem, en) + '야 해', lge: l + '게', lsu: l + ' 수' };
 }
 
 /* 뜻의 품사 짐작 (사진으로 읽은 단어장에는 품사 표시가 없을 때가 많아요) */
@@ -97,7 +103,10 @@ const KO_HA_ADJ = new Set('용감 친절 중요 필요 위험 안전 조용 깨�
 // 줄기가 ㅂ으로 끝나는 형용사 (무섭다 → 무서운·무서웠어요)
 const KO_B_ADJ = /(무섭|어렵|쉽|가볍|무겁|즐겁|귀엽|아름답|반갑|고맙|덥|춥|맵|곱|가깝|놀랍|두렵|부끄럽|어지럽|시끄럽|더럽|간지럽|서럽|차갑|뜨겁|따갑|가렵|그립|밉|싱겁|부드럽|안타깝|아깝|정답|사납|우습|미덥|괴롭|외롭|새롭|해롭|이롭|스럽|롭)$/;
 // 받침 없는 줄기의 형용사 (큰 → 크, 빠른 → 빠르)
-const KO_N_ADJ = /(^|\s)(크|희|세|빠르|느리|바쁘|슬프|기쁘|아프|예쁘|나쁘|고프|배고프|다르|게으르|바르|올바르|푸르|짜|싸|비싸|차|시|쓰|흐리|어리|이르|그르|가파르|지치|굶주리|여리|힘세|멋지|눈부시|재빠르|날래|모자라|굳세|억세|드세|거세|고되|외지|값지|기름지|건방지|야무지|목마르|졸리|흐리|어리석|미련하|가녀리|짙|옅)$/;
+const KO_N_ADJ = /(^|\s)(크|희|세|빠르|느리|바쁘|슬프|기쁘|아프|예쁘|나쁘|고프|배고프|다르|게으르|바르|올바르|푸르|짜|싸|비싸|차|시|쓰|흐리|어리|이르|그르|가파르|지치|굶주리|여리|힘세|멋지|눈부시|재빠르|날래|모자라|굳세|억세|드세|거세|고되|외지|값지|기름지|건방지|야무지|목마르|졸리|흐리|어리석|미련하|가녀리|짙|옅|서투르|서툴)$/;
+// 동사로도 쓰는 형용사 꼴: 이 뜻의 영어일 때만 형용사 ('차다' kick → 동사, cold → 형용사)
+const KO_HOMO = { 차: /\b(cold|chilly|cool|freezing|icy)\b/, 싸: /\b(cheap|inexpensive)\b/, 세: /\b(strong|powerful|fierce|tough|mighty|intense)\b/, 쓰: /\bbitter\b/,
+  짜: /\b(salty|stingy)\b/, 크: /\b(big|large|huge|great|tall|loud)\b/, 이르: /\b(early|premature)\b/, 어리: /\b(young|childish|immature)\b/ };
 // 받침 있는 줄기의 흔한 형용사 (작다·좋다 …)
 const KO_PLAIN_ADJ = /(^|\s)(작|많|적|좋|높|낮|길|짧|넓|좁|깊|얕|밝|어둡|무겁|가볍|같|옳|싫|젊|늙|굵|가늘|얇|두껍|붉|검|희|노랗|빨갛|파랗|하얗|까맣|맑|멀|달|낡|늦|괜찮|거칠|힘들|낯설|드물|둥글|길쭉|짧막|기다랗|커다랗|조그맣|자그맣|그렇|이렇|저렇|어떻|굳|곧|궂|못나|잘나|못생기|잘생기|오래되|새롭)$/;
 // '-있다/-없다' 형용사
@@ -108,8 +117,8 @@ const KO_HAN_NOUN = new Set('제한 권한 기한 무한 시한 유한 원한 �
 const EN_ADJ = /(ous|ful|tive|sive|able|ible|ic|ical|less)$/i;
 const EN_ADV = /^(rather|otherwise|merely|however|therefore|almost|already|soon|often|seldom|never|still|yet|even|instead|besides|nevertheless|nonetheless|moreover|furthermore|thus|hence|indeed|quite|too|also|once|again|away|abroad|ahead|apart|aside|forward|together|perhaps|maybe|nearly|hardly|barely|scarcely|rarely|eventually|finally|recently|lately|meanwhile|somewhat|anyway|beforehand|whereas|consequently|accordingly|likewise|altogether|overseas|outdoors|indoors|regardless|thereby|afterward|afterwards|in advance|at once|at last|in fact|of course|at least|at first|for instance|for example|on purpose|by chance|in time|on time|all of a sudden|in the end|after all|so far|by far|in addition|in contrast|on the other hand|as a result|in particular|above all|as usual|at all|for good|in vain|in turn|by accident|on average|in short|in general|in person|at times|from time to time|sooner or later|over and over|little by little|all at once|right away|at the same time)$/i;
 const EN_LY_NOT = /^(friendly|lovely|lonely|likely|unlikely|costly|early|daily|weekly|monthly|yearly|elderly|ugly|silly|holy|deadly|lively|orderly|timely|curly|chilly|jolly|smelly|cowardly|scholarly|heavenly|worldly|homely|lowly|manly|leisurely|kindly|sickly|surly|burly|hilly|oily|woolly|prickly|supply|family|reply|apply|rely|comply|imply|multiply|ally|belly|jelly|bully|rally|assembly|monopoly|anomaly|fly|july|lily|italy|only|melancholy|folly|tally|sully|dally|gully|hilly|anomaly)$/i;
-// 부사로 자주 쓰는 말
-const KO_ADV = new Set('미리 단지 그저 오직 겨우 다만 오로지 단순히 꽤 매우 아주 너무 거의 오히려 도리어 차라리 특히 심지어 훨씬 약간 조금 상당히 무척 몹시 정말 정말로 완전히 대단히 곧 이미 벌써 아직 마침내 드디어 결국 끝내 즉시 당장 곧바로 바로 금방 이내 나중에 일찍 늦게 자주 가끔 종종 때때로 항상 늘 언제나 매일 결코 절대 절대로 전혀 도저히 아마 아마도 분명히 틀림없이 물론 확실히 게다가 또한 더구나 그러나 하지만 그런데 그렇지만 반면에 반면 그래서 따라서 그러므로 그러니까 결과적으로 대신 대신에 함께 같이 서로 혼자 홀로 스스로 갑자기 문득 별안간 다시 또 또다시 빨리 천천히 재빨리 급히 서둘러 몰래 살짝 잠깐 잠시 오래 영원히 한때 일단 우선 먼저 처음에 마지막으로 마침 우연히 대개 보통 주로 흔히 즉 점점 점차 차차 더욱 가장 여전히 이제 지금 방금 아까 실제로 정확히 대체로 저절로 억지로 함부로 새로 일부러 고의로 특별히 대략 거꾸로 따로 각각 모두 전부 모조리 가득 꼭 반드시 부디 제발 어쨌든 아무튼 하여튼 여기저기 이리저리 미처 비로소 내내 줄곧 계속 계속해서 끊임없이 한꺼번에 동시에 단번에 어느새 이따금 간혹 이윽고 머지않아 조만간 사실 사실은 물론이고 뜻밖에 의외로 마음껏 힘껏 정성껏 실컷 깨끗이 많이 높이 깊이 일찍이 굳이 곰곰이 일일이 낱낱이 틈틈이 겹겹이 고루 골고루 두루 널리 멀리 가까이 자세히 조용히 가만히 열심히 꾸준히 충분히 분명 그렇지 않으면 안 그러면 그 대신 뿐만 아니라 그 결과 예를 들면 예를 들어 이를테면 말하자면 다시 말해 요컨대 결론적으로 그다지 별로 좀처럼 미처 감히 차마 아무리 비록 만약 만일 혹시 마치 설마 하물며 오죽'.split(' '));
+// 부사로 자주 쓰는 말 (여러 낱말인 말은 '_'로 이어 적었다가 띄어 씀: '그 결과'를 '결과'로 잘못 나누지 않게)
+const KO_ADV = new Set('미리 단지 그저 오직 겨우 다만 오로지 단순히 꽤 매우 아주 너무 거의 오히려 도리어 차라리 특히 심지어 훨씬 약간 조금 상당히 무척 몹시 정말 정말로 완전히 대단히 곧 이미 벌써 아직 마침내 드디어 결국 끝내 즉시 당장 곧바로 바로 금방 이내 나중에 일찍 늦게 자주 가끔 종종 때때로 항상 늘 언제나 매일 결코 절대 절대로 전혀 도저히 아마 아마도 분명히 틀림없이 물론 확실히 게다가 또한 더구나 그러나 하지만 그런데 그렇지만 반면에 반면 그래서 따라서 그러므로 그러니까 결과적으로 대신 대신에 함께 같이 서로 혼자 홀로 스스로 갑자기 문득 별안간 다시 또 또다시 빨리 천천히 재빨리 급히 서둘러 몰래 살짝 잠깐 잠시 오래 영원히 한때 일단 우선 먼저 처음에 마지막으로 마침 우연히 대개 보통 주로 흔히 즉 점점 점차 차차 더욱 가장 여전히 이제 지금 방금 아까 실제로 정확히 대체로 저절로 억지로 함부로 새로 일부러 고의로 특별히 대략 거꾸로 따로 각각 모두 전부 모조리 가득 꼭 반드시 부디 제발 어쨌든 아무튼 하여튼 여기저기 이리저리 미처 비로소 내내 줄곧 계속 계속해서 끊임없이 한꺼번에 동시에 단번에 어느새 이따금 간혹 이윽고 머지않아 조만간 사실 사실은 물론이고 뜻밖에 의외로 마음껏 힘껏 정성껏 실컷 깨끗이 많이 높이 깊이 일찍이 굳이 곰곰이 일일이 낱낱이 틈틈이 겹겹이 고루 골고루 두루 널리 멀리 가까이 자세히 조용히 가만히 열심히 꾸준히 충분히 분명 그렇지_않으면 안_그러면 그_대신 뿐만_아니라 그_결과 예를_들면 예를_들어 이를테면 말하자면 다시_말해 요컨대 결론적으로 그다지 별로 좀처럼 미처 감히 차마 아무리 비록 만약 만일 혹시 마치 설마 하물며 오죽'.split(' ').map(w => w.replace(/_/g, ' ')));
 // '-의'로 끝나는 명사 (회의·정의 …): 꾸미는 말('고대의')로 보지 않음
 const KO_UI_NOUN = new Set('회의 정의 의의 강의 합의 논의 동의 토의 건의 예의 결의 질의 협의 성의 호의 적의 열의 창의 고의 편의 민의 본의 무의 상의 하의 내의 우의 신의 대의 이의 자의 타의 사의 경의 조의 축의 탈의 수의 문의 여의 모의 심의 발의 중의 거의 수의사'.split(' '));
 const KO_GE_NOUN = /(^|\s)(가게|무게|지게|집게|베게|게|성게|꽃게|대게|바다게|민물게)$/;
@@ -133,6 +142,8 @@ function koKind(m, en, pos) {
       const x = stem.slice(0, -1).replace(/\s+/g, '');
       adj = KO_HA_ADJ.has(x) || (pos === 'a') || (EN_ADJ.test(e) && !/\s/.test(stem));
     } else adj = pos === 'a' || KO_B_ADJ.test(stem) || KO_N_ADJ.test(stem) || KO_PLAIN_ADJ.test(stem) || KO_ISS_ADJ.test(stem);
+    // 꼴이 같은 동사·형용사('차다' 차갑다/발로 차다, '세다' 힘세다/수를 세다)는 영어 단어로 가름
+    if (adj && pos !== 'a' && KO_HOMO[stem] && e && !KO_HOMO[stem].test(e)) adj = false;
     if (pos === 'v') adj = false;
     return adj ? { kind: 'a', stem, attr: koAdjAttr(stem, e) } : { kind: 'v', stem };
   }
@@ -152,15 +163,17 @@ function koAdjStem(a, en) {
   let m;
   if ((m = a.match(/^(.+)스러운$/))) return m[1] + '스럽';
   if ((m = a.match(/^(.+)로운$/))) return m[1] + '롭';
+  if ((m = a.match(/^(.+)(러|라)운$/))) return m[1] + (m[2] === '러' ? '럽' : '랍'); // 너그러운 → 너그럽, 부드러운 → 부드럽
   if ((m = a.match(/^(.+)한$/))) return m[1] + '하';
   if ((m = a.match(/^(.+)(있|없)는$/))) return m[1] + m[2];
+  if ((m = a.match(/^(.+[가-힣][이가] )된$/))) return m[1] + '되'; // 녹초가 된 → 녹초가 되
   if ((m = a.match(/^(.+[가-힣])는$/))) return m[1]; // 동사가 꾸미는 꼴: 꺼리는 → 꺼리
   if ((m = a.match(/^(.*)(.)운$/))) { const sp = koSplit(m[2]); if (sp && !sp[2]) { const st = m[1] + koJoin(sp[0], sp[1], 17); if (KO_B_ADJ.test(st)) return st; } return null; }
   if ((m = a.match(/^(.+)은$/))) { const sp = koSplit(m[1].slice(-1)); return sp && sp[2] ? m[1] : null; }
   const sp = koSplit(a.slice(-1));
   if (sp && sp[2] === 4) {
     const base = a.slice(0, -1) + koJoin(sp[0], sp[1], 0);
-    if (KO_N_ADJ.test(base) || (EN_ADJ.test(en || '') && !/\s/.test(a))) return base;
+    if (KO_N_ADJ.test(base) || (EN_ADJ.test(en || '') && !/\s/.test(a) && /[한은는운른된던]$/.test(a))) return base;
   }
   return null;
 }
