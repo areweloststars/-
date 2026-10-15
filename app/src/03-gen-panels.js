@@ -106,7 +106,8 @@ const genArt = (() => {
     ls = ls.length === 1 ? [cap(ls[0], 22)] : ls.map(l => cap(l, 14));
     return ls.join('\n');
   }
-  function genNormalize(spec) {
+  function genNormalize(spec) { return genNormalizeBase(spec, true); }
+  function genNormalizeBase(spec, full) {
     const sp = (spec && typeof spec === 'object' && !Array.isArray(spec)) ? spec : (typeof spec === 'string' ? { subject: spec } : {});
     let sj = sp.subject;
     if (typeof sj === 'string') sj = emojis(sj, 1).length ? { kind: 'emoji', emoji: sj } : { kind: sj };
@@ -145,7 +146,71 @@ const genArt = (() => {
     const sign = cleanSign(sp.sign != null ? sp.sign : sp.text);
     const signStyle = pick(sp.signStyle || sp.signstyle || sp.sign_style, ENUM.signStyle, 'board');
     const mark = pick(sp.mark, ENUM.mark, 'none');
-    return { bg, ground, subject, hold, props, sign, signStyle, mark };
+    const out = { bg, ground, subject, hold, props, sign, signStyle, mark };
+    // 뜻 그림(두 인물·전후·비교·금지·많음·마음): 모자란 값이 있으면 예전처럼 주인공 하나로
+    const m = full ? meaningOf(sp, out) : null;
+    return m ? Object.assign(out, m) : out;
+  }
+
+  /* ---------- 뜻 그림: 칸 하나가 단어 뜻 그 자체가 되게 ----------
+     layout: one(주인공 하나) · act(A가 B에게: 화살표 위로 물건이 오가요) · change(전 → 후) · compare(둘을 견줘요)
+             · no(금지·거절·버림: 빨간 금지 표시) · many(많음·적음: 같은 물건 여러 개) · feel(마음: 얼굴 + 생각 풍선)
+     다시 다듬어도 같은 값이 나오게(normalize 두 번 = 한 번) 입력과 같은 이름으로 내보내요 */
+  const LAYOUTS = ['one', 'act', 'change', 'compare', 'no', 'many', 'feel'];
+  const REL = { vs: 'VS', '=': '=', eq: '=', same: '=', '≠': '≠', '!=': '≠', neq: '≠', ne: '≠', diff: '≠', '>': '>', gt: '>', more: '>', '<': '<', lt: '<', less: '<' };
+  const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  // 인물 하나(사람·동물·이모지). 내보낼 때는 subject 모양 + hold
+  function actorOf(v, hold) {
+    if (v == null || v === '' || (Array.isArray(v) && !v.length)) return null;
+    const n = genNormalizeBase({ subject: Array.isArray(v) ? v[0] : v, hold: (isObj(v) && v.hold) || hold || '' });
+    return { ...n.subject, ...(n.hold ? { hold: n.hold } : {}) };
+  }
+  // 물건 묶음: '🍕🍕🍕' · ['🍕','🥤'] · {emoji:'🍕', n:5} → {kind:'emoji', emoji, n}. 이모지가 없으면 인물로
+  function thingOf(v) {
+    if (v == null || v === '') return null;
+    const kindK = isObj(v) ? key(v.kind || v.type || v.animal) : '';
+    if (isObj(v) && kindK && kindK !== 'emoji') return actorOf(v);
+    const src = Array.isArray(v) ? v.join('') : isObj(v) ? v.emoji : v;
+    const list = emojis(src, 6);
+    if (!list.length) return typeof v === 'string' || isObj(v) ? actorOf(v) : null;
+    const uniq = [...new Set(list)];
+    let n = uniq.length > 1 ? uniq.length : list.length;
+    if (isObj(v) && v.n != null) n = num(v.n, n);
+    n = lim(Math.round(n), 1, 12);
+    return { kind: 'emoji', emoji: uniq.join(''), n: uniq.length > 1 ? uniq.length : n };
+  }
+  function meaningOf(sp, base) {
+    const lay = pick(sp.layout || sp.type, LAYOUTS, 'one');
+    if (lay === 'one') return null;
+    const m = { layout: lay };
+    if (lay === 'act') {
+      m.a = actorOf(sp.a || sp.who || sp.subject) || { ...base.subject, ...(base.hold ? { hold: base.hold } : {}) };
+      m.b = thingOf(sp.b || sp.to || sp.target);
+      if (!m.b) return null;
+      m.item = emojis(sp.item, 1)[0] || '';
+      m.dir = pick(sp.dir, ['ab', 'ba', 'both', 'none'], 'ab');
+    } else if (lay === 'change') {
+      m.from = thingOf(sp.from || sp.before || sp.a); m.to = thingOf(sp.to || sp.after || sp.b);
+      if (!m.from || !m.to) return null;
+    } else if (lay === 'compare') {
+      m.left = thingOf(sp.left || sp.a); m.right = thingOf(sp.right || sp.b);
+      if (!m.left || !m.right) return null;
+      m.rel = REL[str(sp.rel).trim().toLowerCase()] || 'VS';
+    } else if (lay === 'no') {
+      m.thing = thingOf(sp.thing || sp.b || sp.subject);
+      if (!m.thing) return null;
+      if (sp.by || sp.a) m.by = actorOf(sp.by || sp.a);
+    } else if (lay === 'many') {
+      const t = thingOf(sp.thing || sp.subject);
+      if (!t || t.kind !== 'emoji') return null;
+      m.thing = { kind: 'emoji', emoji: emojis(t.emoji, 1)[0] };
+      m.n = lim(Math.round(num(sp.n, t.n > 1 ? t.n : 9)), 1, 12);
+    } else if (lay === 'feel') {
+      m.who = actorOf(sp.who || sp.a || sp.subject) || { ...base.subject };
+      m.feel = emojis(sp.feel || sp.think, 3).join('');
+      if (!m.feel) return null;
+    }
+    return m;
   }
 
   /* ---------- 주인공: 사람 ---------- */
@@ -890,12 +955,144 @@ const genArt = (() => {
     }
     return b;
   }
+  /* ---------- 뜻 그림 그리기 ---------- */
+  // 주인공 하나 그림을 칸 안의 작은 상자에 (배경·땅·표지 없이)
+  function subActor(a, x, y, w, h) {
+    if (!a || w < 12 || h < 12) return '';
+    const n = genNormalizeBase({ subject: a, hold: a.hold || '' });
+    const nn = { ...n, ground: 'none', sign: '', props: [], mark: 'none', bare: true };
+    return G(render(nn, w, h), `translate(${r1(x)} ${r1(y)})`);
+  }
+  // 물건 묶음(이모지 n개)을 상자 안에 줄지어, 아래부터 쌓아요. 인물이면 인물로
+  function subThing(t, x, y, w, h, maxSize) {
+    if (!t) return '';
+    if (t.kind !== 'emoji') return subActor(t, x, y, w, h);
+    const list = emojis(t.emoji, 6), n = list.length > 1 ? list.length : (t.n || 1);
+    const items = list.length > 1 ? list : Array(n).fill(list[0]);
+    let best = null;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const s = Math.min(w / (cols * 1.12), h / (rows * 1.1), maxSize || Infinity);
+      if (!best || s > best.s) best = { cols, rows, s };
+    }
+    const { cols, rows, s } = best;
+    let b = '';
+    items.forEach((ch, i) => {
+      const r = Math.floor(i / cols), inRow = r === rows - 1 ? n - r * cols : cols, c = i % cols;
+      const cx = x + w / 2 + (c - (inRow - 1) / 2) * s * 1.12 + (r % 2 ? s * 0.08 : 0);
+      const cy = y + h - s * 0.55 - (rows - 1 - r) * s * 1.02;
+      b += emo(cx, cy, s, ch);
+    });
+    return b;
+  }
+  const arrowHead = (x, y, ang, k, col) => {
+    const p = [[0, 0], [-k * 1.25, -k * 0.75], [-k * 1.25, k * 0.75]].map(([u, v]) => [x + u * Math.cos(ang) - v * Math.sin(ang), y + u * Math.sin(ang) + v * Math.cos(ang)]);
+    return pg(p.map(q => r1(q[0]) + ',' + r1(q[1])).join(' '), col, 2.4);
+  };
+  // 위로 휜 화살표 (from → to), 가운데에 물건
+  function arcArrow(x1, x2, y, lift, dir, item, k) {
+    const mx = (x1 + x2) / 2, my = y - lift;
+    let b = pth(`M${r1(x1)} ${r1(y)}Q${r1(mx)} ${r1(my - lift * 0.4)} ${r1(x2)} ${r1(y)}`, 'none', 0, { stroke: INK, 'stroke-width': r1(k * 0.62), 'stroke-linecap': 'round', fill: 'none' });
+    b += pth(`M${r1(x1)} ${r1(y)}Q${r1(mx)} ${r1(my - lift * 0.4)} ${r1(x2)} ${r1(y)}`, 'none', 0, { stroke: '#FFD84D', 'stroke-width': r1(k * 0.34), 'stroke-linecap': 'round', fill: 'none' });
+    const angEnd = Math.atan2(y - (my - lift * 0.4), x2 - mx), angStart = Math.atan2(y - (my - lift * 0.4), x1 - mx);
+    if (dir === 'ab' || dir === 'both') b += arrowHead(x2, y, angEnd, k, '#FFD84D');
+    if (dir === 'ba' || dir === 'both') b += arrowHead(x1, y, angStart, k, '#FFD84D');
+    if (item) b += emo(mx, my - k * 0.2, k * 2.1, item);
+    return b;
+  }
+  function blockArrow(cx, cy, w, h) {
+    const x0 = cx - w / 2, x1 = cx + w * 0.12, x2 = cx + w / 2, t = h * 0.26;
+    return pg([[x0, cy - t], [x1, cy - t], [x1, cy - h / 2], [x2, cy], [x1, cy + h / 2], [x1, cy + t], [x0, cy + t]].map(q => r1(q[0]) + ',' + r1(q[1])).join(' '), '#FFD84D', 3);
+  }
+  function relBadge(cx, cy, r, rel) {
+    const big = rel === 'VS' ? r * 0.82 : r * 1.25;
+    return circ(r1(cx), r1(cy), r1(r), '#FFFFFF', 3) + E('text', { x: r1(cx), y: r1(cy + big * 0.36), 'font-size': r1(big), fill: rel === 'VS' ? C.red : INK, 'text-anchor': 'middle', 'font-family': F_EN }, esc(rel));
+  }
+  function noSign(cx, cy, r) {
+    const sw = Math.max(5, r * 0.17), d = r * 0.7071;
+    return circ(r1(cx), r1(cy), r1(r), 'none', 0, { stroke: '#E03A3A', 'stroke-width': r1(sw), opacity: 0.92 }) + ln(r1(cx - d), r1(cy - d), r1(cx + d), r1(cy + d), r1(sw), '#E03A3A', { opacity: 0.92 });
+  }
+  function thoughtCloud(cx, cy, rx, ry, toX, toY) {
+    let b = '';
+    const bumps = 7;
+    let d = '';
+    for (let i = 0; i <= bumps; i++) {
+      const a = (i / bumps) * Math.PI * 2;
+      const px = cx + Math.cos(a) * rx, py = cy + Math.sin(a) * ry;
+      if (!i) d += `M${r1(px)} ${r1(py)}`;
+      else { const am = ((i - 0.5) / bumps) * Math.PI * 2; d += `Q${r1(cx + Math.cos(am) * rx * 1.28)} ${r1(cy + Math.sin(am) * ry * 1.28)} ${r1(px)} ${r1(py)}`; }
+    }
+    b += pth(d + 'Z', '#FFFFFF', 3);
+    for (let i = 1; i <= 2; i++) { const t = i / 3; b += circ(r1(cx + (toX - cx) * (0.55 + t * 0.4)), r1(cy + ry + (toY - cy - ry) * (0.3 + t * 0.6)), r1(Math.max(3, ry * (0.2 - t * 0.09))), '#FFFFFF', 2.4); }
+    return b;
+  }
+  // 칸 맨 위 말풍선·글자판. 말하는 사람이 있으면 꼬리를 그쪽으로
+  function topSign(n, W, H, pad, speakerX) {
+    if (!n.sign) return null;
+    const style = speakerX == null ? (n.signStyle === 'banner' ? 'banner' : 'board') : (n.signStyle === 'board' ? 'board' : 'bubble');
+    const vs = signLayouts(n.sign, style, W, H, pad).filter(Boolean);
+    if (!vs.length) return null;
+    const v = vs.reduce((a, c) => (c.pref + c.f / 100 > a.pref + a.f / 100 ? c : a));
+    const cx = speakerX == null ? W / 2 : speakerX;
+    const x = lim(Math.round(cx - v.bw / 2), Math.round(v.pad), Math.round(W - v.pad - v.bw));
+    const S = { ...v, r: [x, pad, x + v.bw, pad + v.bh] };
+    return { S, bottom: pad + v.bh + (style === 'bubble' ? 14 : 8), tail: style === 'bubble' ? [lim(cx, x + 14, x + v.bw - 14), pad + v.bh + 12] : null };
+  }
+  function renderMeaning(n, W, H) {
+    const pad = Math.max(6, Math.round(Math.min(W, H) * 0.034));
+    const hasG = n.ground !== 'none', night = n.bg === 'night';
+    const gTop = hasG ? Math.round(H * 0.8) : H;
+    const floor = hasG ? Math.round(H - (H - gTop) * 0.4) : H - pad;
+    const lay = n.layout;
+    const speakerX = lay === 'act' ? W * 0.25 : lay === 'feel' ? W * 0.3 : lay === 'no' && n.by ? W * 0.24 : null;
+    const sg = topSign(n, W, H, pad, speakerX);
+    const top = sg ? sg.bottom : pad;
+    const hh = Math.max(20, floor - top);
+    let b = drawGround(n.ground, W, H, gTop, night);
+    const k = lim(Math.min(W, H) * 0.06, 7, 26); // 화살표 굵기 기준
+    if (lay === 'act') {
+      const lift = Math.min(hh * 0.3, W * 0.14);
+      const aw = W * 0.44;
+      b += subActor(n.a, pad, top + lift * 0.6, aw - pad, floor - top - lift * 0.6 + pad);
+      b += subThing(n.b, W - aw, top + lift * 0.6, aw - pad, floor - top - lift * 0.6 + (n.b.kind === 'emoji' ? 0 : pad), hh * 0.5);
+      b += arcArrow(W * 0.3, W * 0.7, top + lift + hh * 0.18, lift, n.dir, n.item, k);
+    } else if (lay === 'change' || lay === 'compare') {
+      const L = lay === 'change' ? n.from : n.left, R = lay === 'change' ? n.to : n.right;
+      const bw = W * 0.4;
+      b += subThing(L, pad, top, bw - pad, floor - top + (L.kind === 'emoji' ? 0 : pad), hh * 0.62);
+      b += subThing(R, W - bw, top, bw - pad, floor - top + (R.kind === 'emoji' ? 0 : pad), hh * 0.62);
+      const cy = top + hh * 0.5;
+      b += lay === 'change' ? blockArrow(W / 2, cy, W * 0.17, Math.min(hh * 0.34, W * 0.16)) : relBadge(W / 2, cy, Math.min(W * 0.085, hh * 0.2), n.rel);
+    } else if (lay === 'no') {
+      let box;
+      if (n.by) {
+        b += subActor(n.by, pad, top, W * 0.44 - pad, floor - top + pad);
+        box = [W * 0.5, top, W - pad, floor];
+      } else box = [W * 0.2, top, W * 0.8, floor];
+      const bw = box[2] - box[0], bh = box[3] - box[1];
+      b += subThing(n.thing, box[0], box[1], bw, bh + (n.thing.kind === 'emoji' ? 0 : pad), Math.min(bw, bh) * 0.62);
+      const r = Math.min(bw, bh) * 0.46;
+      b += noSign(box[0] + bw / 2, box[1] + bh - r * 1.02, r);
+    } else if (lay === 'many') {
+      if (n.n <= 1) b += emo(W / 2, floor - hh * 0.14, Math.min(hh * 0.28, W * 0.2), emojis(n.thing.emoji, 1)[0]);
+      else b += subThing({ kind: 'emoji', emoji: n.thing.emoji, n: n.n }, pad * 2, top, W - pad * 4, floor - top, hh * 0.42);
+    } else if (lay === 'feel') {
+      b += subActor(n.who, pad, top + hh * 0.18, W * 0.56, floor - top - hh * 0.18 + pad);
+      const fe = emojis(n.feel, 3), cx = W * 0.72, cy = top + hh * 0.28, rx = Math.min(W * 0.22, hh * 0.42), ry = Math.min(hh * 0.22, rx * 0.8);
+      b += thoughtCloud(cx, cy, rx, ry, W * 0.42, top + hh * 0.42);
+      const es = Math.min(ry * 1.15, (rx * 1.6) / fe.length);
+      fe.forEach((ch, i) => { b += emo(cx + (i - (fe.length - 1) / 2) * es * 1.05, cy, es, ch); });
+    }
+    if (sg) b += drawSign(sg.S, sg.tail);
+    return b;
+  }
   function render(n, W, H) {
+    if (n.layout && n.layout !== 'one') return renderMeaning(n, W, H);
     const L = layout(n, W, H);
     const { sj, S = null } = L;
     const night = n.bg === 'night';
     let b = '';
-    b += decorations(n, L, W, H);
+    if (!n.bare) b += decorations(n, L, W, H);
     b += drawGround(n.ground, W, H, L.gTop, night);
     // 주인공
     const tf = `translate(${r1(L.x)} ${r1(L.foot)}) scale(${r1(L.flip * L.s * 1000) / 1000} ${r1(L.s * 1000) / 1000})`;
