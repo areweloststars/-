@@ -1,6 +1,10 @@
 /* ---------- 소리 ---------- */
+// 효과음 엔진은 소리를 다 낸 뒤 잠깐 있다 쉬게 해요(quiet): 켜 둔 채로 휴대폰 목소리가 말하면 두 소리 흐름이 겹쳐
+// 보급형 휴대폰에서 목소리가 지지직거릴 수 있어요
 const Sound = (() => {
-  let ctx = null, out = null;
+  let ctx = null, out = null, last = 0, restT = 0;
+  function rest(ms) { clearTimeout(restT); restT = setTimeout(quiet, ms); }
+  function quiet() { if (Date.now() - last < 2200) return rest(2300 - (Date.now() - last)); try { if (ctx && ctx.state === 'running') ctx.suspend(); } catch (e) { } }
   function ac() {
     if (!ctx) {
       try { const AC = window.AudioContext || window.webkitAudioContext; ctx = new AC(); out = ctx.createGain(); out.gain.value = .55; out.connect(ctx.destination); } catch (e) { ctx = null; }
@@ -47,8 +51,9 @@ const Sound = (() => {
     boom: () => { noise(.42, .28, 1400, 90, 'lowpass'); tone(160, .36, 'sawtooth', .05, 0, 55); }
   };
   return {
-    play(n) { if (!SAVE.sound) return; try { fx[n] && fx[n](); } catch (e) { } },
-    unlock() { if (SAVE.sound) ac(); }
+    play(n) { if (!SAVE.sound) return; try { if (fx[n]) { fx[n](); last = Date.now(); rest(2400); } } catch (e) { } },
+    unlock() { if (SAVE.sound) { ac(); rest(2400); } },
+    quiet
   };
 })();
 function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) { } }
@@ -57,7 +62,10 @@ const canEsp = typeof WebAssembly === 'object' && typeof DecompressionStream ===
 const canSpeak = hasSS || canEsp || typeof Worker === 'function';
 // 기기에 그 언어 목소리가 있는지 (앱 안 화면은 목록이 비어 있는 경우가 많아요)
 let ssVoices = [];
-const ssLoad = () => { try { ssVoices = speechSynthesis.getVoices() || []; } catch (e) { ssVoices = []; } try { const el = document.getElementById('vstat'); if (el) el.textContent = voiceStat(); } catch (e) { } };
+const ssLoad = () => {
+  try { ssVoices = speechSynthesis.getVoices() || []; } catch (e) { ssVoices = []; }
+  try { const el = document.getElementById('vstat'); if (el) el.textContent = voiceStat(); const vp = document.getElementById('vpick'); if (vp && !vp.contains(document.activeElement)) vp.innerHTML = voicePickHTML(); } catch (e) { }
+};
 if (hasSS) { ssLoad(); try { speechSynthesis.addEventListener('voiceschanged', ssLoad); } catch (e) { } }
 const ssHas = lang => ssVoices.some(v => String(v.lang || '').replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2)));
 // 목록을 기다리는 건 한 번만 (목소리가 없는 화면에서 문장마다 기다리지 않게. 나중에 목록이 오면 voiceschanged로 채워져요)
@@ -70,9 +78,12 @@ function ssWait() {
 function voiceScore(v, lang) {
   const want = lang.replace('_', '-').toLowerCase(), vl = String(v.lang || '').replace('_', '-').toLowerCase(), n = `${v.name || ''} ${v.voiceURI || ''}`.toLowerCase();
   return (vl === want ? 120 : vl.startsWith(want.slice(0, 2)) ? 70 : 0) + (/natural|neural|enhanced|premium/.test(n) ? 100 : 0) + (/google/.test(n) ? 85 : 0)
-    + (/microsoft|siri|yuna|samantha/.test(n) ? 60 : 0) + (v.localService ? 5 : 0) + (v.default ? 8 : 0) - (/espeak|pico|festival|flite/.test(n) ? 160 : 0);
+    + (/microsoft|siri|yuna|samantha/.test(n) ? 60 : 0) + (v.localService ? 5 : 0) + (v.localService === false ? -40 : 0) + (v.default ? 8 : 0) - (/espeak|pico|festival|flite/.test(n) ? 160 : 0);
 }
-const bestVoice = lang => ssVoices.filter(v => String(v.lang || '').replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2).toLowerCase())).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang))[0] || null;
+// (인터넷으로 받는 목소리는 연결이 약하면 끊기거나 지직거려서 기기 안 목소리 뒤로. 설정에서 고른 목소리가 있으면 그것)
+const langVoices = lang => ssVoices.filter(v => String(v.lang || '').replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2).toLowerCase())).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
+const voiceKey = v => v.voiceURI || v.name || '';
+const bestVoice = lang => { const vs = langVoices(lang), pick = SAVE[lang.slice(0, 2).toLowerCase() + 'Voice']; return (pick && vs.find(v => voiceKey(v) === pick)) || vs[0] || null; };
 // 말하는 중인 문장을 붙잡아 둠 (크롬은 붙잡지 않은 문장을 치워 버려서 끝 신호가 오지 않을 때가 있어요)
 let ssCur = null, ssWoke = false;
 // 그 언어 기기 목소리가 소리를 못 냈으면 이번에는 다른 방법으로
@@ -88,6 +99,7 @@ function ssSpeak(text, lang, rate, probe = false) {
       if (v) u.voice = v;
       u.lang = v && v.lang ? v.lang : lang; u.rate = rate;
       ssCur = u;
+      Sound.quiet(); Narr.quiet();
       let done = false, poll = 0, g = 0;
       const fin = (ok, err) => { if (done) return; done = true; clearTimeout(st); clearTimeout(g); clearInterval(poll); if (ssCur === u) ssCur = null; ok ? res() : rej(err); };
       // 목소리 목록은 있는데 실제로는 소리가 안 나는 화면이 있어요: 시작하지 않으면 실패로 보고 다른 방법으로
@@ -270,9 +282,14 @@ const Voice = (() => {
   }
   // 만들기는 한 번에 하나씩. 지금 들려줄 문장(urgent)은 미리 만들어 두는 문장들보다 먼저
   // (안 그러면 이야기 첫 영어 단어가 앞에 쌓인 한국어 복습 문장들을 다 기다리느라 6초쯤 늦게 나왔어요)
+  // 휴대폰 목소리가 말하는 동안에는 미리 만들어 두는 일을 쉬어요 (보급형 휴대폰에서 그 목소리가 끊기거나 지직거리지 않게)
+  let waitT = 0;
+  const ssBusy = () => { try { return hasSS && (speechSynthesis.speaking || speechSynthesis.pending); } catch (e) { return false; } };
   function pump() {
     if (busy || !queue.length) return;
-    const k = queue.findIndex(j => j.urgent), job = queue.splice(k >= 0 ? k : 0, 1)[0];
+    const k = queue.findIndex(j => j.urgent);
+    if (k < 0 && ssBusy()) { if (!waitT) waitT = setTimeout(() => { waitT = 0; pump(); }, 400); return; }
+    const job = queue.splice(k >= 0 ? k : 0, 1)[0];
     if (failed || !w) { job.rej(new Error('voice off')); pump(); return; }
     busy = true;
     const id = ++seq, fin = () => { busy = false; pump(); };
@@ -308,7 +325,7 @@ const KO_JOSA = { 을: '을', 를: '을', 이: '이', 가: '이', 은: '은', �
 function sayKo(t) {
   return String(t || '')
     .replace(/[~∼〜]\s*(에게|에서|으로|부터|까지|보다|을|를|이|가|은|는|과|와|로|에|의|도|만)(?![가-힣])/g, (_, j) => '무엇' + KO_JOSA[j])
-    .replace(/[~∼〜]/g, '').replace(/[()[\]{}<>「」『』]/g, ' ').replace(/\s*[/|]\s*/g, ', ')
+    .replace(/[~∼〜]/g, '').replace(/[()[\]{}<>「」『』]/g, ' ').replace(/\s*[/|·ㆍ]\s*/g, ', ')
     .replace(/\s+([,.!?])/g, '$1').replace(/\s+/g, ' ').trim();
 }
 // 영어 단어: 사전식 약어를 말로 (sb → somebody), 물결표·괄호 정리
@@ -362,7 +379,10 @@ async function tts(text, lang, rate) {
 function voiceWarm(note) {
   ssWait().then(() => {
     if (Voice.failed || Voice.ready('en') || Voice.loading || devVoice('en-US')) return;
-    Voice.start();
+    // 받기·준비(무거운 일)는 휴대폰 목소리가 말을 마친 틈에 시작 (최대 20초 기다림)
+    let n = 0;
+    const go = () => { try { if (hasSS && (speechSynthesis.speaking || speechSynthesis.pending) && n++ < 40) { setTimeout(go, 500); return; } } catch (e) { } Voice.start(); };
+    go();
     if (note) toast('영어 발음용 고품질 목소리를 준비하고 있어요 · 처음 한 번만 약 37MB를 받아요');
   });
 }
@@ -392,6 +412,23 @@ function voiceStat() {
   const ko = devVoice('ko-KR') ? dev('ko-KR') : '없음 → 자막으로';
   const en = devVoice('en-US') ? dev('en-US') : Voice.ready('en') ? '기기 안 고품질 목소리' : Voice.loading ? `고품질 목소리 준비 중 (${Math.round(Voice.progress * 100)}%)` : Voice.failed ? 'eSpeak' : '고품질 목소리 (처음 들을 때 받아요)';
   return `한국어: ${ko} · 영어: ${en}${inApp ? ' · 앱 안 화면' : ''}`;
+}
+// 설정: 이 기기의 한국어·영어 목소리 고르기와 들어 보기 (지지직거리거나 어색한 목소리를 다른 것으로 바꿀 수 있게). 고른 것은 SAVE.koVoice·enVoice
+function voicePickHTML() {
+  const row = (lang, lab) => {
+    const vs = langVoices(lang), k = lang.slice(0, 2), pick = SAVE[k + 'Voice'];
+    if (!vs.length) return '';
+    return `<div class="vrow"><label class="vsel"><span>${lab}</span><select data-voice="${k}" aria-label="${lab} 목소리">`
+      + `<option value="">자동</option>${vs.map(v => `<option value="${esc(voiceKey(v))}"${voiceKey(v) === pick ? ' selected' : ''}>${esc(v.name || v.lang)}${v.localService === false ? ' · 인터넷' : ''}</option>`).join('')}</select></label>`
+      + `<button type="button" class="linkbtn" data-act="vtry" data-lang="${lang}">들어 보기</button></div>`;
+  };
+  return row('ko-KR', '한국어') + row('en-US', '영어');
+}
+function voiceTry(lang) {
+  ttsStop(); Narr.unlock();
+  const ko = /^ko/.test(lang);
+  tts(ko ? '안녕하세요. 이 목소리로 이야기를 읽어 줄게요.' : 'Hello! I will read the English words with this voice.', lang, ko ? SAVE.rate : wordRate())
+    .catch(e => { if (e && e.name === 'NoKoVoice') toast('이 화면에서는 한국어 목소리를 쓸 수 없어요'); else voiceWait(e); });
 }
 // 발음 단추를 눌렀는데 영어 목소리가 아직 준비 중일 때 알려 줌
 function voiceWait(e) { if (e && e.name === 'VoiceLoading') toast(`영어 발음용 고품질 목소리를 준비하고 있어요 (${Math.round(Voice.progress * 100)}%) · 다 되면 발음이 나와요`); }
@@ -423,7 +460,7 @@ const Narr = (() => {
   }
   // 첫 탭에서 한 번: 재생 권한을 받아 둠
   function unlock() {
-    ac();
+    ac(); setTimeout(quiet, 1500);
     if (unlocked) return;
     unlocked = true;
     try {
@@ -436,6 +473,8 @@ const Narr = (() => {
     } catch (e) { }
   }
   function stop() { const c = cur; cur = null; if (c) c(); }
+  // 재생 중이 아니면 Web Audio 엔진을 쉬게 함 (휴대폰 목소리와 소리 흐름이 겹치지 않게). 다시 쓸 때 ac()가 깨워요
+  function quiet() { try { if (ctx && ctx.state === 'running' && !src) ctx.suspend(); } catch (e) { } }
   function setRate(r) { try { if (el) el.playbackRate = r; if (src) src.playbackRate.value = r; } catch (e) { } }
   function playEl(u, rate) {
     return new Promise((res, rej) => {
@@ -487,6 +526,6 @@ const Narr = (() => {
     }
     await playUrlWA(u, rate);
   }
-  return { unlock, playUrl, stop, setRate };
+  return { unlock, playUrl, stop, setRate, quiet };
 })();
 

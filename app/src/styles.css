@@ -500,6 +500,11 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .rules summary { cursor: pointer; font-family: var(--f-display); font-size: 16px; }
 .rules ol { margin: 8px 0 4px; padding-left: 20px; display: grid; gap: 6px; font-size: 13.5px; }
 .setlab small { font-weight: 500; }
+.vpick { display: grid; gap: 6px; width: 100%; }
+.vrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.vsel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); min-width: 0; }
+.vsel span { min-width: 2.7em; }
+.vsel select { width: min(56vw, 250px); font: inherit; color: var(--fg); background: var(--surface2); border: 0; border-radius: 9px; padding: 7px 8px; min-height: 36px; }
 .mcard.locked { opacity: .62; }
 .mcard.locked .thumb img, .mcard.locked .thumb svg { filter: grayscale(.85) brightness(.85); }
 .mcard.nope { animation: shakeX .35s; }

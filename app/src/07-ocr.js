@@ -179,27 +179,39 @@ function ocrMerge(A, E, dict) {
     const lw = e.t.toLowerCase().replace(/[^a-z'\-]/g, '');
     // 흐리게(55 미만) 읽힌 영어도 네 글자 이상 사전 낱말이면 살림 ('10 invite'처럼 번호에 바짝 붙은 단어가 신뢰도 20~40으로 나와 통째로 빠졌어요).
     // 대신 확인 화면에서 빨간 칸(흐리게 읽힘)으로 보여 줌
-    const weak = e.c < 55, inD = known(lw);
-    if (hm && e.y1 - e.y0 < hm * 0.55) continue;
-    // 한 글자는 또렷한 'a'만 ('take a break'), 사전에 없는 말은 세 글자 이상 또렷할 때만 (한글 획을 영어로 읽은 'OHA'·'LS' 같은 잡티가 단어 자리를 차지했어요)
-    if (!/^[A-Za-z][A-Za-z'’\-]*[.,]?$/.test(e.t) || (e.t.length < 2 && !(/^[aA]$/.test(e.t) && e.c >= 80)) || (weak && !(e.c >= 15 && lw.length >= 4 && inD)) || (!inD && (e.c < 70 || lw.length < 3))) continue;
+    const weak = e.c < 55, inD = known(lw), eh2 = e.y1 - e.y0, H = hm || eh2;
+    if (hm && (eh2 < hm * 0.55 || (lw.length <= 3 && eh2 > hm * 1.6))) continue; // 너무 낮거나(한글 획 아랫부분) 너무 큰(한글 한 글자를 통째로) 짧은 영어
     const hits = out.filter(a => ov(a, e) > 0.45);
+    const sameLine = o => o !== e && Math.abs((o.y0 + o.y1) / 2 - (e.y0 + e.y1) / 2) < H * 0.6;
+    const enNext = E.some(o => sameLine(o) && /^[A-Za-z]{2,}$/.test(o.t) && dict && dict.has(o.t.toLowerCase()) && o.x0 > e.x1 - 3 && o.x0 - e.x1 < H * 1.2);
+    // 한국어 읽기가 그 자리에서 한글을 못 읽고 엉뚱한 기호만 냈으면(신뢰도 30 미만) 흐린 영어 사전 낱말도 살림 ('a great deal of'가 13~47로 읽힘)
+    const hitA = A.filter(a => ov(a, e) > 0.45), junk = hitA.length && hitA.every(a => !HANGUL.test(a.t) && a.c < 30);
+    // '-ing'·'~ed' 같은 꼬리: 영어 낱말 바로 뒤에 붙어 있을 때 ('stop -ing')
+    const tail = /^[-~](?:ing|ed|er|est|s|es|ly|ful|less|ness|ment)$/i.test(e.t) && e.c >= 60 && E.some(o => sameLine(o) && /^[A-Za-z]{2,}$/.test(o.t) && o.x1 < e.x0 + 3 && e.x0 - o.x1 < H * 1.2);
+    // 한 글자는 또렷한 'a'만 ('take a break', 바로 뒤에 영어 낱말이 이어지면 조금 흐려도), 사전에 없는 말은 세 글자 이상 또렷할 때만
+    // (한글 획을 영어로 읽은 'OHA'·'LS' 같은 잡티가 단어 자리를 차지했어요)
+    if (!tail && (!/^[A-Za-z][A-Za-z'’\-]*[.,]?$/.test(e.t) || (e.t.length < 2 && !(/^[aA]$/.test(e.t) && (e.c >= 80 || (enNext && (e.c >= 55 || junk)))))
+      || (weak && !(e.c >= 15 && lw.length >= 4 && inD) && !(junk && e.c >= 10 && (inD || /^[aA]$/.test(e.t)))) || (!inD && (e.c < 70 || lw.length < 3)))) continue;
     // 한글 자리는 그대로. 단, 사전에 있는 영어 낱말을 또렷하게 읽었으면 영어로 (한국어 전용 읽기는 영어를 한글처럼 읽기도 해서:
-    // 'of'를 '아'로, 'up'을 '니'로). 한 글자 한글은 더 또렷한 쪽이어도 영어에 자리를 내줌
+    // 'of'를 '아'로, 'up'을 '니'로). 한 글자 한글은 아주 또렷하지(85 이상) 않으면 더 또렷한 쪽이어도 영어에 자리를 내줌
     const hang = hits.filter(a => HANGUL.test(a.t)), one = hang.every(a => a.t.replace(/[^가-힣]/g, '').length <= 1);
     // 짧은 낱말(of·up·a)은 같은 줄 바로 옆에 또렷한 영어 낱말이 있을 때만 (한글 뜻 속 '~의'의 '의'를 'of'로 읽은 것이 뜻 자리를 차지하지 않게)
-    const eh2 = e.y1 - e.y0, ctx = lw.length >= 4 || E.some(o => o !== e && (o.c >= 80 || (o.c >= 60 && o.t.length >= 5)) && /^[A-Za-z]{2,}$/.test(o.t) && dict && dict.has(o.t.toLowerCase())
-      && Math.abs((o.y0 + o.y1) / 2 - (e.y0 + e.y1) / 2) < eh2 * 0.6 && (Math.abs(o.x0 - e.x1) < eh2 * 1.5 || Math.abs(e.x0 - o.x1) < eh2 * 1.5));
-    const good = inD && ((e.c >= 75 && lw.length >= 3 && (ctx || e.c >= 90)) || (e.c >= 60 && lw.length >= 5) || ((e.c >= 85 || (one && e.c >= 50 && lw.length >= 2)) && ctx));
-    if (hang.some(a => !good || (a.c >= e.c && a.t.replace(/[^가-힣]/g, '').length >= 2))) continue;
+    // 두 줄로 넘어간 표제어의 아랫줄 첫 낱말('a great deal / of'): 바로 윗줄 같은 왼쪽 끝에 영어 낱말이 있을 때
+    const ctx = tail || lw.length >= 4 || E.some(o => sameLine(o) && (o.c >= 80 || (o.c >= 60 && o.t.length >= 5)) && /^[A-Za-z]{2,}$/.test(o.t) && dict && dict.has(o.t.toLowerCase())
+      && (Math.abs(o.x0 - e.x1) < H * 1.5 || Math.abs(e.x0 - o.x1) < H * 1.5))
+      || E.some(o => o !== e && /^[A-Za-z]+$/.test(o.t) && dict && dict.has(o.t.toLowerCase()) && o.y1 < e.y0 + H * 0.3 && e.y0 - o.y1 < H * 1.2 && Math.abs(o.x0 - e.x0) < H);
+    const good = tail || (inD && ((e.c >= 75 && lw.length >= 3 && (ctx || e.c >= 90)) || (e.c >= 60 && lw.length >= 5) || ((e.c >= 85 || (one && e.c >= 50 && lw.length >= 2)) && ctx)));
+    // 또렷한 한 글자 한글('하' 93, '다' 97)이 흐린 영어('Stet' 56)보다 또렷하면 한글 그대로 (회색 뜻 '하다'를 영어로 바꿨어요)
+    if (hang.some(a => !good || (a.c >= e.c && (a.t.replace(/[^가-힣]/g, '').length >= 2 || a.c >= 85)))) continue;
     for (const a of hits) out.splice(out.indexOf(a), 1);
-    out.push(e);
+    // 흐려도 살린 낱말은 뒤에서 잡티로 걸러지지 않게 신뢰도를 올려 두고, 확인 화면에서 빨간 칸으로 보여 줌(OCR.low)
+    out.push(Object.assign({}, e, { t: tail ? e.t.toLowerCase() : e.t, c: weak && junk ? Math.max(e.c, 60) : e.c }));
     if (weak) OCR.low.add(lw);
   }
   return out;
 }
 // 낱말 → 줄 → (넓은 틈으로 나눈) 덩어리 → '영어 - 뜻' 줄들
-function ocrPairs(words, dict, slope = 0) {
+function ocrPairs(words, dict, slope = 0, lex = null) {
   // 기운 사진: 낱말 위치를 반듯하게 (세로 위치에서 기울기만큼 빼기)
   if (slope) words = words.map(w => { const d = slope * (w.x0 + w.x1) / 2; return Object.assign({}, w, { y0: w.y0 - d, y1: w.y1 - d, _o: w }); });
   // '설명하다'가 '설 / 명 / 하다'로 쪼개 읽히면 가운데 '명'은 품사 표시가 아니라 낱말의 한 글자: 바로 왼쪽에 붙은 한글이 있으면 남김
@@ -212,13 +224,22 @@ function ocrPairs(words, dict, slope = 0) {
   const article = w => /^[aA]$/.test(w.t) && (words.some(o => o !== w && en2(o) && line0(o, w) && o.x0 > w.x1 - 3 && o.x0 - w.x1 < h0)
     || (words.some(o => en2(o) && line0(o, w) && o.x1 < w.x0 + 3 && w.x0 - o.x1 < h0) && !words.some(o => HANGUL.test(o.t) && line0(o, w) && o.x0 > w.x1 && o.x0 - w.x1 < h0 * 2)
       && words.some(o => en2(o) && o.y0 > w.y1 && o.y0 - w.y1 < h0 * 1.5)));
+  // 품사 표시와 철자가 같은 영어 낱말 'ad'(광고): 영어 낱말 바로 뒤에 보통 띄어쓰기로 붙어 있거나('want ad'),
+  // 줄 맨 앞 표제어 자리에 혼자 있고 오른쪽 멀리 뜻이 있으면('ad   광고') 영어로 남김
+  const leftEn = w => words.some(o => o !== w && en2(o) && line0(o, w) && o.x1 < w.x0 + 3 && w.x0 - o.x1 < h0 * 0.75);
+  const headAlone = w => !words.some(o => o !== w && line0(o, w) && o.x1 <= w.x0 + 3) && words.some(o => HANGUL.test(o.t) && line0(o, w) && o.x0 > w.x1 + h0 * 1.2);
+  const adWord = w => /^ad$/i.test(w.t) && (leftEn(w) || headAlone(w));
+  // 뜻에 붙은 기호('(사실·…)', '~을', '-하는')는 따로 떨어져 읽혀도 남김: 바로 옆에 한글이 붙어 있을 때
+  const hanAt = (w, dir) => words.some(o => HANGUL.test(o.t) && line0(o, w) && (dir > 0 ? o.x0 >= w.x1 - 3 && o.x0 - w.x1 < h0 * 0.7 : o.x1 <= w.x0 + 3 && w.x0 - o.x1 < h0 * 0.7));
+  const koMark = w => (/^[(\[~∼\-–·ㆍ・‧∙•]$/.test(w.t) && hanAt(w, 1)) || (/^[)\]]$/.test(w.t) && hanAt(w, -1));
   // 영어 단어 위에 겹치거나 영어 사이·바로 옆에 홀로 낀 한두 글자 한글은 영어 획을 한글로 읽은 잡티 ('give 아 up', 'explain' 위의 '빠 내')
   const lat = w => /^[A-Za-z]{2,}/.test(w.t) && !HANGUL.test(w.t);
   const sameRow = (o, w) => Math.abs((o.y0 + o.y1) / 2 - (w.y0 + w.y1) / 2) < Math.max(h0 * 0.6, (w.y1 - w.y0) * 0.5);
   const speck = w => /^[가-힣]{1,2}[,.)]?$/.test(w.t) && (words.some(o => lat(o) && sameRow(o, w) && o.x0 < w.x0 && o.x1 > (w.x0 + w.x1) / 2)
     || (/^[가-힣][,.)]?$/.test(w.t) && words.some(o => lat(o) && sameRow(o, w) && o.x1 > w.x0 - h0 * 0.4 && o.x0 < w.x0)
       && !words.some(o => o !== w && HANGUL.test(o.t) && sameRow(o, w) && o.x0 > w.x0 && o.x0 - w.x1 < h0 * 1.2)));
-  words = words.filter(w => (!OCR_POS.test(w.t) || glued(w) || article(w)) && !speck(w) && !/^[\d.)(\-–—•·:]+$/.test(w.t) && !(w.c < 25 && !HANGUL.test(w.t) && !(w.c >= 15 && w.t.length >= 4 && dict && dict.has(w.t.toLowerCase().replace(/[^a-z'\-]/g, ''))))
+  words = words.filter(w => (!OCR_POS.test(w.t) || glued(w) || article(w) || adWord(w)) && !speck(w) && (!/^[\d.)(\-–—•·:]+$/.test(w.t) || koMark(w))
+    && !(w.c < 25 && !HANGUL.test(w.t) && !koMark(w) && !(w.c >= 15 && w.t.length >= 4 && dict && dict.has(w.t.toLowerCase().replace(/[^a-z'\-]/g, ''))))
     && !(/^[A-Za-z.]{1,2}$/.test(w.t) && w.c < 60));
   if (!words.length) return [];
   const hs = words.map(w => w.y1 - w.y0).sort((a, b) => a - b), h = hs[hs.length >> 1] || 20;
@@ -230,38 +251,67 @@ function ocrPairs(words, dict, slope = 0) {
     for (const L of lines) { const last = L.w[L.w.length - 1], d = Math.abs(yc - (last.y0 + last.y1) / 2); if (d < h * 0.6 && w.x0 > last.x0 && w.x0 - last.x1 < h * 14 && d < bd) { bd = d; best = L; } }
     if (best) best.w.push(w); else lines.push({ w: [w] });
   }
-  // 덩어리: 낱말 사이가 글자 높이의 1.6배보다 넓으면 끊음
-  const segs = [];
-  for (const L of lines) {
-    let cur = null;
-    for (const w of L.w) {
-      if (cur && w.x0 - cur.x1 > h * 1.6) cur = null;
-      if (!cur) { cur = { w: [], x0: w.x0, x1: w.x1, y0: w.y0, y1: w.y1 }; segs.push(cur); }
-      cur.w.push(w); cur.x1 = Math.max(cur.x1, w.x1); cur.y0 = Math.min(cur.y0, w.y0); cur.y1 = Math.max(cur.y1, w.y1);
-    }
-  }
-  for (const s of segs) {
-    const ycs = s.w.map(w => (w.y0 + w.y1) / 2).sort((a, b) => a - b);
+  // 뜻 글자 잇기 (띄어쓰기는 koSpace에서 글자 사이 틈과 낱말 목록으로 정해요). 한글 한 글자의 폭: 상자가 잘못 잡혔는지 볼 때
+  const kws = words.filter(w => /^[가-힣]+$/.test(w.t) && w.c >= 60).map(w => (w.x1 - w.x0) / w.t.length).sort((a, b) => a - b), kp = kws.length >= 4 ? kws[kws.length >> 1] : 0;
+  const koText = ws => koSpace(ws, lex, h, kp);
+  const mk = ws => {
+    const s = { w: ws, x0: Math.min(...ws.map(w => w.x0)), x1: Math.max(...ws.map(w => w.x1)), y0: Math.min(...ws.map(w => w.y0)), y1: Math.max(...ws.map(w => w.y1)) };
+    const ycs = ws.map(w => (w.y0 + w.y1) / 2).sort((a, b) => a - b);
     s.yc = ycs[ycs.length >> 1]; // 키 큰 글자 상자 하나에 흔들리지 않게 가운데값
-    s.t = s.w.map(w => w.t).join(' ').replace(/\s+([,.;])/g, '$1');
+    s.t = HANGUL.test(ws.map(w => w.t).join('')) ? koText(ws) : ws.map(w => w.t).join(' ').replace(/\s+([,.;])/g, '$1');
+    return s;
+  };
+  // 덩어리: 낱말 사이가 글자 높이의 1.6배보다 넓으면 끊음
+  let segs = [];
+  for (const L of lines) {
+    let cur = [];
+    for (const w of L.w) { if (cur.length && w.x0 - Math.max(...cur.map(c => c.x1)) > h * 1.6) { segs.push(cur); cur = []; } cur.push(w); }
+    if (cur.length) segs.push(cur);
+  }
+  // 영어와 뜻이 가까이 붙어 한 덩어리가 된 것('keep in touch ~와 연락…')은 영어 / 뜻으로 나눠요. 뜻은 첫 한글에서,
+  // 또는 그 바로 앞에 붙은 기호('~을', '(사실·…)', '-하는')에서 시작해요. 뜻 사이에 영어처럼 읽힌 잡티('하다'를 'Stet'로)는 버려요
+  const isKo = (ws, i) => HANGUL.test(ws[i].t) || (/^[(\[~∼\-–·ㆍ・‧∙•]$/.test(ws[i].t) && ws[i + 1] && HANGUL.test(ws[i + 1].t) && ws[i + 1].x0 - ws[i].x1 < h * 0.7)
+    || (/^[)\],.;:]$/.test(ws[i].t) && i > 0 && HANGUL.test(ws[i - 1].t));
+  const realEn = w => /[A-Za-z]{2,}/.test(w.t) && w.c >= 70 && dict && (dict.has(w.t.toLowerCase().replace(/[^a-z'\-]/g, '')) || SHORT.has(w.t.toLowerCase()));
+  const SHORT = new Set(['a', 'an', 'to', 'of', 'in', 'on', 'up', 'by', 'at', 'as', 'be', 'do', 'go', 'it', 'so', 'no', 'or', 'if', 'off', 'out', 'for', 'with', 'one', 'sb', 'sth', 'ad']);
+  segs = segs.flatMap(ws => {
+    const parts = []; let cur = [], kd = null;
+    ws.forEach((w, i) => {
+      const k = isKo(ws, i), en = /[A-Za-z]/.test(w.t) && !HANGUL.test(w.t);
+      if (kd === 'ko' && en && !k && !realEn(w)) return; // 뜻 속 잡티
+      const kind = k ? 'ko' : en ? 'en' : kd || 'en';
+      if (cur.length && kind !== kd) { parts.push(cur); cur = []; }
+      cur.push(w); kd = kind;
+    });
+    if (cur.length) parts.push(cur);
+    return parts.map(mk);
+  });
+  for (const s of segs) {
     // 혼자 떨어진 흐릿한 한 글자(품사 표시를 한글로 잘못 읽은 것 등)는 뜻으로 쓰지 않음
     if (s.w.length === 1 && /^[가-힣]$/.test(s.t) && s.w[0].c < 45) { s.kind = 'x'; continue; }
-    s.kind = HANGUL.test(s.t) ? (/[A-Za-z]{2,}/.test(s.t) ? 'mix' : 'ko') : isLat(s.t) && s.t.replace(/[^A-Za-z]/g, '').length >= 3 ? 'en' : 'x';
+    s.kind = HANGUL.test(s.t) ? 'ko' : isLat(s.t) && s.t.replace(/[^A-Za-z]/g, '').length >= 3 ? 'en' : 'x';
   }
   segs.sort((a, b) => a.yc - b.yc || a.x0 - b.x0);
   const koRight = (s, tol) => segs.some(o => o.kind === 'ko' && Math.abs(o.yc - s.yc) < h * tol && o.x0 > s.x1);
-  const SHORT = new Set(['a', 'an', 'to', 'of', 'in', 'on', 'up', 'by', 'at', 'as', 'be', 'do', 'go', 'it', 'so', 'no', 'or', 'if', 'off', 'out', 'for', 'with', 'one', 'sb', 'sth']);
-  // 두 줄로 나뉘어 찍힌 영어 단어·숙어('look forward / to'): 바로 아랫줄이 같은 왼쪽 끝에서 시작하는 영어이고 그 줄 오른쪽에 뜻이 없으면,
-  // 그리고 윗줄 오른쪽에는 뜻이 있으면 한 단어로 이어 붙임
+  // 짧은 영어 표제어('in', 'ad', 'go'): 오른쪽에 뜻이 있고 왼쪽에 다른 글자가 없으면 표제어 (두세 줄로 나뉜 'in / accordance / with'의 첫 줄)
+  for (const s of segs) if (s.kind === 'x' && /^[A-Za-z]{1,3}$/.test(s.t) && (SHORT.has(s.t.toLowerCase()) || (dict && dict.has(s.t.toLowerCase()))) && koRight(s, 0.85)
+    && !segs.some(o => o !== s && o.kind !== 'x' && Math.abs(o.yc - s.yc) < h * 0.6 && o.x1 <= s.x0)) s.kind = 'en';
+  // 영어 칸 오른쪽 끝: 표제어 첫 줄 가운데 가장 긴 것 (단어 중간에서 줄이 바뀌었는지 볼 때)
+  const enRight = Math.max(0, ...segs.filter(s => s.kind === 'en' && koRight(s, 0.85)).map(s => s.x1));
+  // 두세 줄로 나뉘어 찍힌 영어 단어·숙어('look forward / to', 'in / accordance / with'): 바로 아랫줄이 같은 왼쪽 끝에서 시작하는 영어이고
+  // 그 줄 오른쪽에 뜻이 없으면, 그리고 윗줄 오른쪽에는 뜻이 있으면 한 단어로 이어 붙임.
+  // 단어 중간에서 줄이 바뀐 것('misundersta / nding')은 윗줄 끝 조각이 낱말이 아니거나 윗줄이 칸 끝까지 찼고, 붙인 말이 사전에 있으면 띄우지 않고 붙임
   for (const s of segs) {
     if (s.kind !== 'en' || !koRight(s, 0.85)) continue;
-    for (let nx; (nx = segs.find(o => o !== s && (o.kind === 'en' || (o.kind === 'x' && SHORT.has(o.t.toLowerCase()))) && Math.abs(o.x0 - s.x0) < h * 0.8 && o.yc > s.yc + h * 0.6 && o.y0 - s.y1 < h * 1.2)) && !koRight(nx, 0.6);) {
-      s.t += ' ' + nx.t; s.w.push(...nx.w); s.x1 = Math.max(s.x1, nx.x1); s.y1 = Math.max(s.y1, nx.y1); nx.kind = 'joined';
+    for (let nx; (nx = segs.find(o => o !== s && (o.kind === 'en' || (o.kind === 'x' && /^[A-Za-z][A-Za-z\-]*$/.test(o.t))) && Math.abs(o.x0 - s.x0) < h * 0.8 && o.yc > s.yc + h * 0.6 && o.y0 - s.y1 < h * 1.2)) && !koRight(nx, 0.6);) {
+      const a = s.w[s.w.length - 1].t.toLowerCase(), b = nx.w[0].t.toLowerCase(), whole = (a + b).replace(/[^a-z]/g, '');
+      const glue = dict && dict.has(whole) && !SHORT.has(b) && (!dict.has(a) || (s.x1 >= enRight - h * 0.6 && b.length >= 3));
+      s.t += (glue ? '' : ' ') + nx.t; s.w.push(...nx.w); s.x1 = Math.max(s.x1, nx.x1); s.y1 = Math.max(s.y1, nx.y1); nx.kind = 'joined';
     }
   }
   const used = new Set(), out = [];
   const fixEn = t => {
-    const ws = t.split(/\s+/).map(x => /[A-Za-z]/.test(x) ? ocrFix(x, dict) : '').filter(Boolean);
+    const ws = t.split(/\s+/).map(x => /^[-~][a-z]{2,4}$/i.test(x) ? x.toLowerCase() : /[A-Za-z]/.test(x) ? ocrFix(x, dict) : '').filter(Boolean);
     while (ws.length > 1 && ws[0].length <= 2 && !SHORT.has(ws[0].toLowerCase())) ws.shift();
     while (ws.length > 1 && ws[ws.length - 1].length <= 2 && !SHORT.has(ws[ws.length - 1].toLowerCase())) ws.pop();
     return ws.join(' ');
@@ -273,32 +323,22 @@ function ocrPairs(words, dict, slope = 0) {
     // 같은 줄 오른쪽 칸의 다른 영어 단어부터는 그 단어의 뜻 ('river 강 … mirror 거울'에서 river가 '거울'을 넘보다 '강'까지 잃지 않게)
     const nx = segs.filter(q => q !== s && q.kind === 'en' && Math.abs(q.yc - s.yc) < h * 0.7 && q.x0 > s.x1).sort((a, b) => a.x0 - b.x0)[0];
     if (nx) r = r.filter(o => o.x0 < nx.x0);
-    return r.length > 1 && r[0].t.replace(/[^가-힣]/g, '').length <= 1 ? r[1] : r[0]; };
+    return r.length > 1 && r[0].t.replace(/[^가-힣]/g, '').length <= 1 && r[1].x0 - r[0].x1 > h * 1.6 ? r[1] : r[0]; };
   const nextEnRight = (s, o) => segs.some(q => q !== s && q.kind === 'en' && Math.abs(q.yc - s.yc) < h * 0.7 && q.x0 > s.x1 && q.x0 < o.x0);
   const below = s => segs.filter(o => !used.has(o) && o.kind === 'ko' && o.yc > s.yc + h * 0.5 && o.yc < s.yc + h * 2.6 && o.x0 > s.x0 - h * 2.5 && o.x0 < s.x0 + Math.max(h * 3, (s.x1 - s.x0) * 0.6)).sort((a, b) => a.yc - b.yc)[0];
   for (const s of segs) {
-    if (used.has(s)) continue;
-    if (s.kind === 'mix') {
-      // 한 덩어리에 '영어 뜻 영어 뜻'이 이어지면 한글 뒤에 영어가 시작되는 곳에서 나눔
-      used.add(s);
-      const parts = []; let cur = [];
-      for (const w of s.w) { if (cur.length && /[A-Za-z]{2,}/.test(w.t) && !HANGUL.test(w.t) && cur.some(x => HANGUL.test(x.t))) { parts.push(cur); cur = []; } cur.push(w); }
-      if (cur.length) parts.push(cur);
-      for (const p of parts) {
-        const k = p.findIndex(x => HANGUL.test(x.t)); if (k <= 0) continue;
-        const en = fixEn(p.slice(0, k).map(x => x.t).join(' ')), ko = p.slice(k).map(x => x.t).join(' ').replace(/\s+([,.;])/g, '$1');
-        if (en) out.push({ t: en + ' - ' + ko, x: p[0].x0, y: (p[0].y0 + p[0].y1) / 2, b: ocrBox(p) });
-      }
-      continue;
-    }
-    if (s.kind !== 'en') continue;
+    if (used.has(s) || s.kind !== 'en') continue;
     let m = right(s);
     if (m && nextEnRight(s, m)) m = null;
     if (!m) m = below(s);
     if (!m) continue;
     used.add(s); used.add(m);
-    // 뜻이 두 줄로 넘어가면('기다리다, 버티다, (전화를) / 끊지 않다') 바로 아랫줄 같은 칸의 한글도 (그 줄 왼쪽에 다른 영어 단어가 없을 때)
+    // 같은 줄에서 뜻이 넓은 틈으로 끊겨 두 덩어리가 됐으면(가운데 표·괄호 때문에) 이어 붙임: 다음 영어 단어 전까지
     let mt = m.t, mw = [...m.w];
+    for (let c = m, nx; (nx = segs.find(o => o.kind === 'ko' && !used.has(o) && Math.abs(o.yc - c.yc) < h * 0.6 && o.x0 > c.x1 && o.x0 - c.x1 < h * 3)) && !nextEnRight(s, nx);) {
+      used.add(nx); mt += ' ' + nx.t; mw.push(...nx.w); c = nx;
+    }
+    // 뜻이 두 줄로 넘어가면('기다리다, 버티다, (전화를) / 끊지 않다') 바로 아랫줄 같은 칸의 한글도 (그 줄 왼쪽에 다른 영어 단어가 없을 때)
     for (let c = m, nx; (nx = segs.find(o => o.kind === 'ko' && !used.has(o) && Math.abs(o.x0 - c.x0) < h * 1.2 && o.yc > c.yc + h * 0.6 && o.y0 - c.y1 < h * 1.2)) && !segs.some(q => q.kind === 'en' && Math.abs(q.yc - nx.yc) < h * 0.7 && q.x1 <= nx.x0);) {
       used.add(nx); mt += ' ' + nx.t; mw.push(...nx.w); c = nx;
     }
@@ -310,8 +350,86 @@ function ocrPairs(words, dict, slope = 0) {
   for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] > pw * 0.18) cuts.push((xs[i] + xs[i - 1]) / 2);
   const col = x => cuts.filter(c => x > c).length;
   if (OCR.boxes) for (const o of out) ocrKeepBox(o.t, o.b);
-  return out.sort((a, b) => col(a.x) - col(b.x) || a.y - b.y).map(o => o.t);
+  // 이 줄들은 뜻의 띄어쓰기를 글자 사이 틈으로 이미 정했어요: ocrTidy가 한 글자씩 떨어진 말을 다시 붙이지 않게 표시(OCR_SPACED)를 붙여 둠
+  return out.sort((a, b) => col(a.x) - col(b.x) || a.y - b.y).map(o => OCR_SPACED + o.t);
 }
+// ocrPairs가 띄어쓰기를 정한 줄 표시 (ocrTidy에서 지워요)
+const OCR_SPACED = '\u2063';
+// 뜻 글자 잇기. 한국어 읽기는 흐린 회색 글씨를 '빌 리 다'처럼 글자마다 떼어 읽어요. 글자 사이 틈만으로는 띄어쓰기를 알 수 없어서
+// (글씨체에 따라 낱말 안 틈과 낱말 사이 틈이 겹쳐요) 틈과 낱말 목록을 함께 봐요: 붙이고 띄우는 모든 경우 가운데 낱말 목록에 있는 말이 된
+// 글자가 가장 많고 틈과도 잘 맞는 것. 한국어 읽기가 낱말로 읽은 두 덩어리('아주', '오래된') 사이는 띄워요.
+// 기호: 여는 괄호 뒤·닫는 괄호와 쉼표 앞·가운뎃점 앞뒤는 붙이고, 쉼표 뒤·'~' 앞은 띄워요. 괄호 안에서 붙어 있던 두 낱말은 가운뎃점으로
+// ('(생각해답을)' → '(생각·해답을)': 작은 점을 옆 글자 상자에 넣어 읽었어요). ws: 왼쪽부터 놓인 낱말 상자, H: 글자 높이, kp: 한글 한 글자 폭
+function koSpace(ws, lex, H, kp) {
+  const syl = t => (t.match(/[가-힣]/g) || []).length;
+  // 글자 높이: 이 덩어리 한글 상자의 가운데값. 그 반도 안 되는 흐린 한 글자는 쉼표·획 조각을 읽은 것 ('있는, ~을'의 쉼표를 '느'로)
+  const kh = ws.filter(w => HANGUL.test(w.t)).map(w => w.y1 - w.y0).sort((a, b) => a - b);
+  if (kh.length >= 3) { H = kh[kh.length >> 1]; ws = ws.filter(w => !(/^[가-힣]$/.test(w.t) && w.y1 - w.y0 < H * 0.5 && w.c < 70)); }
+  // 글자 수에 비해 너무 좁거나 넓은 상자는 위치를 믿지 않음 ('피다' 상자가 한 글자 폭, '쌍' 상자가 '쌍의,'까지 덮음)
+  const odd = w => { const n = syl(w.t), wd = w.x1 - w.x0; if (!n || !kp) return false; const e = n + (w.t.length - n) * 0.35; return wd < e * kp * 0.6 || wd > e * kp * 1.6 + kp * 0.3; };
+  // 한글 사이에 홀로 읽힌 '-'·작은 점·따옴표는 가운뎃점 ('(계획-행사를)', "(소리' 빛이)")
+  ws = ws.map((w, i) => /^[-–'’`ㆍ・‧∙•·]$/.test(w.t) && i > 0 && i < ws.length - 1 && /[가-힣]$/.test(ws[i - 1].t) && /^[가-힣]/.test(ws[i + 1].t)
+    && w.x0 - ws[i - 1].x1 < H * 0.5 && ws[i + 1].x0 - w.x1 < H * 0.5 ? Object.assign({}, w, { t: '·' }) : w);
+  const prt = t => KO_PRT.find(x => t.startsWith(x));
+  const n = ws.length, bd = [null];
+  for (let i = 1; i < n; i++) {
+    const A = ws[i - 1].t, B = ws[i].t, g = odd(ws[i - 1]) || odd(ws[i]) ? 0.5 : (ws[i].x0 - ws[i - 1].x1) / H;
+    let force = null;
+    if (/[,;]$/.test(A)) force = 'space';
+    // '~' 뒤: 조사('~을')·'하다'('~하다')·바짝 붙은 말('~하려고')은 붙이고, 떨어진 낱말은 띄움 ('~ 외에도')
+    else if (/~$/.test(A)) force = g < 0.3 || prt(B) || /^(하|되|시키|이다)/.test(B) ? 'join' : 'space';
+    else if (/^[,.;:)\]·]/.test(B) || /[(\[·\-]$/.test(A)) force = 'join';
+    else if (/^[(\[~\-]/.test(B)) force = 'space';
+    else if (!/[가-힣]$/.test(A) || !/^[가-힣]/.test(B)) force = g < (/[)\]]$/.test(A) ? 0.25 : 0.45) ? 'join' : 'space';
+    else if (!lex || !lex.size) force = g < 0.4 ? 'join' : 'space';
+    else if (syl(A) >= 2 && syl(B) >= 2 && g >= 0.3 && !odd(ws[i - 1]) && !odd(ws[i])) force = 'space';
+    const p = Math.min(1, Math.max(0, (g - 0.2) / 0.55));
+    // '신청 하다'처럼 이름씨 뒤에서 '하다'·'되다'를 띄우는 것은 거의 틀림 (앞말이 '~을'·'~게'처럼 조사·어미로 끝나면 띄움: '공부를 하다', '지치게 하다')
+    const hada = /^(하다|하여|하는|하게|하고|하기|하지|하면|하며|하도록|하려|함|해서|했다|되다|되는|되게|되어|된|될|됨|시키다|시키는|시킨|시켜|당하다|받다)(?![가-힣])/.test(B)
+      && !/[을를이가은는게고지록로서면며도만에와과의히기음여어아요데]$/.test(A) ? 1 : 0;
+    bd.push({ force, g, cs: (1 - p) * 1.2 + hada, cj: p * 1.2 });
+  }
+  // 낱말 점수: 낱말 목록에 있는 말이 된 글자 수 - 낱말마다 0.3 (같으면 긴 낱말). 한 글자 낱말은 홀로 쓰는 말('한', '잘', '수')만.
+  // '~' 바로 뒤는 조사('~을')나 말('~하려고'). 조사 뒤에 다른 낱말이 붙은 것('~이길을')은 띄워야 해요
+  // (줄기가 한 글자인 '레의'·'쌍한'은 '레다'·'쌍하다'가 목록에 있어도 낱말로 치지 않음)
+  const ok = w => w.length === 1 ? KO_ONE.has(w) : lex.has(w) || (w.length === 2 && KO_ONE.has(w[0]) && KO_PRT.includes(w[1]))
+    || KO_END.some(e => w.endsWith(e) && w.length - e.length >= 2 && (k => lex.has(k) || lex.has(k + '다') || lex.has(k + '하다'))(w.slice(0, -e.length)));
+  const memo = new Map();
+  const score = t => {
+    if (!memo.has(t)) {
+      let v = 0;
+      for (const m of t.matchAll(/[가-힣]+/g)) {
+        const w = m[0], P = t[m.index - 1] === '~' && prt(w), rest = P ? w.slice(P.length) : '';
+        v += (P ? (!rest ? w.length : rest.length >= 2 && ok(rest) ? 0 : ok(w) ? w.length : 0) : ok(w) ? w.length : 0) - 0.3;
+      }
+      memo.set(t, v);
+    }
+    return memo.get(t);
+  };
+  const best = [0], from = [0];
+  for (let i = 1; i <= n; i++) {
+    best[i] = -1e9;
+    let jc = 0, t = '';
+    for (let j = i - 1; j >= 0; j--) {
+      t = ws[j].t + t;
+      if (best[j] > -1e9 && !(j > 0 && bd[j].force === 'join')) {
+        const v = best[j] + (lex && lex.size ? score(t) : 0) - jc - (j > 0 && !bd[j].force ? bd[j].cs : 0);
+        if (v > best[i]) { best[i] = v; from[i] = j; }
+      }
+      if (j > 0) { if (bd[j].force === 'space') break; if (!bd[j].force) jc += bd[j].cj; }
+    }
+  }
+  const cut = new Set();
+  for (let i = n; i > 0; i = from[i]) cut.add(from[i]);
+  let out = '';
+  ws.forEach((w, i) => {
+    if (i && cut.has(i)) out += (/\([^)]*$/.test(out) && /[가-힣]$/.test(out) && /^[가-힣]/.test(w.t) && bd[i].g < 0.3 && !bd[i].force ? '·' : ' ');
+    out += w.t;
+  });
+  return out;
+}
+// 홀로 쓰는 한 글자 낱말 (띄어쓰기를 정할 때, 뜻이 진짜 낱말인지 볼 때). 조사·어미로 많이 쓰는 글자('이', '은', '다'의 어미…)는 뺐어요
+const KO_ONE = new Set('한두세네몇새헌첫온각잘막더덜안못꼭좀곧또늘다참왜꽤썩확쭉푹딱꽉수것줄때데바뿐듯척체만등중쪽편채번개명쌍벌장권대살분시해달날년원점일물불돈값말글빛힘맛몸손발눈귀코입배옷밥차길땅산강섬숲꽃잎별비성벽문방앞뒤옆위밑밖속끝곳뜻꿈잠병약술빚표상죄적탓덕틈짝짐칸판금철실끈칼총활공책집땀피뼈털난된할될갈볼쓸알든간본쓴큰긴센찬단짠탄뜬진낸둔준친');
 // 확인 화면에 보여 줄 '사진 속 원래 줄' 위치: 낱말 상자들을 감싸는 상자 (기울기를 펴기 전의 원래 위치로)
 function ocrBox(ws) {
   const o = ws.map(w => w._o || w);
@@ -338,6 +456,7 @@ function ocrSnip(c, b) {
 function ocrTidy(text) {
   let lines = String(text || '').split(/\n/).map(l => l.replace(/[|｜¦]/g, ' ').replace(/[“”"]/g, '').replace(/\s+/g, ' ').trim()).filter(l => l.length > 1);
   lines = lines.map(l => {
+    if (l[0] === OCR_SPACED) return l.slice(1); // ocrPairs가 글자 사이 틈으로 띄어쓰기를 이미 정한 줄
     const t = l.split(' '), out = [];
     for (let i = 0; i < t.length; i++) {
       if (/^[가-힣][,.;]?$/.test(t[i])) {
@@ -365,7 +484,11 @@ function ocrTidy(text) {
   return out.join('\n');
 }
 // 예문·설명처럼 단어 줄이 아닌 것은 빼요
-const ocrRowOk = r => { const en = r.en.replace(/[^A-Za-z\s'~\-]/g, ' ').replace(/\s+/g, ' ').trim(); r.en = en; return en.length >= 2 && en.split(' ').length <= 4 && HANGUL.test(r.ko) && r.ko.length <= 40; };
+// 다섯·여섯 낱말 숙어('as a matter of fact')는 문장처럼 대문자로 시작하거나 마침표로 끝나지 않을 때만
+const ocrRowOk = r => {
+  const en = r.en.replace(/[^A-Za-z\s'~\-]/g, ' ').replace(/\s+/g, ' ').trim(), n = en.split(' ').length, sentence = /^[A-Z]/.test(en) || /[.?!]\s*$/.test(r.en);
+  r.en = en; return en.length >= 2 && (n <= 4 || (n <= 6 && !sentence)) && HANGUL.test(r.ko) && r.ko.length <= 40;
+};
 // 뜻에 섞여 들어온 영어 낱자·기호 정리
 const ocrKo = s => s.replace(/(^|\s)[A-Za-z|\\/_=+*#&%$@^]{1,2}(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -389,41 +512,73 @@ function koExact(t, L) {
   t = String(t).replace(/\(.*$/, '').replace(/[^가-힣]/g, '');
   if (t.length < 2) return false;
   if (L.has(t)) return true;
-  // 낱말 목록에는 '머리를'처럼 조사가 붙은 꼴도 있어서, 을·를로 끝난 앞말에 '하다'를 붙인 것은 낱말로 치지 않음
-  return KO_VEND.some(e => t.endsWith(e) && t.length - e.length >= 2 && L.has(t.slice(0, -e.length)) && !/[을를]$/.test(t.slice(0, -e.length)));
+  // 낱말 목록에는 '머리를'·'하려고'처럼 조사·어미가 붙은 꼴도 있어서, 을·를로 끝난 앞말에 '하다'를 붙인 것과
+  // '-려고·-도록·-고자 하다'('~하려고 하다')는 한 낱말로 치지 않음
+  return KO_VEND.some(e => t.endsWith(e) && t.length - e.length >= 2 && L.has(t.slice(0, -e.length)) && !koAux(t.slice(0, -e.length), e));
 }
+const koAux = (stem, e) => /[을를]$/.test(stem) || (/^(하|되)/.test(e) && /(려고|도록|고자)$/.test(stem));
 // 뜻 한 덩어리 → 'ok' | 'one'(한 글자뿐: 확인 필요) | 'bad'(낱말이 아님)
 function koChunk(chunk, L) {
-  // '~을'·'~에' 같은 자리 표시는 낱말 수에서 빼요 ('~을 기대하다')
-  const core = chunk.replace(/\([^)]*\)/g, ' ').replace(/(^|\s)~[가-힣]{0,3}(?=\s|$)/g, ' ').replace(/[^가-힣\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!core) return 'bad';
+  // '~을'·'~에' 같은 자리 표시(조사)는 낱말 수에서 빼요 ('~을 기대하다'). '~외에도'·'~하려고'처럼 '~' 뒤의 말은 낱말로 봐요
+  const core = chunk.replace(/\([^)]*\)/g, ' ').replace(/~([가-힣]*)/g, (a, x) => !x || KO_PRT.includes(x) || /^(와의|에서의|으로서|으로써|로서|로써|로부터|부터|까지|보다|처럼|만큼|마다|에게로)$/.test(x) ? ' ' : ' ' + x)
+    .replace(/[^가-힣\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!core) return /[가-힣]/.test(chunk) ? 'ok' : 'bad';
   const ws = core.split(' ');
   if (ws.length === 1 && ws[0].length === 1) return L.has(ws[0]) ? 'one' : 'bad';
-  const good = ws.filter(w => koWordOk(w, L)).length;
+  // 한 글자 낱말은 홀로 쓰는 말만 ('석 멸 흥'처럼 '멸하다'·'흥하다'가 있다고 낱말로 치지 않음)
+  const good = ws.filter(w => w.length === 1 ? KO_ONE.has(w) : koWordOk(w, L)).length;
   return good >= Math.max(1, ws.length * 0.6) ? 'ok' : 'bad';
 }
 // 짝지은 줄 점검: 엉터리 뜻 덩어리는 빼고, 의심스러운 줄에는 표시(flag)를 붙임. 쓸 수 없는 줄은 null
 function ocrCheckRow(r, dict, L) {
   const enWords = r.en.toLowerCase().split(/\s+/).filter(Boolean);
-  const enOk = enWords.length && enWords.every(w => dict.has(w) || (w.includes('-') && w.split('-').every(p => p && dict.has(p))) || (w.length <= 3 && ['a', 'an', 'to', 'of', 'in', 'on', 'up', 'by', 'at', 'for', 'off', 'out', 'sb', 'sth'].includes(w)));
-  if (r.en.replace(/[^A-Za-z]/g, '').length < 3) return null; // 'jo', 'or' 같은 조각
-  // 괄호 짝 맞추기, 괄호 안 띄어쓰기 정리
-  let ko = r.ko.replace(/^[)\]]+|[(\[]+$/g, '').replace(/\(([^)]*)$/, '$1').replace(/^([^(]*)\)/, '$1').replace(/\(\s*([^)]*?)\s*\)/g, (a, x) => '(' + x.split(/\s+/).reduce((acc, w) => acc.length && /^[가-힣]$/.test(acc[acc.length - 1].slice(-1) + w) && w.length === 1 && acc[acc.length - 1].length === 1 ? (acc[acc.length - 1] += w, acc) : (acc.push(w), acc), []).join(' ') + ')').trim();
+  const enOk = enWords.length && enWords.every(w => dict.has(w) || (w.includes('-') && w.split('-').every(p => p && dict.has(p))) || /^[-~](?:ing|ed|er|est|s|es|ly|ful|less|ness|ment)$/.test(w)
+    || (w.length <= 3 && ['a', 'an', 'to', 'of', 'in', 'on', 'up', 'by', 'at', 'for', 'off', 'out', 'sb', 'sth'].includes(w)));
+  if (r.en.replace(/[^A-Za-z]/g, '').length < 3 && !/^(ad|ox|ax|go|ok|ex|hi)$/i.test(r.en)) return null; // 'jo', 'or' 같은 조각 (두 글자 낱말 'ad'·'ox'는 남김)
+  // 가운뎃점: 비슷한 점·한글 사이에 바짝 붙은 '-'·따옴표 ('계획-행사를', "소리'빛이"). 괄호 짝 맞추기, 괄호 안 띄어쓰기 정리
+  let ko = r.ko.replace(/([가-힣])\s*[ㆍ・‧∙•]\s*(?=[가-힣])/g, '$1·').replace(/([가-힣])[-'’](?=[가-힣])/g, '$1·').replace(/\([^()]*\)/g, x => x.replace(/([가-힣])\s*['’]\s*(?=[가-힣])/g, '$1·'));
+  ko = ko.split(/\s*,\s*/).map(koParen).join(', ').replace(/\(\s*([^)]*?)\s*\)/g, (a, x) => '(' + x.split(/\s+/).reduce((acc, w) => acc.length && /^[가-힣]$/.test(acc[acc.length - 1].slice(-1) + w) && w.length === 1 && acc[acc.length - 1].length === 1 ? (acc[acc.length - 1] += w, acc) : (acc.push(w), acc), []).join(' ') + ')').trim();
   if (!L.size) return Object.assign(r, { ko, flag: enOk ? '' : 'en' });
   // 낱말이 아닌 낱말 고치기(붙어 읽힌 낱말, 비슷한 모양 글자), 쉼표를 못 읽어 붙은 뜻 나누기
   // 한 글자씩 떨어져 읽힌 낱말 ('마 시다' → '마시다'). '수'·'것' 같은 말은 띄어 쓰는 말이라 붙이지 않음 ('할 수 없는')
   const glue = ws => { for (let i = ws.length - 2; i >= 0; i--) if (/^[가-힣]$/.test(ws[i]) && !/^(수|것|줄|때|데|바|지|뿐|듯|척|체|만|등|중)$/.test(ws[i]) && /^[가-힣]+$/.test(ws[i + 1]) && L.has(ws[i] + ws[i + 1])) ws.splice(i, 2, ws[i] + ws[i + 1]); return ws; };
-  ko = ko.replace(/~\s+(?=[가-힣])/g, '~').split(/\s*,\s*/).map(p => koListSplit(glue(p.split(' ')).map((w, k) => koFixWord(w, L, k === 0)[0]).join(' '), L).join(', ')).join(', ');
+  // '~ 을'처럼 떨어져 읽힌 자리 표시와 조사는 붙이고('~ 외에도'는 그대로), 쉼표를 못 읽은 두 번째 '~' 뜻 앞에는 쉼표 ('~을 맡고 있는 ~을 책임지는')
+  ko = ko.replace(/~\s+(?=(?:에게서|에서|에게|으로|로|의|을|를|에|와|과|이|가|은|는|도)(?![가-힣])|하|되)/g, '~').replace(/([가-힣](?:다|는|은|던|게|히))\s+(?=~)/g, '$1, ');
+  const look2 = w => { const m = w.match(/^(~?)([가-힣]{2})([을를이가은는의에와과로도]?)([^가-힣]*)$/); if (!m || koWordOk(m[2] + m[3], L)) return w; const f = koLook2(m[2], L); return f === m[2] ? w : m[1] + f + m[3] + m[4]; };
+  ko = ko.split(/\s*,\s*/).map(p => koListSplit(glue(p.split(' ')).map((w, k) => look2(koFixWord(w, L, k === 0)[0])).join(' '), L).join(', ')).join(', ');
   let parts = ko.split(/\s*,\s*/).filter(Boolean);
   if (parts.length > 1) parts = parts.filter(p => !/^[가-힣]$/.test(p) || parts.every(q => /^[가-힣]$/.test(q))); // 다른 뜻 옆에 홀로 붙은 한 글자는 아이콘·기호를 읽은 것
-  const st = parts.map(p => koChunk(p, L));
-  const keep = parts.filter((p, i) => st[i] !== 'bad');
+  // 낱말 목록으로 확인이 안 되는 덩어리: 두 글자 이하 잡티는 빼고, 세 글자 이상은 흐리게 잘못 읽은 진짜 뜻일 수 있어 남기고 고쳐 달라고 표시
+  // (회색 뜻의 앞부분이 통째로 빠지지 않게)
+  const st = parts.map(p => koChunk(p, L)), syl = p => (p.match(/[가-힣]/g) || []).length;
+  const keep = parts.filter((p, i) => st[i] !== 'bad' || syl(p) >= 3);
   let flag = '';
   if (!keep.length) { if (!enOk) return null; flag = 'ko'; }
-  else { ko = keep.join(', '); if (keep.length < parts.length) flag = 'drop'; else if (keep.length === 1 && st[parts.indexOf(keep[0])] === 'one') flag = 'one'; }
+  else { ko = keep.join(', '); if (keep.some(p => st[parts.indexOf(p)] === 'bad')) flag = 'ko'; else if (keep.length < parts.length) flag = 'drop'; else if (keep.length === 1 && st[parts.indexOf(keep[0])] === 'one') flag = 'one'; }
   if (!enOk) flag = flag || 'en';
-  if (!flag && OCR.low.has(r.en.toLowerCase())) flag = 'low';
+  if (!flag && (OCR.low.has(r.en.toLowerCase()) || r.en.toLowerCase().split(/\s+/).some(w => w.length >= 4 && OCR.low.has(w)))) flag = 'low';
   return Object.assign(r, { ko, flag });
+}
+// 뜻 한 덩어리의 괄호 짝: 짝 없는 ')'는 앞말이 조사로 끝나는 짧은 말이면 '('를 못 읽은 것 ('계획·행사를) 취소하다' → '(계획·행사를) 취소하다'),
+// 짝 없는 '('는 뒤에 조사로 끝나는 말이 이어지면 ')'를 못 읽은 것. 아니면 지움. 가운뎃점으로 이은 말에 조사가 붙어 맨 앞에 있으면
+// 두 괄호를 다 못 읽은 것 ('일·대화를 계속하다' → '(일·대화를) 계속하다')
+function koParen(p) {
+  const PRT = /[가-힣](을|를|이|가|은|는|에|에게|에서|와|과|의|로|으로|도)$/;
+  let depth = 0, out = '';
+  for (let i = 0; i < p.length; i++) {
+    const ch = p[i];
+    if (ch === '(') { depth++; out += ch; continue; }
+    if (ch !== ')') { out += ch; continue; }
+    if (depth) { depth--; out += ch; continue; }
+    const pre = out.trim();
+    out = pre.split(' ').length <= 3 && PRT.test(pre) && !pre.includes('(') && /[가-힣~]/.test(p.slice(i + 1)) ? '(' + pre + ')' : out;
+  }
+  if (depth) { // 짝 없는 '('
+    const k = out.lastIndexOf('('), ws = out.slice(k + 1).split(' '), j = ws.findIndex((w, x) => x < 3 && PRT.test(w));
+    out = out.slice(0, k) + (j >= 0 && j < ws.length - 1 ? '(' + ws.slice(0, j + 1).join(' ') + ') ' + ws.slice(j + 1).join(' ') : ws.join(' '));
+  }
+  if (!/[()]/.test(out)) out = out.replace(/^([가-힣]+·[가-힣]+(?:을|를|이|가|에|와|과|의|로|으로))\s+(?=[가-힣])/, '($1) ');
+  return out.trim();
 }
 const OCR_FLAG = { ko: '사진에서 뜻을 제대로 읽지 못했어요. 뜻을 고쳐 주세요', drop: '흐린 뜻 일부를 뺐어요. 빠진 뜻이 있으면 더해 주세요', one: '한 글자 뜻이에요. 맞는지 확인해 주세요', en: '사전에 없는 영어예요. 철자를 확인해 주세요', low: '사진에서 흐리게 읽혔어요. 영어와 뜻을 꼭 확인해 주세요' };
 
@@ -655,7 +810,7 @@ function ocrHeadPick(reads, pg, dict, taken) {
 // 사진 글자 읽기가 자주 헷갈리는 비슷한 모양의 자모 묶음 (첫소리 · 가운뎃소리 · 받침 번호)
 const KO_LOOK = [
   [[0, 1, 15], [0, 5], [0, 18], [3, 4, 16], [3, 5], [2, 3], [2, 5], [6, 7, 17], [6, 11], [7, 8], [9, 10, 12, 13, 14], [11, 18], [2, 11]],
-  [[0, 2], [4, 6], [0, 4], [1, 3, 5, 7], [8, 12], [13, 17], [8, 13, 18], [11, 19], [9, 14], [16, 20]],
+  [[0, 2], [4, 6], [0, 4], [1, 3, 5, 7], [0, 1], [2, 3], [4, 5], [6, 7], [8, 12], [13, 17], [8, 13, 18], [11, 19], [9, 14], [16, 20]],
   [[0, 1, 2, 24], [16, 17, 21], [4, 8], [19, 20, 22, 23], [7, 8, 25], [0, 4], [0, 8], [0, 16], [0, 21]]
 ];
 // 자모 하나를 다른 것으로 바꾸는 값: 같은 자모 0, 비슷한 모양 1 (받침이 생기거나 없어지는 것은 1.5), 그 밖 2.5
@@ -680,7 +835,7 @@ function koNear(a, b) {
   return true;
 }
 // 낱말 목록에 확실히 있는 꼴인지 (그대로, 또는 '어간 + 하다·시키다…', 또는 그 뒤에 조사)
-const koSure = (w, L) => koExact(w, L) || KO_END.some(e => w.endsWith(e) && w.length - e.length >= 2 && koExact(w.slice(0, -e.length), L));
+const koSure = (w, L) => koExact(w, L) || KO_END.some(e => w.endsWith(e) && w.length - e.length >= 2 && koExact(w.slice(0, -e.length), L) && !koAux(w.slice(0, -e.length), e));
 // 낱말이 아닌 세 글자 이상 한글 낱말을 모양이 비슷한 글자로 바꿔 진짜 낱말을 찾음 ('렬정하다' → '결정하다', '물타리' → '울타리')
 // 가장 적게 바꾼 후보 가운데 앞쪽 글자를 바꾼 것 (번호·괄호 바로 뒤 첫 글자가 가장 자주 틀려요: '물타리' → '물타기'보다 '울타리').
 // 그래도 여럿이면 어느 쪽인지 모르니 그대로. 두 글자 낱말은 여러 번 읽은 결과의 다수결에 맡겨요
@@ -713,6 +868,23 @@ function koLook(w, L) {
   }
   return best && !tie ? best : w;
 }
+// 두 글자 낱말에서 비슷한 모양 자모 하나만 바꿔 낱말 목록에 그대로 있는 말이 되는 것 ('오하' → '오해'). 후보가 여럿이면
+// 목록에 '-하다'·'-을/를'·'-이/가' 꼴까지 있는 흔한 말 하나('오아'보다 '오해'). 그래도 갈리지 않으면 그대로.
+// 사진 한 장을 한 번만 읽는 단어장 화면용 (흐린 회색 뜻의 'ㅐ'를 'ㅏ'로 읽어 뜻이 통째로 빠졌어요)
+function koLook2(w, L) {
+  const ch = [...w], sp = ch.map(koSplit);
+  if (ch.length !== 2 || sp.some(x => !x) || L.has(w)) return w;
+  const use = t => L.has(t + '하다') + (L.has(t + '을') || L.has(t + '를')) + (L.has(t + '이') || L.has(t + '가'));
+  let best = '', bu = -1, tie = false;
+  for (let p = 0; p < 2; p++) for (let k = 0; k < 3; k++) for (let v = 0; v < [19, 21, 28][k]; v++) {
+    if (KO_COST[k][sp[p][k]][v] !== 1) continue;
+    const y = sp[p].slice(); y[k] = v; const a = ch.slice(); a[p] = koJoin(y[0], y[1], y[2]); const t = a.join('');
+    if (!L.has(t) || t === best) continue;
+    const u = use(t);
+    if (u > bu) { best = t; bu = u; tie = false; } else if (u === bu) tie = true;
+  }
+  return best && !tie ? best : w;
+}
 // 두 글자 동사('강다')의 첫 글자에서 모양이 비슷한 자모 하나만 바꿔 진짜 낱말이 되는 것 가운데 가장 비슷한 것이 하나뿐이면 그것 ('가다'보다 '감다'). 아니면 ''
 function koLookVerb(w, L) {
   const ch = [...w], x = koSplit(ch[0]);
@@ -729,7 +901,7 @@ function koLookVerb(w, L) {
 // 한 글자 낱말은 '수'·'것'처럼 홀로 쓰이는 말만
 function koSeg(x, L, n) {
   if (koSure(x, L) || /^(수|것|줄|때|곳|중|등)$/.test(x)) return [x];
-  if (n > 1) for (let i = x.length - 1; i >= 2; i--) { const a = x.slice(0, i); if (!koSure(a, L)) continue; const r = koSeg(x.slice(i), L, n - 1); if (r) return [a, ...r]; }
+  if (n > 1) for (let i = x.length - 1; i >= 1; i--) { const a = x.slice(0, i); if (!(i >= 2 ? koSure(a, L) : KO_ONE.has(a) && !/^[명동형부]$/.test(a))) continue; const r = koSeg(x.slice(i), L, n - 1); if (r) return [a, ...r]; }
   const v = koLookVerb(x, L); return v ? [v] : null;
 }
 const KO_PRT = ['에게서', '에서', '에게', '으로', '로', '의', '을', '를', '에', '와', '과', '이', '가', '은', '는', '도'];
@@ -744,7 +916,8 @@ function koFixWord(w, L, first) {
   if (cut && cs[0] === 11 && cut[1].length >= 2 && koWordOk(cut[1], L)) return [m[1] + cut[1], 0.5]; // 'ⓢ'를 '운'·'오'처럼 동그라미 글자로 읽은 것
   const lk = koLook(m[2], L) !== m[2] ? koLook(m[2], L) : koLookVerb(m[2], L);
   if (lk && lk !== m[2]) return [m[1] + lk + m[3], 0.3];
-  if (first && !m[1]) for (const s of [1, 2]) if (m[2].length - s >= 2 && koSure(m[2].slice(s), L) && !/^(하다|되다|시키다|받다|당하다)$/.test(m[2].slice(s))) return [m[2].slice(s) + m[3], 1];
+  if (first && !m[1]) for (const s of [1, 2]) if (m[2].length - s >= 2 && koSure(m[2].slice(s), L) && !/^(하다|되다|시키다|받다|당하다)$/.test(m[2].slice(s)))
+    return s === 1 && KO_ONE.has(m[2][0]) && !/^[명동형부]$/.test(m[2][0]) ? [m[2][0] + ' ' + m[2].slice(1) + m[3], 0.5] : [m[2].slice(s) + m[3], 1];
   for (const s of first && !m[1] ? [0, 1, 2] : [0]) {
     let x = m[2].slice(s), head = m[1];
     if (head) { const pr = KO_PRT.find(p => x.startsWith(p) && x.length >= p.length + 2); if (pr) { head += pr + ' '; x = x.slice(pr.length); } }
@@ -1118,7 +1291,7 @@ async function mkRead() {
       if (MK.run !== run) return;
       raw += ((r1.data && r1.data.text) || '') + '\n';
       OCR.boxes = new Map();
-      const pairs = ocrPairs(ocrMerge(ocrWords(r1.data), ocrWords(r2.data), dict), dict, ocrSlope(r1.data, r2.data));
+      const pairs = ocrPairs(ocrMerge(ocrWords(r1.data), ocrWords(r2.data), dict), dict, ocrSlope(r1.data, r2.data), await koLex());
       keepSnips();
       // 위치로 짝을 못 지으면 글자만으로
       lines.push(...(pairs.length ? pairs : ocrTidy((r1.data && r1.data.text) || '').split('\n')));

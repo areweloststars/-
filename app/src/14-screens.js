@@ -105,7 +105,7 @@ function renderHome() {
       <div class="setrow"><span class="setlab">단어 1개당 제한 시간 <small>(뜻이 하나 늘 때마다 +${DIFF[SAVE.diff].extra}초)</small></span><div class="seg" data-set="diff">${diffSeg()}</div></div>
       <div class="setrow"><span class="setlab">스토리 음성(더빙)</span><div class="seg" data-set="narr">${segBtn('narr', true, '켜기')}${segBtn('narr', false, '끄기')}</div></div>
       <div class="setrow"><span class="setlab">음성 속도</span><div class="seg" data-set="rate">${rateSeg()}</div></div>
-      <div class="setrow"><span class="setlab">이 기기 목소리 <small id="vstat">${esc(voiceStat())}</small></span></div>
+      <div class="setrow"><span class="setlab">이 기기 목소리 <small id="vstat">${esc(voiceStat())}</small></span><div class="vpick" id="vpick">${voicePickHTML()}</div></div>
       <div class="setrow"><span class="setlab">효과음</span><div class="seg" data-set="sound">${segBtn('sound', true, '켜기')}${segBtn('sound', false, '끄기')}</div></div>
     </div></details>
     <div class="sectlab">에피소드 <span>차례로 깨면 다음 에피소드가 열려요</span></div>

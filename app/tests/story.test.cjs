@@ -86,3 +86,46 @@ test('auto story: problems come before resolutions, meanings drive the scene', (
   assert.match(s.lines[at('tie')], /\{tie\|묶었어요\}/);
   assert.deepEqual(s.pic, { friendship: '🤝', tie: '🪢', fence: '🚧' });
 });
+
+test('Korean helpers: spoken verb forms, letter names, look-alike verbs and adjectives', () => {
+  const f = P().json(`['보존하', '듣', '돕', '만들'].map(s => { const f = koVerbForms(s, ''); return [f.ja, f.ya, f.lge, f.lsu]; })`);
+  assert.deepEqual(f, [['보존하자', '보존해야 해', '보존할게', '보존할 수'], ['듣자', '들어야 해', '들을게', '들을 수'], ['돕자', '도와야 해', '도울게', '도울 수'], ['만들자', '만들어야 해', '만들게', '만들 수']]);
+  // 영어 글자 하나는 글자 이름으로 읽어요 ('괴도 X는', '미스터 M이')
+  assert.deepEqual(P().json(`[koP('괴도 X', '은'), koP('미스터 M', '이'), koP('Bob', '은')]`), ['괴도 X는', '미스터 M이', 'Bob은']);
+  // 꼴이 같은 동사·형용사는 영어로 가름, '그 결과'의 '결과'는 이름씨, '-안'으로 끝난 이름씨는 형용사가 아님
+  const k = P().json(`[['차다', 'kick'], ['차다', 'cold'], ['세다', 'count'], ['세다', 'strong'], ['결과', 'result'], ['그 결과', 'as a result'], ['대안', 'alternative'], ['너그러운', 'generous'], ['녹초가 된', 'exhausted']].map(([m, e]) => koKind(m, e, 'x').kind)`);
+  assert.deepEqual(k, ['v', 'a', 'v', 'a', 'n', 'd', 'n', 'a', 'a']);
+});
+
+test('auto story: verbs get a scene with fitting things from the story world, trouble before help', () => {
+  const W = [['submit', '~을 제출하다'], ['deliver', '배달하다'], ['reserve', '예약하다'], ['run out of', '~이 바닥나다'], ['pretend', '~인 척하다'], ['kick', '차다'],
+    ['entrust', '위탁하다'], ['evaporate', '증발하다'], ['steal', '훔치다'], ['rescue', '구조하다'], ['generous', '너그러운'], ['lazy', '게으른']];
+  const st = ids => P().json(`(() => { const rows = {}; for (const [en, ko] of ${JSON.stringify(W)}) rows[en] = { en, ko, pos: 'x' }; return mkStory(${JSON.stringify(ids)}, rows, 0).lines; })()`);
+  const lines = st(['submit', 'deliver', 'reserve', 'run out of', 'pretend', 'kick']);
+  const at = id => lines.find(l => l.includes(`{${id}|`)) || '';
+  // 기사 이야기(0번)의 물건: 서류는 '작전 계획서', 나를 짐은 '떡볶이 도시락', 예약할 자리는 '성 연회장 맨 앞자리', 떨어지는 것은 '떡볶이'
+  assert.match(at('submit'), /작전 계획서를 .*\{submit\|제출했어요\}/);
+  assert.match(at('deliver'), /떡볶이 도시락을 .*\{deliver\|배달했어요\}/);
+  assert.match(at('reserve'), /맨 앞자리를 미리 \{reserve\|예약했어요\}/);
+  assert.match(at('run out of'), /떡볶이가 (벌써 )?\{run out of\|바닥났어요\}/);
+  assert.match(at('pretend'), /\{pretend\|잠든 척했어요\}/);
+  assert.match(at('kick'), /공을 뻥 \{kick\|찼어요\}/);
+  // 장면이 없는 동사는 말하는 줄로(무엇을 하는지 앞뒤로 알 수 있게), 저절로 일어나는 일은 말하지 않는 줄로
+  const l2 = st(['entrust', 'evaporate', 'steal', 'rescue']);
+  assert.match(l2.find(l => l.includes('{entrust|')).replace(/\{[^|}]+\|([^}]+)\}/g, '$1'), /(자|야 해|게)!”|수 있을까\?”/);
+  assert.doesNotMatch(l2.find(l => l.includes('{evaporate|')), /“/);
+  // 말썽(훔치다) 뒤, 해결(구조하다) 앞에 단어 없는 다짐 한 줄
+  const iS = l2.findIndex(l => l.includes('{steal|')), iR = l2.findIndex(l => l.includes('{rescue|'));
+  assert.ok(iS < iR, l2.join('\n'));
+  assert.ok(l2.slice(iS + 1, iR).some(l => !/\{[^|}]+\|/.test(l) && /포기하지|물러설|같이 해 보자/.test(l)), l2.join('\n'));
+  // 나쁜 성품은 말썽꾼 쪽, 좋은 성품은 주인공 쪽
+  const l3 = st(['generous', 'lazy']);
+  assert.match(l3.find(l => l.includes('{lazy|')), /용[은이] /);
+  assert.doesNotMatch(l3.find(l => l.includes('{generous|')), /용[은이] /);
+  // 인물은 처음에 온이름('기사 레오'), 그다음부터 짧은 이름('레오')
+  const all = [...lines, ...l2].join('\n');
+  assert.match(all, /기사 레오/);
+  assert.match(all, /(?<!기사 )레오[는가이와]/);
+  // 이음말: '이번에는 …는'처럼 겹치는 말은 쓰지 않음
+  for (const l of [...lines, ...l2, ...l3]) assert.doesNotMatch(l, /^이번에는 /);
+});

@@ -1,7 +1,7 @@
 // word-game/index.html을 app/src에서 만들어요. 손으로 index.html을 고치지 말고 src를 고친 뒤 이 파일을 실행하세요.
 // 사이트에는 게임을 잠근 페이지(src/lock.html)가 올라가요: 게임 전체를 AES-GCM으로 잠그고, 열쇠는 공유 링크의 # 뒤에만 있어요.
 // 열쇠는 저장소에 넣지 않아요 (app/.site-key는 .gitignore에 있어요). 링크의 # 뒤 43글자가 곧 열쇠예요.
-// 주인의 단어장(교재 단어로 만든 이야기 단어장)은 app/decks.enc에 같은 열쇠로 잠가 두고, 잠근 게임 안에만 넣어요.
+// 주인의 단어장(사용자가 고른 단어로 만든 이야기 단어장. 교재에서 가져온 단어는 넣지 않아요)은 app/decks.enc에 같은 열쇠로 잠가 두고, 잠근 게임 안에만 넣어요.
 //   SITE_KEY=<열쇠 또는 링크> node app/build.cjs  → word-game/index.html 다시 쓰기 (SITE_KEY가 없으면 app/.site-key 파일의 열쇠로)
 //   node app/build.cjs --decks-out <폴더>          → app/decks.enc를 풀어 단어장마다 <id>.json으로 쓰기 (고칠 때. 폴더는 저장소 밖이나 .gitignore 안에)
 //   node app/build.cjs --decks-in <폴더>           → 폴더의 *.json을 app/decks.enc로 잠그고 다시 빌드
