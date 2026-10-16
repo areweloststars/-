@@ -40,6 +40,8 @@ button{font:inherit;font-weight:700;padding:10px 18px;border:0;border-radius:10p
     try { localStorage.setItem(KEEP, k); } catch (e) { }
     // 이 페이지를 다 읽은 뒤에 바꿔 넣어요 (읽는 도중에 바꾸면 잠금 화면의 제목·모양이 게임에 남아요)
     if (document.readyState !== 'complete') await new Promise(r => addEventListener('load', r, { once: true }));
+    // 게임이 새 판이 나왔는지 견줄 수 있게 지금 판의 지문을 남겨요 (창은 그대로라서 게임에서도 보여요)
+    try { window.WG_BUILD = String(SITE.sum || '').slice(0, 12); } catch (e) { }
     document.open(); document.write(html); document.close();
     return true;
   };

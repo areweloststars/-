@@ -94,19 +94,46 @@ function mkReviewHTML() {
     <div class="mkrows">${rows}</div>
     <button type="button" class="linkbtn" data-mk="addrow">＋ 단어 추가</button>
     <p class="mkcount">${n}단어${n < MK_MIN ? ` · ${MK_MIN}단어 이상 필요해요` : n > MK_MAX ? ` · ${MK_MAX}단어까지만 만들 수 있어요` : ` · 에피소드 약 ${Math.max(1, Math.round(n / 6))}개`}</p>
-    <button type="button" class="startbtn" data-mk="make"${ok ? '' : ' disabled'}>${ICON.play}AI 이야기로 게임 만들기</button>
+    <button type="button" class="startbtn" data-mk="make"${ok ? '' : ' disabled'}>${ICON.play}${MK.redo ? '이 단어장 이야기 새로 만들기' : 'AI 이야기로 게임 만들기'}</button>
     ${mkAiHTML()}
-    <button type="button" class="linkbtn" data-mk="restart">처음으로</button>`;
+    <button type="button" class="linkbtn" data-mk="restart">처음으로</button>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`;
 }
-// 이야기 AI를 이 브라우저에서 쓸 수 있는지 (만들기 전에 보여 줘요). 못 쓰면 까닭과 크롬으로 여는 방법
+// 이야기 AI를 이 브라우저에서 쓸 수 있는지 (만들기 전에 보여 줘요). 못 쓰면 까닭과 크롬으로 여는 방법.
+// 쓸 수 있으면 단어장을 만들기 전에 AI만 먼저 받아 둘 수 있어요 (진행률·실패 까닭·다시 받기)
 function mkAiHTML() {
   if (MK.aiWhy === undefined) {
     MK.aiWhy = null;
-    aiWhyNot().then(w => { MK.aiWhy = w; const el = document.getElementById('mkai'); if (el) el.outerHTML = mkAiHTML(); }, () => { MK.aiWhy = '이야기 AI를 확인하지 못했어요.'; });
+    aiWhyNot().then(w => { MK.aiWhy = w; mkAiPut(); }, () => { MK.aiWhy = '이야기 AI를 확인하지 못했어요.'; mkAiPut(); });
   }
-  if (MK.aiWhy == null) return '<p class="mknote mkai" id="mkai">이야기 AI를 이 기기에서 쓸 수 있는지 확인하는 중…</p>';
-  if (MK.aiWhy) return `<p class="mknote mkai bad" id="mkai"><b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>이대로 만들면 앱이 줄거리에 맞춘 기본 문장으로 이야기를 만들어요.</p>`;
-  return `<p class="mknote mkai ok" id="mkai"><b>✓ 이야기 AI(Gemma)를 쓸 수 있어요.</b> ${aiReadyBefore() ? '이 기기 안의 AI가 줄거리에 맞게 문장을 다듬어요. 에피소드마다 30초~1분쯤 걸려요.' : `처음 한 번 AI(${AI_SIZE})를 받아요. <b>와이파이</b>에서 해 주세요. 그다음부터는 인터넷 없이 이 기기에서 써요.`}</p>`;
+  if (MK.aiWhy == null) return '<div class="mknote mkai" id="mkai">이야기 AI를 이 기기에서 쓸 수 있는지 확인하는 중…</div>';
+  if (MK.aiWhy) return `<div class="mknote mkai bad" id="mkai"><b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>이대로 만들면 앱이 줄거리에 맞춘 기본 문장으로 이야기를 만들어요.</div>`;
+  const dl = MK.aiDl || {};
+  if (AI.engine || (aiReadyBefore() && dl.state !== 'fail')) return '<div class="mknote mkai ok" id="mkai"><b>✓ 이야기 AI(Gemma)를 이 기기에 받아 두었어요.</b> 줄거리에 맞게 문장을 다듬어요. 에피소드마다 30초~1분쯤 걸려요.</div>';
+  if (dl.state === 'run') return `<div class="mknote mkai ok" id="mkai"><b>이야기 AI(Gemma, ${AI_SIZE}) 받는 중</b><br>${esc(dl.text || '')}<div class="ocrbar" aria-hidden="true"><i style="width:${Math.round((dl.p || 0) * 100)}%"></i></div><button type="button" class="linkbtn" data-mk="aidlstop">그만 받기</button></div>`;
+  if (dl.state === 'fail') return `<div class="mknote mkai bad" id="mkai"><b>⚠ 이야기 AI를 받지 못했어요.</b> ${esc(dl.text || '')}<br><button type="button" class="btn" data-mk="aidl">AI 다시 받기</button></div>`;
+  return `<div class="mknote mkai ok" id="mkai"><b>✓ 이 기기에서 이야기 AI(Gemma)를 쓸 수 있어요.</b> 처음 한 번 AI(${AI_SIZE})를 받아요. <b>와이파이</b>에서 화면을 켜 둔 채로 해 주세요. 그다음부터는 인터넷 없이 써요.<br><button type="button" class="btn" data-mk="aidl">지금 AI 받아 두기</button> <small>(안 받아 두면 ‘게임 만들기’를 누를 때 받아요)</small></div>`;
+}
+// 상자만 다시 그려요 (입력 중인 단어 칸은 그대로)
+function mkAiPut() { const el = document.getElementById('mkai'); if (el) el.outerHTML = mkAiHTML(); }
+// 받기 진행 글: 단계마다 0→100이 다시 시작돼요 (받기 → 그래픽 칩에 올리기 → 마무리)
+function mkAiProgText(p, t, lab) {
+  const step = /^Loading model from cache/.test(t) ? '그래픽 칩에 올리는 중' : /^Loading GPU shader/.test(t) ? '마무리하는 중' : '';
+  const pct = Math.floor(clamp(p, 0, 1) * 100);
+  return step ? `이야기 AI 준비 중 · ${step} ${pct}%` : `${lab} ${pct}%`;
+}
+// 단어장 없이 AI만 먼저 받기
+async function mkAiPrefetch() {
+  if (MK.aiDl && MK.aiDl.state === 'run') return;
+  const ctl = MK.aiDlCtl = new AbortController();
+  let last = '';
+  const put = st => { MK.aiDl = st; mkAiPut(); };
+  put({ state: 'run', text: '받기 준비 중', p: 0 });
+  const onProg = (p, t) => { const x = mkAiProgText(p, t, '받는 중'); if (x !== last) { last = x; put({ state: 'run', text: x, p }); } };
+  AI.onRetry = t => put({ state: 'run', text: `인터넷 연결이 끊겨서 이어 받는 중 (${t + 1}/${AI_TRIES}번째)`, p: (MK.aiDl && MK.aiDl.p) || 0 });
+  const aborted = new Promise((_, no) => ctl.signal.addEventListener('abort', () => { if (!AI.engine) aiDrop(); no({ code: 'cancelled' }); }, { once: true }));
+  try { await Promise.race([aiLoad(onProg), aborted]); put({ state: 'ok' }); toast('이야기 AI를 받아 두었어요'); }
+  catch (e) { put(e && e.code === 'cancelled' ? null : { state: 'fail', text: (AI.err && AI.err.text) || '이야기 AI를 받지 못했어요.' }); }
+  finally { if (AI.onProgress === onProg) AI.onProgress = null; AI.onRetry = null; if (MK.aiDlCtl === ctl) MK.aiDlCtl = null; }
 }
 function mkMakingHTML() {
   const items = MK.log.map(l => `<li class="${l.state}"><span>${esc(l.text)}${l.state === 'run' ? '<i class="dotdot" aria-hidden="true"></i>' : ''}</span></li>`).join('');

@@ -488,6 +488,7 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .vig.good { box-shadow: inset 0 0 44px 12px rgba(54, 210, 126, .55); }
 .vig.bad { box-shadow: inset 0 0 56px 18px rgba(255, 70, 90, .6); }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 80; transform: translateX(-50%); max-width: calc(100vw - 32px); background: #23253F; color: #FFFFFF; border-radius: 12px; padding: 10px 16px; font-weight: 700; font-size: 14px; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); animation: toastIn .25s both; pointer-events: none; text-align: center; }
+.newbuild { position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); border: 2px solid var(--frame); background: var(--hl); color: #1D2140; border-radius: 12px; padding: 10px 16px; font: inherit; font-size: 14px; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); cursor: pointer; }
 .toast.high { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translateX(-50%); } }
 /* 홈: 목숨·모은 시간·잠금 */
@@ -571,6 +572,8 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .decklist li.cur .deckpick { border-color: var(--good); box-shadow: inset 0 0 0 1px var(--good); }
 .deckdel { flex: none; width: 44px; border: 2px solid var(--line); border-radius: 12px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; }
 .deckdel svg { width: 16px; height: 16px; }
+.deckredo { flex: none; border: 2px solid var(--line); border-radius: 12px; background: transparent; color: var(--fg); cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 0 10px; font: inherit; font-size: 12.5px; font-weight: 700; }
+.deckredo svg { width: 14px; height: 14px; }
 .deckdel.armed { border-color: var(--bad); background: var(--bad); color: #FFFFFF; }
 .ractions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .ractions .btn svg { width: 22px; height: 22px; }
@@ -583,6 +586,8 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mknote.mkai { margin: 12px 0 0; color: var(--fg); }
 .mknote.mkai.ok { border: 2px solid var(--good); }
 .mknote.mkai.bad { border: 2px solid var(--bad); }
+.mknote.mkai .ocrbar { margin: 8px 0 4px; }
+.mknote.mkai .btn { margin-top: 8px; }
 .mkerr { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--bad); color: #FFFFFF; font-size: 13.5px; font-weight: 600; }
 .mkpick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .mkbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 92px; text-align: center; }

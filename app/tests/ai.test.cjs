@@ -134,13 +134,120 @@ test('AI loading: a worker that cannot start ends the wait, and the next deck tr
     await p.run('mkMake()');
     const a = p.json('({ step: MK.step, note: MK.aiNote, loading: !!AI.loading, workers: __workers.length, dead: __workers.map(w => w.dead), f16: __cfg.appConfig.model_list[0].required_features })');
     assert.equal(a.step, 'done');
-    assert.match(a.note, /이야기 AI를 쓰지 못했어요\. 이야기 AI를 내려받거나 준비하지 못했어요/);
+    assert.match(a.note, /이야기 AI를 쓰지 못했어요\. AI를 받는 중\(12%\)에 멈췄어요\. AI를 돌리는 파일을 열지 못했어요.*\(오류: ai worker: no worker file\)/);
     assert.equal(a.loading, false);
     assert.deepEqual(a.dead, [true]);
     assert.deepEqual(a.f16, ['shader-f16'], 'f16이 없는 기기는 다 받기 전에 거절되게');
     p.run(`MK.rows = ${JSON.stringify(ROWS)};`);
     await p.run('mkMake()');
     assert.equal(p.json('__workers.length'), 2);
+  } finally { p.close(); }
+});
+
+// 가짜 WebLLM: 정해 둔 차례대로 실패하거나(받기 몇 %에서 어떤 오류) 성공해요
+const PLAN_LIB = plan => `(() => {
+  window.__workers = []; window.__plan = ${JSON.stringify(plan)};
+  window.Worker = class { constructor() { this.l = {}; this.dead = false; __workers.push(this); } addEventListener(k, f) { (this.l[k] = this.l[k] || []).push(f); } terminate() { this.dead = true; } };
+  AI.retryMs = 0;
+  AI.lib = { prebuiltAppConfig: { model_list: [{ model_id: AI_MODEL }] }, CreateWebWorkerMLCEngine: (w, id, cfg) => new Promise((ok, no) => {
+    const step = __plan.shift() || { ok: true };
+    setTimeout(() => {
+      cfg.initProgressCallback({ progress: step.at || 0.5, text: step.text || 'Fetching param cache[3/20]' });
+      if (step.ok) ok({ chat: { completions: { create: async () => ({ choices: [{ message: { content: '' } }] }) } } });
+      else no(step.name ? Object.assign(new Error(step.err), { name: step.name }) : new TypeError(step.err));
+    }, 5);
+  }) };
+  AI.gpu = true;
+})()`;
+
+test('AI loading: a dropped connection is retried and the download continues; the reason is shown when it keeps failing', async () => {
+  const p = bootPage();
+  try {
+    // 한 번 끊기고 두 번째에 성공: 일꾼 둘, 기록에 '이어 받는 중'
+    p.run(PLAN_LIB([{ at: 0.16, err: 'Failed to fetch' }, { ok: true }]));
+    const eng = await p.run('aiLoad(() => {}).then(e => !!e)');
+    assert.equal(eng, true);
+    assert.equal(p.json('__workers.length'), 2);
+    assert.deepEqual(p.json('__workers.map(w => w.dead)'), [true, false]);
+    p.run('aiDrop(); localStorage.removeItem("wg-ai-ready")');
+    // 세 번 다 끊김: 단어장은 만들어지고, 어느 단계에서 왜 멈췄는지 보여요
+    p.run(PLAN_LIB([{ at: 0.16, err: 'Failed to fetch' }, { at: 0.2, err: 'Failed to fetch' }, { at: 0.25, err: 'Failed to fetch' }]));
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    await p.run('mkMake()');
+    const a = p.json('({ step: MK.step, note: MK.aiNote, log: MK.log.map(l => l.text), n: __workers.length })');
+    assert.equal(a.step, 'done');
+    assert.equal(a.n, 3);
+    assert.match(a.note, /AI를 받는 중\(25%\)에 멈췄어요\. 인터넷 연결이 끊겨서 다 받지 못했어요.*\(오류: Failed to fetch\)/);
+    assert.ok(a.log.some(t => /이어 받는 중 \(2\/3번째\)/.test(t)) && a.log.some(t => /이어 받는 중 \(3\/3번째\)/.test(t)), a.log.join('\n'));
+    // 그래픽 칩에 올리다 기기를 잃으면 다시 받지 않고 바로 까닭을 알려요
+    p.run('aiDrop()');
+    p.run(PLAN_LIB([{ at: 0.4, text: 'Loading model from cache[8/20]', err: 'Device was lost' }]));
+    await p.run('aiLoad(() => {}).catch(() => 0)');
+    assert.equal(p.json('__workers.length'), 1);
+    assert.match(p.json('AI.err.text'), /그래픽 칩에 올리는 중\(40%\)에 멈췄어요\. 그래픽 메모리가 모자랐어요/);
+  } finally { p.close(); }
+});
+
+test('AI loading: too little browser storage is found before downloading, and persistent storage is asked for', async () => {
+  const p = bootPage();
+  try {
+    p.run(PLAN_LIB([{ ok: true }]));
+    p.run('window.__persist = 0; Object.defineProperty(navigator, "storage", { configurable: true, value: { persisted: async () => false, persist: async () => { __persist++; return false; }, estimate: async () => ({ quota: 300 * 1048576, usage: 10 * 1048576 }) } })');
+    await p.run('aiLoad(() => {}).catch(() => 0)');
+    assert.equal(p.json('__workers.length'), 0);
+    assert.equal(p.json('__persist'), 1);
+    assert.match(p.json('AI.err.text'), /브라우저 저장 공간이 모자라요 \(이 사이트가 쓸 수 있는 공간 약 300MB, 필요 약 820MB\)/);
+  } finally { p.close(); }
+});
+
+test('make screen: the story AI can be downloaded before making a deck, and a failure says why with a retry button', async () => {
+  const p = bootPage();
+  try {
+    p.run(PLAN_LIB([{ at: 0.3, name: 'QuotaExceededError', err: 'The quota has been exceeded.' }, { ok: true }]));
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.step = 'review'; MK.aiWhy = ''; showScreen('make'); renderMake();`);
+    const box = () => p.document.getElementById('mkai');
+    assert.match(box().textContent, /쓸 수 있어요.*지금 AI 받아 두기/);
+    box().querySelector('[data-mk="aidl"]').click();
+    await new Promise(r => setTimeout(r, 40));
+    assert.match(box().textContent, /받지 못했어요.*받는 중\(30%\)에 멈췄어요\. 브라우저 저장 공간이 모자라요.*QuotaExceededError|The quota/);
+    assert.ok(box().querySelector('[data-mk="aidl"]'), '다시 받기 단추');
+    box().querySelector('[data-mk="aidl"]').click();
+    await new Promise(r => setTimeout(r, 40));
+    assert.match(box().textContent, /받아 두었어요/);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('deck list: a made deck can get new stories and pictures, keeping its words, episodes, id and progress key', async () => {
+  const p = bootPage();
+  try {
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    await p.run('mkMake()');
+    const before = p.json('(() => { const d = MK.deck; return { id: d.id, created: d.created, updated: d.updated, eps: d.scenes.map(s => s.words.slice().sort()), keys: d.scenes.map(s => s.key), n: DeckStore.list().length }; })()');
+    // 옛 판 이야기처럼 바꿔 두고, 지금 쓰는 단어장으로
+    p.run(`(() => { const d = DeckStore.get(${JSON.stringify(before.id)}); d.scenes[0].lines = ['옛 이야기 한 줄 {' + d.scenes[0].words[0] + '|옛 뜻}']; switchDeck(d.id); })()`);
+    p.run('MK.step = "pick"; MK.deck = null; openDecks()');
+    const btn = p.document.querySelector(`[data-deckredo="${before.id}"]`);
+    assert.ok(btn, '단어장 목록에 새 이야기 단추');
+    btn.click();
+    const rv = p.json('({ step: MK.step, rows: MK.rows.length, redo: !!MK.redo, label: document.querySelector("#make [data-mk=make]").textContent, note: MK.note })');
+    assert.equal(rv.step, 'review');
+    assert.equal(rv.rows, ROWS.length);
+    assert.match(rv.label, /이 단어장 이야기 새로 만들기/);
+    assert.match(rv.note, /단어·뜻·에피소드 묶음과 진행 기록은 그대로/);
+    await new Promise(r => setTimeout(r, 5));
+    await p.run('mkMake()');
+    const after = p.json('(() => { const d = DeckStore.get(MK.deck.id); return { id: d.id, created: d.created, updated: d.updated, eps: d.scenes.map(s => s.words.slice().sort()), keys: d.scenes.map(s => s.key), n: DeckStore.list().length, line0: d.scenes[0].lines.join(" "), cur: DECK.id, redo: MK.redo }; })()');
+    assert.equal(after.id, before.id);
+    assert.equal(after.created, before.created);
+    assert.ok(after.updated > before.updated);
+    assert.deepEqual(after.eps, before.eps);
+    assert.deepEqual(after.keys, before.keys);
+    assert.equal(after.n, before.n, '새 단어장을 더 만들지 않아요');
+    assert.doesNotMatch(after.line0, /옛 이야기/);
+    assert.equal(after.cur, before.id);
+    assert.equal(after.redo, null);
+    assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
 

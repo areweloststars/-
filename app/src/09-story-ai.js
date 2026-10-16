@@ -7,7 +7,7 @@
 const AI_MODEL = 'gemma3-1b-it-q4f16_1-MLC';
 const AI_SIZE = '약 0.7GB';
 // gen: 준비를 그만둘 때마다 늘어요 (그만둔 준비가 늦게 끝나도 쓰지 않게)
-const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null };
+const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 } };
 const aiURL = p => new URL(p, location.href).href;
 // 이 기기에서 AI를 돌릴 수 있는지: WebGPU + 반정밀도(shader-f16). 이 모델은 f16 셰이더가 있어야 돌아가요
 async function aiGpuOk() {
@@ -39,36 +39,91 @@ function aiDrop() {
   if (w) try { w.terminate(); } catch (e) { }
 }
 // 모델 준비: 처음이면 내려받고(진행률 onProgress(0~1, 단계 글)), 다음부터는 저장된 것으로 금방
+// 인터넷이 끊겨 실패하면 잠깐 쉬었다가 두 번 더 해 봐요 (다 받은 조각은 브라우저에 저장돼 있어서 이어 받아요)
+const AI_TRIES = 3;
 function aiLoad(onProgress) {
   if (AI.engine) return Promise.resolve(AI.engine);
   if (!AI.loading) {
     const gen = AI.gen;
+    AI.err = null; AI.phase = { step: 'init', pct: 0 };
     AI.loading = (async () => {
       const lib = AI.lib || await import(aiURL('llm/web-llm.js')); // AI.lib: 시험용 가짜
       if (gen !== AI.gen) throw { code: 'cancelled' };
-      const worker = AI.worker = new Worker(aiURL('llm/worker.js'), { type: 'module' });
-      // 일꾼이 아예 못 뜨면(파일을 못 받음 등) 답이 영영 안 오니, 오류가 나면 바로 끝내요
-      const dead = new Promise((_, no) => worker.addEventListener('error', e => no(new Error('ai worker: ' + ((e && e.message) || 'failed to start'))), { once: true }));
-      dead.catch(() => { });
-      // f16이 없는 기기는 0.7GB를 다 받기 전에 거절되게 (모델 기록에 빠져 있어서 채워 넣어요)
-      const rec = lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list.find(m => m.model_id === AI_MODEL);
-      const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'] }] } : undefined;
-      const eng = await Promise.race([lib.CreateWebWorkerMLCEngine(worker, AI_MODEL, {
-        appConfig,
-        initProgressCallback: p => { if (gen === AI.gen && AI.onProgress) AI.onProgress(+p.progress || 0, String(p.text || '')); }
-      }), dead]);
-      if (gen !== AI.gen) throw { code: 'cancelled' };
-      try { localStorage.setItem('wg-ai-ready', AI_MODEL); } catch (e) { }
-      AI.engine = eng;
-      return eng;
+      // 처음 받을 때: 브라우저가 이 사이트 저장 공간을 지우지 않게 부탁하고, 쓸 수 있는 공간을 확인해요
+      if (!aiReadyBefore()) { const st = await aiStorage(); if (st && st.quota && st.quota < AI_NEED) throw { code: 'quota', quota: st.quota }; }
+      for (let t = 1; ; t++) {
+        try { return await aiStart(lib, gen); }
+        catch (e) {
+          if (gen !== AI.gen || t >= AI_TRIES || !aiNetErr(e)) throw e;
+          if (AI.onRetry) AI.onRetry(t);
+          await new Promise(r => setTimeout(r, AI.retryMs == null ? 1500 * t : AI.retryMs));
+          if (gen !== AI.gen) throw { code: 'cancelled' };
+        }
+      }
     })().catch(e => {
       if (/ShaderF16|FeatureSupport|shader-f16/i.test(String((e && e.message) || e))) AI.gpu = false;
-      if (gen === AI.gen) aiDrop();
+      if (gen === AI.gen) { AI.err = aiErrInfo(e); aiDrop(); }
       throw e;
     });
   }
   AI.onProgress = onProgress;
   return AI.loading;
+}
+// 한 번 해 보기: 새 일꾼을 띄워 모델을 올려요. 실패하면 일꾼을 닫아요
+async function aiStart(lib, gen) {
+  const worker = AI.worker = new Worker(aiURL('llm/worker.js'), { type: 'module' });
+  // 일꾼이 아예 못 뜨면(파일을 못 받음 등) 답이 영영 안 오니, 오류가 나면 바로 끝내요
+  const dead = new Promise((_, no) => worker.addEventListener('error', e => no(new Error('ai worker: ' + ((e && e.message) || 'failed to start'))), { once: true }));
+  dead.catch(() => { });
+  // f16이 없는 기기는 0.7GB를 다 받기 전에 거절되게 (모델 기록에 빠져 있어서 채워 넣어요)
+  const rec = lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list.find(m => m.model_id === AI_MODEL);
+  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'] }] } : undefined;
+  try {
+    const eng = await Promise.race([lib.CreateWebWorkerMLCEngine(worker, AI_MODEL, {
+      appConfig,
+      initProgressCallback: p => {
+        if (gen !== AI.gen) return;
+        const t = String(p.text || ''), pct = Math.floor(Math.max(0, Math.min(1, +p.progress || 0)) * 100);
+        const step = /^Fetching param/.test(t) ? 'fetch' : /^Loading model from cache/.test(t) ? 'load' : /^Loading GPU shader/.test(t) ? 'shader' : AI.phase.step;
+        AI.phase = { step, pct: step === AI.phase.step || step !== 'init' ? pct : AI.phase.pct };
+        if (AI.onProgress) AI.onProgress(+p.progress || 0, t);
+      }
+    }), dead]);
+    if (gen !== AI.gen) throw { code: 'cancelled' };
+    try { localStorage.setItem('wg-ai-ready', AI_MODEL); } catch (e) { }
+    AI.engine = eng;
+    return eng;
+  } catch (e) {
+    if (AI.worker === worker) { AI.worker = null; try { worker.terminate(); } catch (x) { } }
+    throw e;
+  }
+}
+// 모델을 받는 데 필요한 브라우저 저장 공간 (모델 약 0.7GB + 여유)
+const AI_NEED = 820 * 1024 * 1024;
+async function aiStorage() {
+  try {
+    const s = typeof navigator !== 'undefined' && navigator.storage;
+    if (!s) return null;
+    if (s.persist && s.persisted && !(await s.persisted())) await s.persist().catch(() => false);
+    const e = s.estimate ? await s.estimate() : null;
+    return e ? { quota: +e.quota || 0, usage: +e.usage || 0 } : null;
+  } catch (e) { return null; }
+}
+const aiMsgOf = e => String((e && (e.message || e.name || e.code)) || e || '').replace(/\s+/g, ' ').trim();
+// 인터넷이 끊겨서 실패했는지 (다시 해 볼 만한 오류)
+const aiNetErr = e => /Failed to fetch|NetworkError|network|Load failed|ERR_|Cannot fetch|fetch failed|status:? ?(?:5\d\d|429)|timed? ?out|aborted by|connection/i.test(aiMsgOf(e)) && !/QuotaExceeded/i.test(aiMsgOf(e));
+// 실패를 학생이 읽을 말로: 어느 단계(받기 몇 %·기기에 올리기·마무리)에서 무슨 일이 났는지 + 실제 오류 글 조금
+function aiErrInfo(e) {
+  const raw = aiMsgOf(e), ph = AI.phase || { step: 'init', pct: 0 };
+  const where = ph.step === 'fetch' ? `AI를 받는 중(${ph.pct}%)에` : ph.step === 'load' ? `받은 AI를 그래픽 칩에 올리는 중(${ph.pct}%)에` : ph.step === 'shader' ? 'AI 준비를 마무리하는 중에' : 'AI 준비를 시작할 때';
+  let why;
+  if ((e && e.code === 'quota') || /QuotaExceeded|quota/i.test(raw)) why = `브라우저 저장 공간이 모자라요${e && e.quota ? ` (이 사이트가 쓸 수 있는 공간 약 ${Math.round(e.quota / 1048576)}MB, 필요 약 ${Math.round(AI_NEED / 1048576)}MB)` : ''}. 휴대폰 저장 공간을 더 비운 뒤 다시 받아 주세요.`;
+  else if (aiNetErr(e)) why = '인터넷 연결이 끊겨서 다 받지 못했어요. 받은 부분은 저장돼 있어서 다시 받으면 이어서 받아요. 와이파이에서 화면을 켜 둔 채로 해 주세요.';
+  else if (/device (?:was )?lost|DeviceLost|out of memory|OutOfMemory|Allocation|GPUOutOfMemory/i.test(raw)) why = '그래픽 메모리가 모자랐어요. 다른 앱을 닫고 다시 해 주세요.';
+  else if (/exceeds limit|maxStorage|maxBuffer|maxCompute|requestDevice|Cannot initialize runtime/i.test(raw)) why = '이 휴대폰 그래픽 칩의 한도가 이 AI에 모자라요.';
+  else if (/ai worker/i.test(raw)) why = 'AI를 돌리는 파일을 열지 못했어요. 페이지를 새로 고친 뒤 다시 해 주세요.';
+  else why = '알 수 없는 오류가 났어요. 다시 받아 보고, 또 안 되면 이 화면을 캡처해서 알려 주세요.';
+  return { where, why, raw: raw.slice(0, 120), text: `${where} 멈췄어요. ${why}${raw ? ` (오류: ${raw.slice(0, 120)})` : ''}` };
 }
 // GPU를 잃었거나 모델이 내려간 오류인지 (한 번 다시 준비해 볼 만한 오류)
 const aiLost = e => /ModelNotLoaded|not loaded|device (?:was )?lost|DeviceLost/i.test(String((e && e.message) || e));
