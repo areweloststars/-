@@ -94,8 +94,8 @@ function mkReviewHTML() {
     <div class="mkrows">${rows}</div>
     <button type="button" class="linkbtn" data-mk="addrow">＋ 단어 추가</button>
     <p class="mkcount">${n}단어${n < MK_MIN ? ` · ${MK_MIN}단어 이상 필요해요` : n > MK_MAX ? ` · ${MK_MAX}단어까지만 만들 수 있어요` : ` · 에피소드 약 ${Math.max(1, Math.round(n / 6))}개`}</p>
-    <button type="button" class="startbtn" data-mk="make"${ok ? '' : ' disabled'}>${ICON.play}바로 게임 만들기</button>
-    ${mkCanAI() ? `<div class="mkalt"><button type="button" class="btn" data-mk="makeai"${ok ? '' : ' disabled'}>Claude로 이야기·예문까지 만들기 <small>(1~3분)</small></button></div>` : ''}
+    <button type="button" class="startbtn" data-mk="make"${ok ? '' : ' disabled'}>${ICON.play}AI 이야기로 게임 만들기</button>
+    <p class="mksmall">${aiReadyBefore() ? '이 기기 안의 이야기 AI(Gemma)가 단어마다 이어지는 문장을 써요. 에피소드마다 30초~1분쯤 걸려요.' : `처음 한 번 이야기 AI(Gemma, ${AI_SIZE})를 받아요. <b>와이파이</b>에서 해 주세요. 그다음부터는 인터넷 없이 이 기기에서 써요.`}</p>
     <button type="button" class="linkbtn" data-mk="restart">처음으로</button>`;
 }
 function mkMakingHTML() {
