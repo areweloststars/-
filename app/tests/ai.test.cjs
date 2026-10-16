@@ -138,6 +138,10 @@ test('AI loading: a worker that cannot start ends the wait, and the next deck tr
     assert.equal(a.loading, false);
     assert.deepEqual(a.dead, [true]);
     assert.deepEqual(a.f16, ['shader-f16'], 'f16이 없는 기기는 다 받기 전에 거절되게');
+    // 모델 설정의 두 창 크기가 부딪치지 않게 (WindowSizeConfigurationError)
+    const ov = p.json('__cfg.appConfig.model_list[0].overrides');
+    assert.equal(ov.sliding_window_size, -1);
+    assert.ok(ov.context_window_size > 0 && ov.context_window_size <= 4096);
     p.run(`MK.rows = ${JSON.stringify(ROWS)};`);
     await p.run('mkMake()');
     assert.equal(p.json('__workers.length'), 2);
@@ -177,10 +181,14 @@ test('AI loading: a dropped connection is retried and the download continues; th
     const a = p.json('({ step: MK.step, note: MK.aiNote, log: MK.log.map(l => l.text), n: __workers.length })');
     assert.equal(a.step, 'done');
     assert.equal(a.n, 3);
-    assert.match(a.note, /AI를 받는 중\(25%\)에 멈췄어요\. 인터넷 연결이 끊겨서 다 받지 못했어요.*\(오류: Failed to fetch\)/);
+    assert.match(a.note, /AI를 받는 중\(25%\)에 멈췄어요\. 인터넷 연결이 끊겨서 다 받지 못했어요.*\(오류: (?:TypeError: )?Failed to fetch\)/);
     assert.ok(a.log.some(t => /이어 받는 중 \(2\/3번째\)/.test(t)) && a.log.some(t => /이어 받는 중 \(3\/3번째\)/.test(t)), a.log.join('\n'));
     // 그래픽 칩에 올리다 기기를 잃으면 다시 받지 않고 바로 까닭을 알려요
     p.run('aiDrop()');
+    p.run('aiDrop()');
+    p.run(PLAN_LIB([{ at: 1, text: 'Loading model from cache[20/20]', name: 'WindowSizeConfigurationError', err: 'Only one of context_window_size and sliding_window_size can be positive.' }]));
+    await p.run('aiLoad(() => {}).catch(() => 0)');
+    assert.match(p.json('AI.err.text'), /그래픽 칩에 올리는 중\(100%\)에 멈췄어요\. 앱의 AI 설정이 모델과 맞지 않았어요/);
     p.run(PLAN_LIB([{ at: 0.4, text: 'Loading model from cache[8/20]', err: 'Device was lost' }]));
     await p.run('aiLoad(() => {}).catch(() => 0)');
     assert.equal(p.json('__workers.length'), 1);
