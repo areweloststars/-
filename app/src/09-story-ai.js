@@ -209,9 +209,23 @@ function aiClean(s) {
   return t;
 }
 // 쓸 만한 한 줄인지: 한 문장, 한글, 표시·괄호·영어·한자/가나 없음, 같은 말 되풀이 없음, 끝맺음, 따옴표 짝
-const aiLineOk = t => t.length >= 6 && t.length <= 90 && /[가-힣]{2}/.test(t) && !/[{}|<>\[\]()*~]/.test(t) && !/[A-Za-z]{3,}/.test(t) && !/(.)\1{4,}/.test(t)
-  && !/[぀-ヿ㐀-鿿豈-﫿]/.test(t) && !/(.{12,}).*\1/.test(t) && (/[.!?…”"’]$/.test(t) || /(요|다)$/.test(t))
-  && (t.match(/[“”"]/g) || []).length % 2 === 0 && !/(?:^|[\s.!?])\d{1,2}\s*[.)]\s/.test(t);
+// AI 문장이 쓸 만한지: 못 쓰면 까닭(짧게), 쓸 만하면 ''
+// (AI가 앞뒤 이유를 붙여 쓰면 길어져요: 한 줄 140자까지)
+function aiLineWhy(t) {
+  if (t.length < 6) return '너무 짧음';
+  if (t.length > 140) return '너무 김';
+  if (!/[가-힣]{2}/.test(t)) return '한글 없음';
+  if (/[{}|<>\[\]()*~]/.test(t)) return '기호 섞임';
+  if (/[A-Za-z]{3,}/.test(t)) return '영어 섞임';
+  if (/(.)\1{4,}/.test(t)) return '같은 글자 반복';
+  if (/[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff]/.test(t)) return '한자·일본 글자';
+  if (/(.{12,}).*\1/.test(t)) return '같은 말 반복';
+  if (!(/[.!?…”"’]$/.test(t) || /(요|다)$/.test(t))) return '끝맺음 없음';
+  if ((t.match(/[“”"]/g) || []).length % 2) return '따옴표 짝 안 맞음';
+  if (/(?:^|[\s.!?])\d{1,2}\s*[.)]\s/.test(t)) return '번호 섞임';
+  return '';
+}
+const aiLineOk = t => !aiLineWhy(t);
 
 // 요청 글: 앱이 쓴 이야기 전체. 단어 줄만 번호와 [뜻]을 붙여요. AI는 번호 붙은 줄만 고쳐 써요
 // story: [{ n: 0(그대로 둘 줄) | 1.., mean, text }]
@@ -278,16 +292,22 @@ async function aiRewrite(eng, res, rows, n, signal) {
   const label = new RegExp('^(?:' + names.map(escRe).join('|') + ')\\s*[:：\\-–—]\\s*');
   const same = (a, b) => a.replace(/[.!?]$/, '').trim() === b.replace(/[.!?]$/, '').trim();
   let changed = 0;
+  // 문제 찾기용 기록: AI가 쓴 글과 줄마다 쓰지 못한 까닭 (완성 화면에서 펼쳐 볼 수 있어요)
+  const diag = { title: f.title, raw: String(text).slice(0, 1600), why: [] };
   items.forEach((x, k) => {
-    let marked = null;
+    let marked = null, why = cand[k].length ? '' : '답에서 이 번호를 못 찾음';
     for (const t0 of cand[k]) {
       const t = t0.replace(label, '');
       // 앱 문장을 그대로 베낀 줄은 고쳐 쓴 게 아니에요 (앱 문장이 그대로 남아요)
-      if (same(t, story[idx[k]].text) || !aiLineOk(t)) continue;
+      if (same(t, story[idx[k]].text)) { why = why || '앱 문장을 그대로 씀'; continue; }
+      const bad = aiLineWhy(t);
+      if (bad) { why = why || bad; continue; }
       const mk = aiMark(t, x.id, x.w, x.ko);
       // '루나는 에 {…|의존했어요}'처럼 조사만 덩그러니 남은 줄은 버려요
       if (mk && !/(^|\s)(을|를|에|에게|에서|에도|과|와|으로|로)\s\{/.test(mk)) { marked = mk; break; }
+      why = why || (mk ? '조사만 남음' : `뜻 ‘${x.w.m}’이 없음`);
     }
+    diag.why.push(`${k + 1}. ${x.id}: ${marked ? '씀' : why}`);
     if (!marked) return;
     lines[idx[k]] = /[.!?”"…]$/.test(marked) ? marked : marked + '.';
     const wd = res.words && res.words[x.id];
@@ -295,5 +315,6 @@ async function aiRewrite(eng, res, rows, n, signal) {
     changed++;
   });
   res.lines = lines;
+  AI.diag = (AI.diag || []).concat([diag]).slice(-8);
   return changed;
 }
