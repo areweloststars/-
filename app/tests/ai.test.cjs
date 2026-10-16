@@ -263,6 +263,21 @@ test('deck list: a made deck can get new stories and pictures, keeping its words
   } finally { p.close(); }
 });
 
+test('AI story: an error while the AI writes is shown on the finished screen with its text', async () => {
+  const p = bootPage({ 'wg-ai-ready': 'gemma3-1b-it-q4f16_1-MLC' });
+  try {
+    p.run(`AI.gpu = true; AI.engine = { chat: { completions: { create: async () => { throw new Error('Prompt tokens exceed context window size'); } } } };`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
+    await p.run('mkMake()');
+    const a = p.json('({ step: MK.step, note: MK.aiNote, diag: MK.aiDiag, log: MK.log.map(l => l.text) })');
+    assert.equal(a.step, 'done');
+    assert.match(a.note, /문장을 쓰다가 오류가 났어요 \(오류: Prompt tokens exceed context window size\)/);
+    assert.ok(a.diag.length >= 1 && /오류가 났어요: Prompt tokens exceed/.test(a.diag[0].why[0]), JSON.stringify(a.diag));
+    assert.ok(a.log.some(t => /AI가 쓰다가 오류가 나서 기본 문장으로 \(Prompt tokens/.test(t)), a.log.join('\n'));
+    assert.match(p.document.querySelector('#make .mkdiag').textContent, /AI가 쓴 글 보기.*Prompt tokens exceed/);
+  } finally { p.close(); }
+});
+
 test('AI loading: stopping during the first download stops the worker and the progress updates', async () => {
   const p = bootPage();
   try {

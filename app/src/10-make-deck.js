@@ -183,6 +183,7 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
       }
     }
     let aiLines = 0, aiRetried = false;
+    const aiErrs = [];
     // 너무 작은 에피소드(1~2단어)는 앞 에피소드와 합침(최대 8단어)
     for (let i = eps.length - 1; i > 0; i--) if (!eps[i].keep && eps[i].words.length < 3 && eps[i - 1].words.length + eps[i].words.length <= 8) { eps[i - 1].words.push(...eps[i].words); eps.splice(i, 1); }
     for (let k = 0; k < eps.length; k++) {
@@ -230,7 +231,11 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
             mkLogSet(li, c ? 'ok' : 'warn', c ? `에피소드 ${k + 1} ‘${ep.title}’ 완성 (AI 문장 ${c}줄)` : `에피소드 ${k + 1}: AI 문장이 단어와 맞지 않아 기본 문장으로`);
           } catch (e) {
             if (e && e.code === 'cancelled') throw e;
-            mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI가 쓰지 못해서 기본 문장으로`);
+            // 무슨 오류였는지 남겨요 (완성 화면의 'AI가 쓴 글 보기'와 안내 글에)
+            const msg = aiMsgOf(e) || '알 수 없는 오류';
+            aiErrs.push(msg);
+            AI.diag = (AI.diag || []).concat([{ title: ep.title, raw: '', why: [`AI가 문장을 쓰다가 오류가 났어요: ${msg.slice(0, 300)}`] }]);
+            mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI가 쓰다가 오류가 나서 기본 문장으로 (${msg.slice(0, 80)})`);
             // GPU를 잃었으면(휴대폰이 화면을 잠깐 내렸을 때 등) 한 번만 다시 준비해서 다음 에피소드부터 써요
             if (!aiRetried && aiLost(e)) { aiRetried = true; aiDrop(); ai = await mkAiReady(ctl, '이야기 AI 다시 준비 중'); }
           }
@@ -244,7 +249,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     const saved = await DeckStore.put(deck);
     // 이야기 AI가 몇 줄을 썼는지, 못 썼으면 왜 그런지 크게 알려 줘요
     const wordN = deck.scenes.reduce((a, sc) => a + sc.words.length, 0);
-    MK.aiNote = MK.useAI ? '' : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : ai ? (aiLines ? `이야기 AI(Gemma)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요.') : '';
+    MK.aiNote = MK.useAI ? '' : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : ai ? (aiLines ? `이야기 AI(Gemma)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : aiErrs.length ? `이야기 AI가 문장을 쓰다가 오류가 났어요 (오류: ${aiErrs[0].slice(0, 160)}). 이번 이야기는 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’에서 까닭을 볼 수 있어요.') : '';
     MK.aiDiag = ai ? (AI.diag || []).slice() : null;
     MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
