@@ -15,7 +15,7 @@ const AUTO_PIC = [
   [/말하|설명|발표|언급|주장|알리|전하|대답|질문|묻|회견|연설|토론|논의/, { p: 'point', hold: '🎤', mark: 'exclaim' }],
   [/기쁘|기쁜|행복|즐거|만족|축하|신나|성공|승리|이기/, { p: 'cheer', mark: 'star' }],
   [/슬프|슬픈|우울|실망|후회|외로|실패/, { p: 'sad', mark: 'sweat' }],
-  [/화나|화난|분노|짜증|화가/, { p: 'stand', face: 'angry', mark: 'exclaim' }],
+  [/화나|화난|분노|짜증|화가 ?나|화가 ?난/, { p: 'stand', face: 'angry', mark: 'exclaim' }],
   [/걱정|불안|두려|무서|위험|긴장|조심|주의|경고/, { p: 'shrug', face: 'worry', mark: 'sweat' }],
   [/사랑|좋아|아끼|친절|돕|도움|지원|협력|함께|도와/, { p: 'wave', mark: 'heart' }],
   [/빠르|빠른|서두|달리|급하|신속/, { p: 'run', mark: 'exclaim' }],
@@ -325,7 +325,7 @@ const SEM = [
   [/실패|패배|탈락/, { n: ['{V:은} {W:을} 딛고 다시 일어섰어요.'] }, { p: 'sad', mark: 'sweat' }],
   [/화내다|화나다|분노하다|짜증 내다|짜증나다|성내다/, { v: ['{V:은} 발을 쾅쾅 구르며 {W:past}'] }, { p: 'stand', face: 'angry', mark: 'exclaim' }],
   [/화난|성난|분노한|격분한/, { a: ['{W:attr} {V:이} 콧김을 씩씩 내뿜었어요.'] }, { p: 'stand', face: 'angry', mark: 'exclaim' }],
-  [/분노|화|짜증|격분/, { n: ['{V:은} {W:을} 참지 못하고 소리를 질렀어요.'] }, { p: 'stand', face: 'angry', mark: 'exclaim' }],
+  [/분노|화(?= |$)|짜증|격분/, { n: ['{V:은} {W:을} 참지 못하고 소리를 질렀어요.'] }, { p: 'stand', face: 'angry', mark: 'exclaim' }],
   [/무섭|무서운|두렵|두려운|겁나|불안|초조|긴장|걱정스러운|걱정스럽/, { a: ['어둠 속에서 이상한 소리가 나자 {F:은} {W:pp}'] }, { p: 'shrug', face: 'worry', mark: 'sweat' }],
   [/두려움|공포|걱정|불안|긴장|근심|겁/, { n: ['{F:은} {W:을} 떨치려고 노래를 흥얼거렸어요.'] }, { p: 'shrug', face: 'worry', mark: 'sweat' }],
   [/걱정하다|두려워하다|무서워하다|겁내다|염려하다/, { v: ['{F:은} 길을 잃을까 봐 {W:past}'] }, { p: 'shrug', face: 'worry', mark: 'sweat' }],
@@ -992,7 +992,7 @@ function mkStory(epWords, rows, n) {
   const f = SF[((n % SF.length) + SF.length) % SF.length];
   // 처음 나올 때는 온이름, 그다음부터는 짧은 이름
   const seen = new Set(), nm = k => { const x = seen.has(k) && f.S && f.S[k] ? f.S[k] : f[k]; if (/^[HFV]$/.test(k)) seen.add(k); return x; };
-  const lines = f.intro.map(t => stFill(t, f, null, '', nm)), words = {}, usedT = new Set(), usedLink = new Set();
+  const lines = f.intro.map(t => stFill(t, f, null, '', nm)), words = {}, roles = {}, usedT = new Set(), usedLink = new Set();
   let bridged = false;
   const N = epWords.length;
   // 문제가 생기는 단어 → 해결하는 단어 순서로 (같은 자리끼리는 원래 순서)
@@ -1027,12 +1027,15 @@ function mkStory(epWords, rows, n) {
     lines.push(line);
     // 그림 칸: 그 줄을 하는 인물로, 뜻이 보이는 그림 (09-story-pics.js). 그림에는 영어 단어·뜻 글자를 쓰지 않아요
     const hit = (w.sem && w.sem[2]) || (autoPicHit(w.m) || autoPicHit(r.ko) || [])[1] || {};
-    const panel = stPanel(w, r, f, i, stRoleOf(t), hit);
+    const role = stRoleOf(t), with2 = [...stNames(t)].find(k => /^[HFV]$/.test(k) && k !== role);
+    const panel = stPanel(w, r, f, i, role, hit, with2);
+    roles[id] = role;
     const plain = line.replace(/\{[^|}]+\|([^}]+)\}/g, '$1');
     words[id] = { panel, pic: plain.slice(0, 120), tip: mkTip(id, w.m) };
   });
   f.outro.forEach(o => lines.push(stFill(o, f, null, '', nm)));
-  return { title: f.title, lines, words };
+  // roles: 단어마다 그 줄을 하는 인물(그림에 그린 인물) — 이야기 AI가 같은 인물로 다시 쓰게
+  return { title: f.title, lines, words, roles };
 }
 // 접두사·접미사로 만드는 암기 팁 (뜻과 맞을 때만: 'reluctant'를 re-(다시)로 풀지 않게)
 const AFFIX = [

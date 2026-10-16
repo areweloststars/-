@@ -203,8 +203,10 @@ const genArt = (() => {
     } else if (lay === 'many') {
       const t = thingOf(sp.thing || sp.subject);
       if (!t || t.kind !== 'emoji') return null;
-      m.thing = { kind: 'emoji', emoji: emojis(t.emoji, 1)[0] };
-      m.n = lim(Math.round(num(sp.n, t.n > 1 ? t.n : 9)), 1, 12);
+      // 서로 다른 이모지 여럿이면 한 번씩(여러 가지), 하나면 n개(많음·적음)
+      const list = [...new Set(emojis(t.emoji, 6))];
+      m.thing = { kind: 'emoji', emoji: list.join('') };
+      m.n = list.length > 1 ? list.length : lim(Math.round(num(sp.n, t.n > 1 ? t.n : 9)), 1, 12);
     } else if (lay === 'feel') {
       m.who = actorOf(sp.who || sp.a || sp.subject) || { ...base.subject };
       m.feel = emojis(sp.feel || sp.think, 3).join('');
@@ -985,6 +987,8 @@ const genArt = (() => {
     });
     return b;
   }
+  // n개를 상자에 늘어놓을 때 한 개 크기
+  function fitSize(n, w, h, maxSize) { let s = 0; for (let cols = 1; cols <= n; cols++) { const rows = Math.ceil(n / cols); s = Math.max(s, Math.min(w / (cols * 1.12), h / (rows * 1.1), maxSize || Infinity)); } return s; }
   const arrowHead = (x, y, ang, k, col) => {
     const p = [[0, 0], [-k * 1.25, -k * 0.75], [-k * 1.25, k * 0.75]].map(([u, v]) => [x + u * Math.cos(ang) - v * Math.sin(ang), y + u * Math.sin(ang) + v * Math.cos(ang)]);
     return pg(p.map(q => r1(q[0]) + ',' + r1(q[1])).join(' '), col, 2.4);
@@ -1059,8 +1063,12 @@ const genArt = (() => {
     } else if (lay === 'change' || lay === 'compare') {
       const L = lay === 'change' ? n.from : n.left, R = lay === 'change' ? n.to : n.right;
       const bw = W * 0.4;
-      b += subThing(L, pad, top, bw - pad, floor - top + (L.kind === 'emoji' ? 0 : pad), hh * 0.62);
-      b += subThing(R, W - bw, top, bw - pad, floor - top + (R.kind === 'emoji' ? 0 : pad), hh * 0.62);
+      // 양쪽이 같은 물건이면 크기를 같게 (5개 → 1개가 '줄었다'로 읽히게)
+      const cnt = t => t.kind === 'emoji' ? Math.max(emojis(t.emoji, 6).length, t.n || 1) : 1;
+      const same = L.kind === 'emoji' && R.kind === 'emoji' && emojis(L.emoji, 1)[0] === emojis(R.emoji, 1)[0];
+      const ms = same ? fitSize(Math.max(cnt(L), cnt(R)), bw - pad, floor - top, hh * 0.62) : hh * 0.62;
+      b += subThing(L, pad, top, bw - pad, floor - top + (L.kind === 'emoji' ? 0 : pad), ms);
+      b += subThing(R, W - bw, top, bw - pad, floor - top + (R.kind === 'emoji' ? 0 : pad), ms);
       const cy = top + hh * 0.5;
       b += lay === 'change' ? blockArrow(W / 2, cy, W * 0.17, Math.min(hh * 0.34, W * 0.16)) : relBadge(W / 2, cy, Math.min(W * 0.085, hh * 0.2), n.rel);
     } else if (lay === 'no') {

@@ -87,6 +87,36 @@ function mkChunk(list, size = 6) {
   for (let i = 0; i < k; i++) out.push(list.slice(Math.round(i * list.length / k), Math.round((i + 1) * list.length / k)));
   return out.filter(x => x.length);
 }
+// 이야기 AI 준비 (만들기 기록에 진행률). 그만두기를 누르면 내려받기도 멈춰요. 못 하면 null
+async function mkAiReady(ctl, label) {
+  const first = !aiReadyBefore(), lab = label || (first ? `이야기 AI(Gemma) 받는 중 · ${AI_SIZE}, 처음 한 번만` : '이야기 AI 준비 중');
+  const li = mkLog(lab);
+  // 진행률은 단계마다 0→100이 다시 시작돼요: 내려받기 → 기기에 올리기 → 마무리
+  let last = '';
+  const onProg = (p, t) => {
+    const step = /^Loading model from cache/.test(t) ? '기기에 올리는 중' : /^Loading GPU shader/.test(t) ? '마무리하는 중' : '';
+    const pct = Math.floor(clamp(p, 0, 1) * 100), k = step + pct;
+    if (k === last) return;
+    last = k;
+    mkLogSet(li, 'run', step ? `이야기 AI 준비 중 · ${step} ${pct}%` : `${lab} ${pct}%`);
+  };
+  let off = () => { };
+  const aborted = new Promise((_, no) => {
+    const f = () => { if (!AI.engine) aiDrop(); no({ code: 'cancelled' }); };
+    if (ctl.signal.aborted) return f();
+    ctl.signal.addEventListener('abort', f, { once: true });
+    off = () => ctl.signal.removeEventListener('abort', f);
+  });
+  try {
+    const eng = await Promise.race([aiLoad(onProg), aborted]);
+    mkLogSet(li, 'ok', '이야기 AI 준비 완료');
+    return eng;
+  } catch (e) {
+    if (e && e.code === 'cancelled') throw e;
+    mkLogSet(li, 'warn', '이야기 AI를 준비하지 못해서 기본 문장으로 만들어요');
+    return null;
+  } finally { off(); if (AI.onProgress === onProg) AI.onProgress = null; }
+}
 async function mkMake() {
   const rows0 = mkValidRows();
   if (rows0.length < MK_MIN || rows0.length > MK_MAX) {
@@ -143,21 +173,12 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
     let ai = null, aiMsg = '';
     if (!(MK.useAI && mkCanAI())) {
       if (await aiGpuOk()) {
-        const first = !aiReadyBefore(), lab = first ? `이야기 AI(Gemma) 받는 중 · ${AI_SIZE}, 처음 한 번만` : '이야기 AI 준비 중';
-        const li = mkLog(lab);
-        let last = -1;
-        const aborted = new Promise((_, no) => ctl.signal.addEventListener('abort', () => no({ code: 'cancelled' }), { once: true }));
-        try {
-          ai = await Promise.race([aiLoad(p => { const pct = Math.floor(clamp(p, 0, 1) * 100); if (pct !== last) { last = pct; mkLogSet(li, 'run', `${lab} ${pct}%`); } }), aborted]);
-          mkLogSet(li, 'ok', '이야기 AI 준비 완료');
-        } catch (e) {
-          if (e && e.code === 'cancelled') throw e;
-          mkLogSet(li, 'warn', '이야기 AI를 준비하지 못해서 기본 문장으로 만들어요');
-          aiMsg = '이야기 AI를 준비하지 못해서(인터넷 연결이나 저장 공간을 확인해 주세요) 기본 문장으로 만들었어요. 다음에 만들 때 다시 시도해요.';
-        }
+        if (ctl.signal.aborted) throw { code: 'cancelled' };
+        ai = await mkAiReady(ctl, null);
+        if (!ai) aiMsg = '이야기 AI를 준비하지 못해서(인터넷 연결이나 저장 공간을 확인해 주세요) 기본 문장으로 만들었어요. 다음에 만들 때 다시 시도해요.';
       } else aiMsg = '이 기기(브라우저)에서는 이야기 AI를 돌릴 수 없어서 기본 문장으로 만들었어요. 휴대폰의 최신 크롬에서 열면 AI가 이야기를 써요.';
     }
-    let aiLines = 0;
+    let aiLines = 0, aiRetried = false;
     // 너무 작은 에피소드(1~2단어)는 앞 에피소드와 합침(최대 8단어)
     for (let i = eps.length - 1; i > 0; i--) if (eps[i].words.length < 3 && eps[i - 1].words.length + eps[i].words.length <= 8) { eps[i - 1].words.push(...eps[i].words); eps.splice(i, 1); }
     for (let k = 0; k < eps.length; k++) {
@@ -206,6 +227,8 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
           } catch (e) {
             if (e && e.code === 'cancelled') throw e;
             mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI가 쓰지 못해서 기본 문장으로`);
+            // GPU를 잃었으면(휴대폰이 화면을 잠깐 내렸을 때 등) 한 번만 다시 준비해서 다음 에피소드부터 써요
+            if (!aiRetried && aiLost(e)) { aiRetried = true; aiDrop(); ai = await mkAiReady(ctl, '이야기 AI 다시 준비 중'); }
           }
         }
       }
