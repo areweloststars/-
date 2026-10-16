@@ -399,3 +399,22 @@ test('auto story: every word once, no template leftovers, no repeated lines', ()
     }
   } finally { p.close(); }
 });
+
+test('new version bar: an old page open on the phone sees the new build and reloads on tap', async () => {
+  const p = bootPage();
+  try {
+    p.window.WG_BUILD = 'aaaaaaaaaaaa';
+    let asked = '';
+    p.window.fetch = async (u, o) => { asked = String(u) + ' ' + JSON.stringify(o); return { text: async () => 'const SITE = {"v":1,"sum":"bbbbbbbbbbbbcccc","decks":""}' }; };
+    assert.equal(await p.run('checkNewBuild(true)'), true);
+    assert.match(asked, /no-store/);
+    const bar = p.document.getElementById('newbuild');
+    assert.match(bar.textContent, /새 판이 나왔어요/);
+    // 같은 판이면 띠가 없어요
+    bar.remove();
+    p.window.WG_BUILD = 'bbbbbbbbbbbb';
+    assert.equal(await p.run('checkNewBuild(true)'), false);
+    assert.equal(p.document.getElementById('newbuild'), null);
+    assert.equal(p.run('buildLabel()'), '판 bbbbbbb');
+  } finally { p.close(); }
+});

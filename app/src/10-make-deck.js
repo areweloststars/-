@@ -93,13 +93,7 @@ async function mkAiReady(ctl, label) {
   const li = mkLog(lab);
   // 진행률은 단계마다 0→100이 다시 시작돼요: 내려받기 → 기기에 올리기 → 마무리
   let last = '';
-  const onProg = (p, t) => {
-    const step = /^Loading model from cache/.test(t) ? '기기에 올리는 중' : /^Loading GPU shader/.test(t) ? '마무리하는 중' : '';
-    const pct = Math.floor(clamp(p, 0, 1) * 100), k = step + pct;
-    if (k === last) return;
-    last = k;
-    mkLogSet(li, 'run', step ? `이야기 AI 준비 중 · ${step} ${pct}%` : `${lab} ${pct}%`);
-  };
+  const onProg = (p, t) => { const x = mkAiProgText(p, t, lab); if (x !== last) { last = x; mkLogSet(li, 'run', x); } };
   let off = () => { };
   const aborted = new Promise((_, no) => {
     const f = () => { if (!AI.engine) aiDrop(); no({ code: 'cancelled' }); };
@@ -107,15 +101,16 @@ async function mkAiReady(ctl, label) {
     ctl.signal.addEventListener('abort', f, { once: true });
     off = () => ctl.signal.removeEventListener('abort', f);
   });
+  AI.onRetry = t => mkLog(`인터넷 연결이 끊겨서 이어 받는 중 (${t + 1}/${AI_TRIES}번째)`, 'warn');
   try {
     const eng = await Promise.race([aiLoad(onProg), aborted]);
     mkLogSet(li, 'ok', '이야기 AI 준비 완료');
     return eng;
   } catch (e) {
     if (e && e.code === 'cancelled') throw e;
-    mkLogSet(li, 'warn', '이야기 AI를 준비하지 못해서 기본 문장으로 만들어요');
+    mkLogSet(li, 'warn', `이야기 AI를 준비하지 못했어요: ${(AI.err && AI.err.where) || ''} 멈췄어요`);
     return null;
-  } finally { off(); if (AI.onProgress === onProg) AI.onProgress = null; }
+  } finally { off(); AI.onRetry = null; if (AI.onProgress === onProg) AI.onProgress = null; }
 }
 async function mkMake() {
   const rows0 = mkValidRows();
@@ -125,14 +120,14 @@ async function mkMake() {
   }
   MK.err = ''; MK.log = []; MK.step = 'making'; MK.saveNote = ''; MK.aiNote = ''; mkPicN = 0;
   const storySeed = Math.floor(Math.random() * SF.length);
-  const ctl = MK.ctl = new AbortController(), id = 'u' + Date.now().toString(36);
+  const redo = MK.redo, ctl = MK.ctl = new AbortController(), id = redo ? redo.id : 'u' + Date.now().toString(36);
   const rows = Object.create(null); for (const r of rows0) rows[r.en] = r;
   // Claude를 더 부를 수 없는 오류(허락 안 됨·로그인 끝남·사용량 초과)가 나면 남은 에피소드는 부르지 않고 간단하게
   let aiOff = '';
   const STOP = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'session_expired', 'rate_limited'];
   const noteErr = e => { if (e && STOP.includes(e.code)) aiOff = mkErrText(e) || aiOff || 'Claude를 쓸 수 없어요.'; };
   const list = rows0.map(r => `- ${r.en} | ${r.ko} | ${r.pos}`).join('\n');
-  const deck = { v: 1, id, name: mkCleanKo(MK.name) || `사진 단어장 ${new Date().getMonth() + 1}/${new Date().getDate()}`, created: Date.now(), updated: Date.now(), source: MK.images.length ? 'photo' : 'text', words: {}, scenes: [], panels: {} };
+  const deck = { v: 1, id, name: mkCleanKo(MK.name) || `사진 단어장 ${new Date().getMonth() + 1}/${new Date().getDate()}`, created: redo ? redo.created : Date.now(), updated: Date.now(), source: redo ? redo.source : MK.images.length ? 'photo' : 'text', words: {}, scenes: [], panels: {} };
   renderMake();
   try {
     let plan = null;
@@ -168,6 +163,12 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
       for (const part of mkChunk(extra)) eps.push({ title: '보너스 이야기', theme: '앞 이야기의 주인공들이 다시 모이는 웃긴 후일담', words: part });
       if (typeof plan.deckName === 'string' && !mkCleanKo(MK.name)) deck.name = mkCleanKo(plan.deckName).slice(0, 24) || deck.name;
     }
+    // 이야기 새로 만들기: 에피소드 묶음은 그대로 (진행 기록이 그 묶음에 붙어 있어요). 확인 화면에서 더한 단어는 뒤에 새 에피소드로
+    if (redo && !eps.length) {
+      const used = new Set();
+      eps = redo.eps.map(ws => ws.filter(w => rows[w] && !used.has(w) && used.add(w))).filter(ws => ws.length).map(ws => ({ title: '', theme: '', words: ws, keep: true }));
+      for (const part of mkChunk(rows0.map(r => r.en).filter(w => !used.has(w)))) eps.push({ title: '', theme: '', words: part });
+    }
     if (!eps.length) eps = mkChunk(rows0.map(r => r.en)).map((ws, i) => ({ title: `단어 미션 ${i + 1}`, theme: '', words: ws }));
     // 휴대폰 안 이야기 AI(Gemma) 준비: 처음이면 한 번 내려받아요. 못 돌리는 기기나 실패면 앱이 만든 문장 그대로
     let ai = null, aiMsg = '';
@@ -175,7 +176,7 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
       if (await aiGpuOk()) {
         if (ctl.signal.aborted) throw { code: 'cancelled' };
         ai = await mkAiReady(ctl, null);
-        if (!ai) aiMsg = '이야기 AI를 내려받거나 준비하지 못했어요(인터넷 연결이나 저장 공간을 확인해 주세요). 다음에 만들 때 다시 시도해요.';
+        if (!ai) aiMsg = (AI.err && AI.err.text) || '이야기 AI를 내려받거나 준비하지 못했어요.';
       } else {
         aiMsg = (await aiWhyNot()) || '이 기기(브라우저)에서는 이야기 AI를 돌릴 수 없어요.';
         mkLogSet(mkLog('이야기 AI 확인'), 'warn', '이야기 AI를 쓸 수 없어서 기본 문장으로 만들어요');
@@ -183,7 +184,7 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
     }
     let aiLines = 0, aiRetried = false;
     // 너무 작은 에피소드(1~2단어)는 앞 에피소드와 합침(최대 8단어)
-    for (let i = eps.length - 1; i > 0; i--) if (eps[i].words.length < 3 && eps[i - 1].words.length + eps[i].words.length <= 8) { eps[i - 1].words.push(...eps[i].words); eps.splice(i, 1); }
+    for (let i = eps.length - 1; i > 0; i--) if (!eps[i].keep && eps[i].words.length < 3 && eps[i - 1].words.length + eps[i].words.length <= 8) { eps[i - 1].words.push(...eps[i].words); eps.splice(i, 1); }
     for (let k = 0; k < eps.length; k++) {
       const ep = eps[k], key = `${id}-e${k + 1}`;
       let res = null;
@@ -246,6 +247,8 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     MK.aiNote = MK.useAI ? '' : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : ai ? (aiLines ? `이야기 AI(Gemma)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요.') : '';
     MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
+    MK.redo = null;
+    if (redo && DECK.id === deck.id) switchDeck(deck.id); // 지금 쓰는 단어장이면 새 이야기로 다시 열어요
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');
     voiceWarm(); // 게임을 열기 전에 목소리를 미리 준비
@@ -300,20 +303,37 @@ function bindMake() {
     else if (a === 'rmrow') { MK.rows.splice(+b.dataset.i, 1); renderMake(); }
     else if (a === 'addrow') { MK.rows.push({ en: '', ko: '', pos: 'x' }); renderMake(); const ins = document.querySelectorAll('#make .mken'); if (ins.length) ins[ins.length - 1].focus(); }
     else if (a === 'make' || a === 'makeai') { const nm = $('#mkname'); if (nm) MK.name = nm.value; MK.useAI = a === 'makeai'; mkMake(); }
-    else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.note = ''; renderMake(); }
+    else if (a === 'aidl') mkAiPrefetch();
+    else if (a === 'aidlstop') { if (MK.aiDlCtl) MK.aiDlCtl.abort(); }
+    else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.note = ''; MK.redo = null; renderMake(); }
     else if (a === 'play') { const d = MK.deck; MK.step = 'pick'; MK.deck = null; if (d) switchDeck(d.id); goHome(); }
   });
+}
+
+// 이미 만든 단어장의 이야기·그림만 지금 판(줄거리 엔진 + 이야기 AI)으로 새로 만들어요. 단어·뜻·에피소드 묶음·진행 기록은 그대로
+function mkRedoDeck(id) {
+  const d = DeckStore.get(id); if (!d) return false;
+  if (MK.step === 'making' || MK.step === 'reading') { toast('다른 단어장을 만드는 중이에요. 다 만든 뒤에 해 주세요'); return false; }
+  const rows = [], seen = new Set();
+  for (const sc of d.scenes || []) for (const en of sc.words || []) { const w = d.words && d.words[en]; if (w && w.m && !seen.has(en)) { seen.add(en); rows.push({ en, ko: String(w.m), pos: w.pos || 'x' }); } }
+  if (!rows.length) return false;
+  MK.rows = rows; MK.name = d.name; MK.err = ''; MK.deck = null;
+  MK.redo = { id: d.id, created: d.created || Date.now(), source: d.source || 'text', eps: (d.scenes || []).map(sc => (sc.words || []).slice()) };
+  MK.note = `‘${d.name}’ 단어장의 이야기와 그림을 새로 만들어요. 단어·뜻·에피소드 묶음과 진행 기록은 그대로예요.`;
+  MK.step = 'review';
+  openMake();
+  return true;
 }
 
 /* ---------- 단어장 고르기 (홈 위쪽 단추) ---------- */
 function openDecks() {
   const decks = DeckStore.list();
-  const row = (id, name, n, eps, cur, builtin) => `<li class="${cur ? 'cur' : ''}"><button type="button" class="deckpick" data-deck="${esc(id)}"><b>${esc(name)}</b><small>${n}단어 · 에피소드 ${eps}개${builtin ? ' · 기본' : ''}${cur ? ' · <em>지금 쓰는 중</em>' : ''}</small></button>${builtin ? '' : `<button type="button" class="deckdel" data-deckdel="${esc(id)}" aria-label="${esc(name)} 지우기">${ICON.close}</button>`}</li>`;
+  const row = (id, name, n, eps, cur, builtin) => `<li class="${cur ? 'cur' : ''}"><button type="button" class="deckpick" data-deck="${esc(id)}"><b>${esc(name)}</b><small>${n}단어 · 에피소드 ${eps}개${builtin ? ' · 기본' : ''}${cur ? ' · <em>지금 쓰는 중</em>' : ''}</small></button>${builtin ? '' : `<button type="button" class="deckredo" data-deckredo="${esc(id)}" aria-label="${esc(name)} 이야기 새로 만들기">${ICON.pen}<span>새 이야기</span></button><button type="button" class="deckdel" data-deckdel="${esc(id)}" aria-label="${esc(name)} 지우기">${ICON.close}</button>`}</li>`;
   openOverlay(`<h2>단어장</h2>
     <ul class="decklist">
       ${row(DECK_BUILTIN.id, DECK_BUILTIN.name, Object.keys(BUILTIN.words).length, BUILTIN.scenes.length, DECK.id === DECK_BUILTIN.id, true)}
       ${decks.map(d => row(d.id, d.name, Object.keys(d.words || {}).length, (d.scenes || []).length, DECK.id === d.id, false)).join('')}
     </ul>
-    <div class="ractions"><button type="button" class="btn good" data-ov="make">${ICON.camera}사진으로 새 단어장 만들기</button><button type="button" class="btn" data-ov="close">닫기</button></div>`);
+    <div class="ractions"><button type="button" class="btn good" data-ov="make">${ICON.camera}사진으로 새 단어장 만들기</button><button type="button" class="btn" data-ov="close">닫기</button></div>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`);
 }
 

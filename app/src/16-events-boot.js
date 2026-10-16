@@ -119,6 +119,8 @@ function bindEvents() {
   document.addEventListener('click', e => {
     const dk = e.target.closest('[data-deck]');
     if (dk) { Sound.unlock(); Sound.play('tap'); if (dk.dataset.deck !== DECK.id && switchDeck(dk.dataset.deck)) toast(`‘${DECK.name}’ 단어장으로 바꿨어요`); goHome(); return; }
+    const dr = e.target.closest('[data-deckredo]');
+    if (dr) { Sound.unlock(); Sound.play('tap'); mkRedoDeck(dr.dataset.deckredo); return; }
     const dd = e.target.closest('[data-deckdel]');
     if (dd) {
       // 한 번 더 눌러야 지움 (실수 방지)
@@ -199,8 +201,33 @@ function boot(data) {
   // 내 Claude 계정 저장소에 연결되면 다른 기기에서 만든 단어장도 목록에 보임
   DeckStore.onChange(() => { if ($('#ov .decklist')) openDecks(); });
   DeckStore.connect();
+  setTimeout(() => checkNewBuild(true), 3000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkNewBuild(false); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!$('#play').hidden && M.queue.length) fitWords(); });
 }
+// 새 판 알림: 휴대폰에 옛 판이 열려 있으면(탭을 닫지 않았거나 브라우저가 기억해 둔 판) 띠를 보여 주고, 누르면 새로 고쳐요.
+// 사이트 파일 속 지문("sum")을 이 판의 지문(잠금 페이지가 남긴 WG_BUILD)과 견줘요. 열 때와 화면으로 돌아올 때(10분에 한 번까지)
+let buildCheckedAt = 0;
+async function checkNewBuild(force) {
+  const cur = window.WG_BUILD;
+  if (!cur || !/^https?:$/.test(location.protocol) || $('#newbuild')) return false;
+  if (!force && Date.now() - buildCheckedAt < 10 * 60 * 1000) return false;
+  buildCheckedAt = Date.now();
+  try {
+    const r = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+    const m = (await r.text()).match(/"sum":"([0-9a-f]{12})/);
+    if (!m || m[1] === cur) return false;
+  } catch (e) { return false; }
+  const bar = document.createElement('button');
+  bar.type = 'button'; bar.id = 'newbuild'; bar.className = 'newbuild';
+  bar.innerHTML = '<b>새 판이 나왔어요</b> · 눌러서 새로 고침';
+  bar.addEventListener('click', () => { if (MK.step === 'making' && !confirmTap(bar)) return; location.reload(); });
+  document.body.appendChild(bar);
+  return true;
+}
+// 만드는 중이면 한 번 더 눌러야 새로 고쳐요 (만들던 단어장이 사라지니까)
+function confirmTap(el) { if (el.dataset.armed) return true; el.dataset.armed = '1'; el.innerHTML = '<b>단어장을 만드는 중이에요</b> · 한 번 더 누르면 멈추고 새로 고쳐요'; return false; }
+const buildLabel = () => window.WG_BUILD ? `판 ${String(window.WG_BUILD).slice(0, 7)}` : '';
 const HOT = window.claude && window.claude.hot;
 try { if (HOT && HOT.snapshot) HOT.snapshot(() => ({ save: SAVE })); } catch (e) { }
 if (HOT && HOT.ready) HOT.ready(boot); else boot((HOT && HOT.data) || {});
