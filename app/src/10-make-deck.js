@@ -118,7 +118,7 @@ async function mkMake() {
     MK.err = rows0.length < MK_MIN ? `쓸 수 있는 단어가 ${rows0.length}개예요. ${MK_MIN}단어 이상 필요해요 (같은 단어는 하나로 쳐요).` : `${MK_MAX}단어까지만 만들 수 있어요.`;
     renderMake(); return;
   }
-  MK.err = ''; MK.log = []; MK.step = 'making'; MK.saveNote = ''; MK.aiNote = ''; mkPicN = 0;
+  MK.err = ''; MK.log = []; MK.step = 'making'; MK.saveNote = ''; MK.aiNote = ''; MK.aiDiag = null; AI.diag = []; mkPicN = 0;
   const storySeed = Math.floor(Math.random() * SF.length);
   const redo = MK.redo, ctl = MK.ctl = new AbortController(), id = redo ? redo.id : 'u' + Date.now().toString(36);
   const rows = Object.create(null); for (const r of rows0) rows[r.en] = r;
@@ -245,6 +245,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     // 이야기 AI가 몇 줄을 썼는지, 못 썼으면 왜 그런지 크게 알려 줘요
     const wordN = deck.scenes.reduce((a, sc) => a + sc.words.length, 0);
     MK.aiNote = MK.useAI ? '' : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : ai ? (aiLines ? `이야기 AI(Gemma)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요.') : '';
+    MK.aiDiag = ai ? (AI.diag || []).slice() : null;
     MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
     MK.redo = null;

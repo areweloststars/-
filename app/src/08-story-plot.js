@@ -36,7 +36,7 @@ for (const f of SF) if (SF_PLOT[f.title]) f.N = { ...f.N, ...SF_PLOT[f.title] };
 Object.assign(ST_NOUN, { skill: '연습', judge: '심사위원', threat: '말썽', note: '수상한 쪽지', old: '낡은 도구' });
 const ST_PX = { G: '🏆', doc: '📜', skill: '⭐', judge: '🦉', threat: '💥', note: '✉️', old: '🕸️', supply: '📦', food: '🍲', tool: '🔨', broken: '🏚️', device: '⚙️' };
 
-/* 추상어 장면: { re: 뜻 열쇠말(첫 뜻의 낱말 첫머리), st: 0 말썽 · 1 해 나감 · 2 해결 · 3 맨 끝(심사), o: 같은 자리 안 차례(2 계획부터 · 8 결과는 뒤로),
+/* 추상어 장면: { re: 뜻 열쇠말(첫 뜻의 낱말 첫머리), en: 영어로 가를 때(같은 꼴 다른 뜻: 보수 = 고치기 / 급여), st: 0 말썽 · 1 해 나감 · 2 해결 · 3 맨 끝(심사), o: 같은 자리 안 차례(2 계획부터 · 8 결과는 뒤로),
    n/v/a: 품사별 장면 문장, pic: 그림 }
    pic(c): c.X 이야기 이모지 · c.me 그 줄의 인물 · c.other 상대 · c.face(자세, 표정) · c.hface 주인공 표정 · c.judge 심사하는 인물 · c.V 말썽꾼
    앞쪽이 더 좁은 뜻이에요 (먼저 맞는 것을 써요). */
@@ -125,7 +125,7 @@ const ST_ABS = [
   { re: /피할 수 없|불가피|필연적|어쩔 수 없/, st: 0, o: 8, a: ['이제 {V:과} 맞붙는 건 {W:attr} 일이었어요.'], pic: c => ({ layout: 'compare', left: c.H, right: c.V, rel: 'vs' }) },
   { re: /복잡|난해|까다로운|어려운/, st: 0, a: ['{doc:은} 너무 {W:pp}. 아무도 이해하지 못했어요.'], pic: c => ({ layout: 'feel', who: c.hface('think', 'worry'), feel: c.X.doc + '❓' }) },
   { re: /겪다|겪어|경험하|체험하/, st: 0, v: ['{H:은} {threat} 때문에 큰 어려움을 {W:past}'], pic: c => ({ layout: 'feel', who: c.hface('sad', 'worry'), feel: '😣' + c.X.threat }) },
-  { re: /실현 가능|실행 가능|가능한|해낼 수 있는/, st: 1, a: ['{F:이} 보기에 {H:의} 계획은 충분히 {W:pp}'], pic: c => ({ subject: c.hface('cheer', 'smile'), hold: '✅' }) },
+  { re: /실현 가능|실행 가능|가능한|해낼 수 있는/, st: 1, a: ['{F:이} 보기에 {H:의} 계획은 충분히 {W:pp}', '{H:은} 드디어 {W:attr} 방법을 찾아냈어요. 이제 해낼 수 있어요!'], pic: c => ({ subject: c.hface('cheer', 'smile'), hold: '✅' }) },
   { re: /이전의|예전의|종전의|기존의/, st: 1, o: 2, a: ['{H:은} {W:attr} {doc:은} 다 접어 두고 새로 시작했어요.'], pic: c => ({ layout: 'change', from: c.X.doc + '🗑️', to: '📄✨' }) },
   { re: /상세|자세한|구체적|세부적/, st: 1, o: 3, a: ['{H:은} {W:attr} {doc:을} 만들었어요. 작은 것 하나까지 다 적혀 있었죠.'], pic: c => ({ subject: c.face('point', 'serious'), hold: c.X.doc, mark: 'check' }) },
   { re: /대략적|개략적|대충의|어림/, st: 1, o: 2, a: ['{H:은} 우선 {W:attr} 그림부터 쓱쓱 그렸어요.'], pic: c => ({ subject: c.face('think', 'smile'), hold: '✏️' }) },
@@ -174,6 +174,21 @@ const ST_ABS = [
   { re: /부지런|근면|성실/, st: 1, a: ['{W:attr} {H:은} 새벽부터 밤까지 {skill} 연습을 했어요.'], pic: c => ({ subject: c.hface('hold', 'serious'), hold: c.X.skill, mark: 'sweat' }) },
   { re: /^꺼리|꺼려하/, st: 0, a: ['{V:은} {H:과} 손잡기를 {W:attr} 눈치였어요. 고개를 홱 돌렸죠.'], pic: c => ({ layout: 'no', thing: '🤝', by: c.V }) },
   { re: /마지못|내키지 않|억지로 하는/, st: 2, a: ['{H:이} 같이 하자고 하자, {V:은} {W:attr} 표정으로 겨우 고개를 끄덕였어요.'], pic: c => ({ layout: 'feel', who: c.V, feel: '😒👍' }) },
+  // ---- 계약·회계·규정 말 (토익) ----
+  { re: /수익성|돈벌이가 되|이윤이 많|벌이가 좋/, st: 1, a: ['{H:의} {food} 가게는 아주 {W:attr} 장사였어요. 손님이 줄을 섰죠.'], pic: c => ({ layout: 'many', thing: '🪙', n: 8 }) },
+  { re: /장래|미래의|앞으로의|유망/, st: 1, o: 2, a: ['{F:은} {H}에게 {W:attr} 꿈을 물었어요. “나는 최고의 {skill} 선수가 될 거야!”'], pic: c => ({ layout: 'feel', who: c.hface('think', 'smile'), feel: '🔭' + c.X.skill }) },
+  { re: /기밀|비밀의|극비|대외비/, st: 1, a: ['{H:은} {secret:을} {W:attr} 쪽지에 적어 아무도 못 찾게 숨겼어요.'], pic: c => ({ subject: c.face('think', 'serious'), hold: '🤫' }) },
+  { re: /^(만일의 사태|비상 사태|비상사태|우발 상황|만약의 경우|돌발 상황)$/, st: 1, o: 2, n: ['{H:은} {V:이} 또 나타날 {W}에 대비해 비상 {supply:을} 챙겨 두었어요.'], pic: c => ({ subject: c.face('stand', 'serious'), hold: '🧰', mark: 'exclaim' }) },
+  { re: /^(비용 상환|상환|환급|환불|변상)$/, st: 2, n: ['{judge:은} {H:이} 대신 낸 {supply} 값을 {W}해 주었어요. 돈이 다시 돌아왔죠.'], pic: c => ({ layout: 'act', a: c.judge, b: c.H, item: '🪙', dir: 'ab' }) },
+  { re: /^(보수|급여|임금|월급|봉급|사례금|품삯)$/, en: /remunerat|salary|wage|pay|stipend|fee|earn/i, st: 2, n: ['{judge:은} 열심히 일한 {H}에게 넉넉한 {W:을} 주었어요.'], pic: c => ({ layout: 'act', a: c.judge, b: c.H, item: '💰', dir: 'ab' }) },
+  { re: /^(지출|소비|씀씀이)$/, st: 0, n: ['{supply:을} 사느라 {W:이} 너무 커졌어요. 지갑이 텅 비었죠.'], pic: c => ({ layout: 'change', from: '👛🪙🪙🪙', to: '👛' }) },
+  { re: /^(법적 책임|법률상 책임|부채|빚|채무)$/, st: 0, n: ['{V:이} 부순 {broken}에 대한 {W:은} 결국 {V}에게 돌아갔어요.'], pic: c => ({ layout: 'act', a: c.judge, b: c.V, item: '📜', dir: 'ab' }) },
+  { re: /^(불일치|어긋남|차이|격차|오차)$/, st: 0, n: ['{doc}에 적힌 {supply} 개수와 실제 개수 사이에 {W:이} 있었어요. 누가 몰래 가져간 거예요!'], pic: c => ({ layout: 'compare', left: c.X.supply.repeat(5), right: c.X.supply.repeat(3), rel: '≠' }) },
+  { re: /^(침해|위반|침범|침입|어김)$/, st: 0, n: ['{V:은} {H:의} 땅에 몰래 들어오는 {W:을} 저질렀어요.'], pic: c => ({ layout: 'no', thing: '🚷', by: c.H }) },
+  { re: /명시하|규정하|못박|분명히 적/, st: 1, v: ['{judge:은} {E}의 규칙에 “늦으면 탈락!”이라고 분명히 {W:past}'], pic: c => ({ layout: 'act', a: c.judge, b: c.X.doc, item: '✍️', dir: 'ab' }) },
+  { re: /면제하|면해 주|빼 주/, st: 2, v: ['{judge:은} 다친 {F}에게 오늘 연습을 {W:past}'], pic: c => ({ layout: 'act', a: c.judge, b: c.F, item: '🆓', dir: 'ab' }) },
+  { re: /취소하|철회하|무르|백지화/, st: 2, v: ['{V:이} 반성하자 {judge:은} 벌칙을 {W:past}'], pic: c => ({ layout: 'change', from: '📜', to: '❌' }) },
+  { re: /개정하|수정하|고쳐 쓰|보완하/, st: 1, v: ['{H:은} {F:의} 말을 듣고 {doc:을} 다시 {W:past}'], pic: () => ({ layout: 'change', from: '📝❌', to: '📝✅' }) },
   // ---- 이름씨 (해 나감·해결) ----
   { re: /^(숙련도|능숙함|숙련|실력|기량|솜씨|역량|능력|재능|소질|기술력|전문성)$/, st: 1, o: 8, n: ['날마다 연습한 덕분에 {H:의} {skill} {W:이} 쑥쑥 늘었어요.'], pic: c => ({ subject: c.face('cheer', 'happy'), hold: c.X.skill, mark: 'star' }) },
   { re: /^(효율|효율성|능률|생산성|가성비)$/, st: 1, o: 8, n: ['{F:의} 도움으로 일의 {W:이} 두 배로 올랐어요.'], pic: () => ({ layout: 'change', from: '🐢', to: '🐇' }) },
@@ -206,4 +221,4 @@ const ST_ABS = [
   { re: /^(심사|검사|점검|검토|채점|검증)$/, st: 3, n: ['마침내 {judge:이} {H:의} {skill} 솜씨 {W:을} 하러 왔어요. 결과는 백 점!'], pic: c => ({ layout: 'act', a: c.judge, b: c.H, item: '💯', dir: 'ab' }) },
 ];
 // mkStory가 쓰는 꼴로: [뜻 열쇠말, 품사별 문장, 그림, 영어(없음), 자리, 같은 자리 안 차례(o: 2 계획 · 5 보통 · 8 결과)]
-const ST_ABS_T = ST_ABS.map(o => [o.re, { n: o.n, v: o.v, a: o.a, d: o.d }, o.pic, null, o.st, o.o == null ? 5 : o.o]);
+const ST_ABS_T = ST_ABS.map(o => [o.re, { n: o.n, v: o.v, a: o.a, d: o.d }, o.pic, o.en || null, o.st, o.o == null ? 5 : o.o]);

@@ -96,6 +96,10 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     await p.run(`(async () => { const rows = ${rowsObj}; const res = mkStory(['borrow', 'encourage', 'anxious', 'abandon'], rows, 0); window.__n = await aiRewrite(AI.engine, res, rows, 0, null); window.__res = res; })()`);
     const res = p.json('window.__res'), n = p.json('window.__n'), prompt = p.json('AI.engine.prompts[0]');
     assert.equal(n, 2, res.lines.join('\n'));
+    // 문제 찾기용 기록: 줄마다 썼는지, 못 썼으면 왜인지
+    const why = p.json('AI.diag[AI.diag.length - 1].why');
+    assert.equal(why.filter(x => /: 씀$/.test(x)).length, 2, why.join('\n'));
+    assert.ok(why.some(x => /앱 문장을 그대로 씀|못 찾음|없음/.test(x)), why.join('\n'));
     // 요청 글에는 앱 이야기 전체(앞부분·다짐·끝맺음)가 들어가고, 단어 줄에만 번호
     for (const l of r.before) assert.ok(prompt.includes(l.replace(/\{[^|}]+\|([^}]+)\}/g, '$1')), l);
     assert.equal((prompt.match(/^\d+\. \[/gm) || []).length, 4);
