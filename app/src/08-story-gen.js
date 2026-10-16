@@ -794,7 +794,8 @@ const SEM = [
 // 품사·갈래별 기본 문장 (뜻 갈래에 들지 않을 때)
 const ST_GEN = {
   n: {
-    idea: ['{F:이} 귓속말했어요. “이번 모험의 열쇠는 바로 {W:이야}.”', '{H:은} 그제야 {W:이} 왜 중요한지 깨달았어요.', '모두가 {W:을} 두고 한참 동안 이야기를 나눴어요.', '{P} 게시판에 {W:에} 관한 공고가 붙었어요.', '{H:은} 수첩에 {Wq:이라고} 크게 적고 동그라미를 쳤어요.', '{V:은} {Wq:이라는} 말만 들어도 슬금슬금 뒷걸음질했어요.', '{F:이} 물었어요. “{W:이} 뭐야?” {H:이} 차근차근 알려 줬어요.'],
+    // 뜻 갈래를 모르는 이름씨도 줄거리 속 일로: 목표에 필요한 것 · 심사하는 인물이 묻는 것 · 계획서에 적는 것
+    idea: ['{F:이} 말했어요. “{E}에 성공하려면 {W:이} 꼭 필요해.”', '{H:은} 그제야 {W:이} 왜 중요한지 깨달았어요.', '{judge:이} {H}에게 {W}에 대해 물었어요. {H:은} 막힘없이 대답했어요.', '{H:은} {doc} 맨 위에 {Wq:이라고} 크게 적었어요. 오늘 꼭 챙길 것이었죠.', '{V:은} {Wq:이라는} 말만 들어도 슬금슬금 뒷걸음질했어요.'],
     person: ['{P}에서 한 {W:을} 만났어요. {G:이} 어디 있는지 안대요.', '{W} 한 명이 나타나 {H:을} 돕겠다고 나섰어요.', '{H:은} 길을 묻는 {W}에게 친절하게 길을 알려 줬어요.'],
     place: ['{H:은} 단서를 찾으러 서둘러 {W:로} 향했어요.', '{F:와} {H:은} {W}에서 만나기로 약속했어요.', '{V:은} {W}에 몰래 숨어 있었어요.'],
     money: ['{G:을} 손에 넣으려면 {W:이} 문제였어요.', '{H:은} 장부를 펴고 {W:을} 꼼꼼히 계산했어요.'],
@@ -819,9 +820,9 @@ const ST_GEN = {
     feel: ['{F:은} {W:attr} 얼굴로 {H:을} 바라봤어요.', '그 소식을 들은 {H:은} 너무 {W:pp}'],
     situ: ['“이건 정말 {W:attr} 일이야!” {F:이} 외쳤어요.', '{H:은} 그것이 {W:attr} 선택이라고 믿었어요.'],
     pert: ['{F:이} 속삭였어요. “이 책에 {W} 비밀이 적혀 있대.”', '{H:은} {W} 이야기가 담긴 책을 펼쳤어요.'],
-    jeok: ['{V:은} 늘 {W:attr} 방법만 고집했어요.'],
+    jeok: ['{H:은} {W:attr} 방법으로 다시 해 보기로 했어요.', '{V:은} 늘 {W:attr} 방법만 고집했어요.'],
     act: ['{H:은} {W:attr} {V:을} 보고 고개를 갸웃했어요.'],
-    other: ['“이건 정말 {W:attr} 일이야!” {F:이} 외쳤어요.', '{H:은} {Wq:이라는} 말이 딱 어울리는 하루를 보냈어요.']
+    other: ['“이건 정말 {W:attr} 일이야!” {F:이} 외쳤어요.', '{judge:은} {G:을} 보고 {Wq:이라는} 말을 떠올렸어요.']
   },
   d: {
     manner: ['{H:은} {W} 한 걸음씩 다가갔어요.', '{F:은} 맡은 일을 {W} 해냈어요.', '{V}조차 {W} 고개를 끄덕였어요.'],
@@ -920,10 +921,16 @@ function stLex(id, r, f) {
   const multi = /\s/.test(m), light = multi && /^[가-힣]+(을|를|이|가|에|에게|과|와|으로|로)\s/.test(m);
   const lightEnd = multi && /\s(짓다|하다|되다|주다|받다|내다|두다|맺다|시키다|당하다|드리다|보다|쓰다|치다)$/.test(m);
   const semHit = (re, any) => k.kind === 'a' ? (multi ? stHit(re, m.split(' ')[0]) : stHit(re, m) || (!!k.attr && k.attr !== m && stHit(re, k.attr))) : stHit(re, m, !any && (light || lightEnd));
-  const semFind = any => SEM.find(([re, t, , en]) => (t[k.kind] || []).length && (!en || en.test(String(id).toLowerCase())) && semHit(re, any)) || null;
-  w.sem = semFind(false) || (k.kind === 'v' && light && !lightEnd ? semFind(true) : null);
-  // 이야기 속 자리: 0 문제가 생김 · 1 해 나감 · 2 해결 (문제 → 해결 순서로 이어지게)
-  w.stage = stHit(ST_STAGE[0], m) ? 0 : stHit(ST_STAGE[2], m) ? 2 : 1;
+  // 추상어 형용사는 첫머리에서 여러 낱말로도 ('관련 있는'·'눈에 띄는'·'꼭 필요한')
+  const absHit = (re, any) => k.kind === 'a' ? stHit(re, m, true) || (!!k.attr && k.attr !== m && stHit(re, k.attr, true)) : semHit(re, any);
+  const semFind = (any, list = SEM) => list.find(([re, t, , en]) => (t[k.kind] || []).length && (!en || en.test(String(id).toLowerCase())) && (list === SEM ? semHit : absHit)(re, any)) || null;
+  // 추상어 장면(08-story-plot.js)을 먼저: 그 이야기의 목표·계획서·말썽에 일어나는 일로 써요
+  const deep = k.kind === 'v' && light && !lightEnd;
+  w.sem = semFind(false, ST_ABS_T) || semFind(false) || (deep ? semFind(true, ST_ABS_T) || semFind(true) : null);
+  // 이야기 속 자리: 0 문제가 생김 · 1 해 나감 · 2 해결 (문제 → 해결 순서로 이어지게). 심사·평판(3)은 해결 가운데 맨 끝
+  const st = w.sem && w.sem[4];
+  w.stage = st != null ? Math.min(st, 2) : stHit(ST_STAGE[0], m) ? 0 : stHit(ST_STAGE[2], m) ? 2 : 1;
+  w.late = st === 3; w.ord = w.sem && w.sem[5] != null ? w.sem[5] : 5;
   return w;
 }
 const ST_STAGE = {
@@ -996,10 +1003,11 @@ function mkStory(epWords, rows, n) {
   let bridged = false;
   const N = epWords.length;
   // 문제가 생기는 단어 → 해결하는 단어 순서로 (같은 자리끼리는 원래 순서)
-  const lex = epWords.map((id, i) => ({ id, i, w: stLex(id, rows[id], f) })).sort((a, b) => a.w.stage - b.w.stage || a.i - b.i);
+  const lex = epWords.map((id, i) => ({ id, i, w: stLex(id, rows[id], f) })).sort((a, b) => a.w.stage - b.w.stage || a.w.late - b.w.late || a.w.ord - b.w.ord || a.i - b.i);
   lex.forEach(({ id, w }, i) => {
     const r = rows[id];
-    const own = w.sem ? w.sem[1][w.kind].filter(t => stOk(t, w) && stSlotFits(t, w.slot)) : [];
+    const own0 = w.sem ? w.sem[1][w.kind].filter(t => stOk(t, w) && stSlotFits(t, w.slot)) : [], o0 = own0.length ? n % own0.length : 0;
+    const own = [...own0.slice(o0), ...own0.slice(0, o0)];
     const vlist = w.sub === 'aux' ? ST_GEN.vaux : /^[가-힣]+[이가]\s/.test(w.m) ? ST_GEN.vsubj : ST_SELF.test(w.m) ? ST_GEN.vself : w.stage === 0 ? ST_GEN.vneg : ST_GEN.v;
     const genList = w.kind === 'v' ? vlist : (ST_GEN[w.kind] || ST_GEN.n)[w.sub] || [];
     const gen = genList.filter(t => stOk(t, w) && !(w.kind === 'a' && /\s/.test(w.m) && /\{W:ge\}/.test(t)));
@@ -1017,7 +1025,7 @@ function mkStory(epWords, rows, n) {
     if (!bridged && prevSt === 0 && stg > 0) { lines.push(stFill(ST_BRIDGE[(n + i) % ST_BRIDGE.length], f, null, '', nm)); bridged = true; }
     // 이음말: 이름으로 시작하는 줄에만. 첫 줄·마지막 줄·자리가 바뀌는 줄, 그 밖에는 하나 걸러. 한 이야기에서 같은 말은 한 번만
     const key = i === 0 ? 'first' : i === N - 1 && stg === 2 ? 'end' : `${Math.max(0, prevSt)}${stg}`;
-    if ((i === 0 || i === N - 1 || stg !== prevSt || i % 2) && w.kind !== 'd' && /^\{[HFV]/.test(t) && !/드디어|마침내|그제야|갑자기|그때|결국|끝내|이번에도|이번엔|하필/.test(t)) {
+    if ((i === 0 || i === N - 1 || stg !== prevSt || i % 2) && w.kind !== 'd' && /^\{[HFV]/.test(t) && !/드디어|마침내|그제야|갑자기|그때|결국|끝내|이번에도|이번엔|하필|우선|급한 대로|날마다|매일/.test(t)) {
       const vk = /^\{V/.test(t) && ST_LINK['v' + key] ? 'v' + key : key;
       const prevLine = lines[lines.length - 1] || '', list = (ST_LINK[vk] || ST_LINK['11']).filter(x => !usedLink.has(x) && !prevLine.includes(x) && !t.includes(x.split(' ').pop()));
       if (list.length) { const x = list[(n + i) % list.length]; usedLink.add(x); line = x + ' ' + line; }

@@ -108,10 +108,10 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     // 단어장 만들기 전체: AI 준비 → 에피소드마다 AI → 저장 안내
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; AI.engine.calls = 0;`);
     await p.run('mkMake()');
-    const made = p.json('({ step: MK.step, err: MK.err, note: MK.saveNote, calls: AI.engine.calls, scenes: MK.deck.scenes.length, log: MK.log.map(l => l.text) })');
+    const made = p.json('({ step: MK.step, err: MK.err, note: MK.aiNote, calls: AI.engine.calls, scenes: MK.deck.scenes.length, log: MK.log.map(l => l.text) })');
     assert.equal(made.step, 'done', made.err);
     assert.equal(made.calls, made.scenes);
-    assert.match(made.note, /AI\(Gemma\)가 썼어요/);
+    assert.match(made.note, /이야기 AI\(Gemma\)가 단어 문장 \d+줄 가운데 [1-9]\d*줄을 다듬었어요/);
     assert.ok(made.log.some(t => /이야기 AI 준비 완료/.test(t)), made.log.join('\n'));
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
@@ -132,9 +132,9 @@ test('AI loading: a worker that cannot start ends the wait, and the next deck tr
     p.run(FAKE_LIB(true));
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
-    const a = p.json('({ step: MK.step, note: MK.saveNote, loading: !!AI.loading, workers: __workers.length, dead: __workers.map(w => w.dead), f16: __cfg.appConfig.model_list[0].required_features })');
+    const a = p.json('({ step: MK.step, note: MK.aiNote, loading: !!AI.loading, workers: __workers.length, dead: __workers.map(w => w.dead), f16: __cfg.appConfig.model_list[0].required_features })');
     assert.equal(a.step, 'done');
-    assert.match(a.note, /준비하지 못해서/);
+    assert.match(a.note, /이야기 AI를 쓰지 못했어요\. 이야기 AI를 내려받거나 준비하지 못했어요/);
     assert.equal(a.loading, false);
     assert.deepEqual(a.dead, [true]);
     assert.deepEqual(a.f16, ['shader-f16'], 'f16이 없는 기기는 다 받기 전에 거절되게');
@@ -167,9 +167,23 @@ test('AI story: a phone that cannot run the AI still gets a deck, and is told wh
   try {
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
-    const made = p.json('({ step: MK.step, note: MK.saveNote })');
+    const made = p.json('({ step: MK.step, note: MK.aiNote, log: MK.log.map(l => l.text) })');
     assert.equal(made.step, 'done');
-    assert.match(made.note, /이야기 AI를 돌릴 수 없어서/);
+    assert.match(made.note, /AI 계산 기능\(WebGPU\)이 없어요/);
+    assert.ok(made.log.some(t => /이야기 AI를 쓸 수 없어서/.test(t)), made.log.join('\n'));
+    // 만들기 전 화면에도 까닭이 보여요
+    p.run('MK.step = "review"; MK.aiWhy = undefined; renderMake()');
+    await new Promise(r => setTimeout(r, 20));
+    assert.match(p.document.getElementById('mkai').textContent, /이야기 AI를 쓸 수 없어요.*WebGPU/);
+  } finally { p.close(); }
+});
+
+test('AI story: in an app browser such as KakaoTalk, the make screen says to open the page in Chrome', async () => {
+  const p = bootPage();
+  try {
+    Object.defineProperty(p.window.navigator, 'userAgent', { value: 'Mozilla/5.0 (Linux; Android 14; SM-S921N; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0 Mobile Safari/537.36 KAKAOTALK/10.9.0', configurable: true });
+    const why = await p.run('aiWhyNot()');
+    assert.match(why, /카카오톡 안에서 열린 화면.*다른 브라우저로 열기.*크롬/);
   } finally { p.close(); }
 });
 

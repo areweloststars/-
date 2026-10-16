@@ -580,6 +580,9 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .make .mksteps li::before { content: counter(s); display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 4px; border-radius: 50%; background: var(--frame); color: #FFFFFF; font-size: 11px; font-weight: 700; vertical-align: 1px; }
 .make .mksteps b { color: var(--fg); }
 .mknote { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface2); border: 2px dashed var(--line); font-size: 13px; color: var(--muted); }
+.mknote.mkai { margin: 12px 0 0; color: var(--fg); }
+.mknote.mkai.ok { border: 2px solid var(--good); }
+.mknote.mkai.bad { border: 2px solid var(--bad); }
 .mkerr { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--bad); color: #FFFFFF; font-size: 13.5px; font-weight: 600; }
 .mkpick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .mkbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 92px; text-align: center; }

@@ -15,8 +15,20 @@ async function aiGpuOk() {
   try {
     const a = navigator.gpu && await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     AI.gpu = !!(a && a.features && a.features.has('shader-f16'));
-  } catch (e) { AI.gpu = false; }
+    AI.gpuWhy = !navigator.gpu ? 'nogpu' : !a ? 'noadapter' : AI.gpu ? '' : 'nof16';
+  } catch (e) { AI.gpu = false; AI.gpuWhy = 'noadapter'; }
   return AI.gpu;
+}
+// 앱 안에서 열린 브라우저 (카카오톡·네이버·인스타그램 …): 이런 화면은 대개 AI 계산 기능(WebGPU)이 없어요
+const AI_INAPP = [[/KAKAOTALK/i, '카카오톡'], [/NAVER\(inapp|NAVER/, '네이버 앱'], [/Instagram/, '인스타그램'], [/FBAN|FBAV|FB_IAB/, '페이스북'], [/\bLine\//, '라인'], [/DaumApps/, '다음 앱'], [/everytimeApp/i, '에브리타임'], [/; wv\)/, '다른 앱']];
+// 이 브라우저에서 이야기 AI를 못 쓰는 까닭 ('' = 쓸 수 있어요)
+async function aiWhyNot() {
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '', app = (AI_INAPP.find(([re]) => re.test(ua)) || [])[1];
+  if (await aiGpuOk()) return '';
+  if (app) return `${app} 안에서 열린 화면이에요. 오른쪽 위 ⋮ 메뉴에서 ‘다른 브라우저로 열기’를 눌러 크롬으로 열어 주세요.`;
+  if (AI.gpuWhy === 'nogpu') return '이 브라우저에는 AI 계산 기능(WebGPU)이 없어요. 휴대폰의 최신 크롬으로 열어 주세요.';
+  if (AI.gpuWhy === 'nof16') return '이 휴대폰의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.';
+  return '이 휴대폰의 그래픽 칩을 AI 계산에 쓸 수 없어요. 크롬을 최신으로 업데이트한 뒤 다시 열어 보세요.';
 }
 // 전에 모델을 다 받아 둔 적이 있는지 (처음 안내 문구에만 써요)
 const aiReadyBefore = () => { try { return localStorage.getItem('wg-ai-ready') === AI_MODEL; } catch (e) { return false; } };

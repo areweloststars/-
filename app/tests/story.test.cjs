@@ -129,3 +129,39 @@ test('auto story: verbs get a scene with fitting things from the story world, tr
   // 이음말: '이번에는 …는'처럼 겹치는 말은 쓰지 않음
   for (const l of [...lines, ...l2, ...l3]) assert.doesNotMatch(l, /^이번에는 /);
 });
+
+// 일반 사전 뜻으로 쓴 추상어 (토익·수능에 흔한 말). 뜻 갈래가 이야기 줄거리 속 일로 이어지는지
+test('abstract words become events of the episode plot, with a matching picture', () => {
+  const W = [['appraisal', '평가, 감정', 'n'], ['proficiency', '숙련도, 능숙함', 'n'], ['unprecedented', '전례 없는', 'a'], ['tentative', '잠정적인, 임시의', 'a'], ['consecutive', '연속적인', 'a'], ['restructure', '구조를 개편하다', 'v'],
+    ['ambiguous', '모호한, 애매한', 'a'], ['obsolete', '구식의', 'a'], ['deteriorate', '악화되다', 'v'], ['meticulous', '꼼꼼한', 'a'], ['pertinent', '관련 있는, 적절한', 'a'], ['alleviate', '완화하다', 'v']];
+  const r = P().json(`(() => { const rows = {}; for (const [en, ko, pos] of ${JSON.stringify(W)}) rows[en] = { en, ko, pos };
+    const ids = Object.keys(rows), out = [];
+    for (let n = 0; n < SF.length; n++) for (const ep of [ids.slice(0, 6), ids.slice(6)]) { const st = mkStory(ep, rows, n); out.push({ lines: st.lines, panels: Object.fromEntries(ep.map(id => [id, st.words[id].panel])), f: SF[n] }); }
+    return out; })()`);
+  // 단어만 끼워 넣던 빈 문장은 이제 안 나와요
+  const FILLER = /열쇠는 바로|에 관한 공고|딱 어울리는 하루|이야기를 나눴어요|“이건 정말 .* 일이야!”/;
+  for (const { lines, panels, f } of r) {
+    const text = lines.join('\n'), at = id => lines.findIndex(l => l.includes(`{${id}|`));
+    for (const l of lines) assert.doesNotMatch(l, FILLER, l);
+    if (at('appraisal') >= 0) {
+      // 심사는 단어 줄 가운데 맨 끝, 그 이야기의 심사하는 인물이 그 이야기의 목표를 평가해요
+      const word = lines.map((l, i) => /\{[^|}]+\|/.test(l) ? i : -1).filter(i => i >= 0);
+      assert.equal(at('appraisal'), word[word.length - 1], text);
+      assert.ok(lines[at('appraisal')].includes(f.N.judge), text);
+      // 말썽(전례 없는·연속적인)이 먼저, 잠정적 계획 → 구조 개편 → 숙련도 순서
+      assert.ok(at('unprecedented') < at('tentative') && at('consecutive') < at('tentative'), text);
+      assert.ok(at('tentative') < at('proficiency') && at('restructure') < at('proficiency'), text);
+      assert.equal(panels.appraisal.layout, 'act');
+      assert.equal(panels.appraisal.a.emoji, f.N.X.judge);
+      assert.equal(panels.appraisal.b, f.N.X.G);
+    } else {
+      assert.ok(at('deteriorate') < at('meticulous') && at('obsolete') < at('alleviate'), text);
+      assert.deepEqual([panels.alleviate.from, panels.alleviate.to], ['😰', '😌']);
+    }
+    // '전례 없는'은 '없다(부족)' 그림이 아니에요. 추상어 그림이 인물만 덩그러니 서 있지 않아요
+    for (const [id, pn] of Object.entries(panels)) {
+      assert.notEqual(pn.layout, 'no', id);
+      assert.ok(pn.layout || pn.hold, `${id}: ${JSON.stringify(pn)}`);
+    }
+  }
+});
