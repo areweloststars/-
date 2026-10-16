@@ -72,7 +72,7 @@ const ST_PIC = [
   [/멈추|멈춰|정지하|정지시|중단|그만두/, c => ({ subject: c.face('stand', 'serious'), hold: '🛑' })],
   [/없애|제거|삭제|지우다/, c => ({ layout: 'act', a: c.face('point', 'serious'), b: '🗑️', item: stSym(c.e) || '🍬', dir: 'ab' })],
   [/금지|막다|막아|막았|가로막|차단|방해|거절|거부|반대하|반대(?= |$)|사양|피하|회피|취소|부정하|무시/, c => ({ layout: 'no', thing: stSym(c.e) || '🍬', by: c.face('shrug', 'serious') })],
-  [/부족|결핍|모자라|(?<!수 |거의 )없는|(?<!수 |거의 )없다|텅|가난|궁핍/, c => ({ layout: 'no', thing: stSym(c.e) || '🍞' })],
+  [/부족|결핍|모자라|(?<!(?:수|거의|전례|유례|관련|관계|상관|쓸모|필요|틀림|끊임|의미|재미|소용|어이|변함|다름|문제|빈틈|거침|흠|힘|맛|멋|철|정신|가차|버릇|염치|상관) ?)없는|(?<!(?:수|거의|전례|유례|관련|관계|상관|쓸모|필요|틀림|끊임|의미|재미|소용|어이|변함|다름|문제|빈틈|거침|흠|힘|맛|멋|철|정신|가차|버릇|염치) ?)없다|텅|가난|궁핍/, c => ({ layout: 'no', thing: stSym(c.e) || '🍞' })],
   [/호기심|신기하|신기한|신기해|흥미/, c => ({ layout: 'feel', who: c.face('think', 'wow'), feel: '❓✨' })],
   [/다양|여러 가지|갖가지|가지각색/, () => ({ layout: 'many', thing: '🍎🍌🍇🍊🍓🥝' })],
   // 'X이 많은'(말이 많은·경험이 많은)은 물건이 많은 게 아니에요
@@ -97,6 +97,14 @@ const ST_PIC = [
 // 뜻 그림 칸 하나. hit = 예전 뜻 갈래 그림({e, a, p, face, hold, mark})
 // otherRole: 문장 틀에 함께 나오는 인물 (없으면 기본 상대역)
 function stPanel(w, r, f, i, role, hit, otherRole) {
+  // 추상어 장면(08-story-plot.js)은 그 줄의 사건을 그려요: 이야기 이모지(X)와 심사하는 인물로
+  if (typeof hit === 'function') {
+    const me = stKit(f, role), X = { ...ST_PX, ...((f.N && f.N.X) || {}) };
+    const pf = who => (pose, fc) => { const k = { ...who }; if (k.kind !== 'emoji') { k.pose = pose; k.face = fc; } return k; };
+    const spec = hit({ X, me, other: stKit(f, otherRole || ST_OTHER[role] || 'F'), face: pf(me), hface: pf(stKit(f, 'H')), judge: { kind: 'emoji', emoji: X.judge }, V: stKit(f, 'V'), F: stKit(f, 'F'), H: stKit(f, 'H') });
+    if (spec) return { bg: f.bg, ...spec };
+    hit = {};
+  }
   hit = hit || {};
   const me = stKit(f, role), other = stKit(f, otherRole || ST_OTHER[role] || 'F');
   const e0 = typeof hit.e === 'string' ? hit.e : typeof hit.hold === 'string' ? hit.hold : '';

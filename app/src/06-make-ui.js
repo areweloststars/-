@@ -95,8 +95,18 @@ function mkReviewHTML() {
     <button type="button" class="linkbtn" data-mk="addrow">＋ 단어 추가</button>
     <p class="mkcount">${n}단어${n < MK_MIN ? ` · ${MK_MIN}단어 이상 필요해요` : n > MK_MAX ? ` · ${MK_MAX}단어까지만 만들 수 있어요` : ` · 에피소드 약 ${Math.max(1, Math.round(n / 6))}개`}</p>
     <button type="button" class="startbtn" data-mk="make"${ok ? '' : ' disabled'}>${ICON.play}AI 이야기로 게임 만들기</button>
-    <p class="mksmall">${aiReadyBefore() ? '이 기기 안의 이야기 AI(Gemma)가 단어마다 이어지는 문장을 써요. 에피소드마다 30초~1분쯤 걸려요.' : `처음 한 번 이야기 AI(Gemma, ${AI_SIZE})를 받아요. <b>와이파이</b>에서 해 주세요. 그다음부터는 인터넷 없이 이 기기에서 써요.`}</p>
+    ${mkAiHTML()}
     <button type="button" class="linkbtn" data-mk="restart">처음으로</button>`;
+}
+// 이야기 AI를 이 브라우저에서 쓸 수 있는지 (만들기 전에 보여 줘요). 못 쓰면 까닭과 크롬으로 여는 방법
+function mkAiHTML() {
+  if (MK.aiWhy === undefined) {
+    MK.aiWhy = null;
+    aiWhyNot().then(w => { MK.aiWhy = w; const el = document.getElementById('mkai'); if (el) el.outerHTML = mkAiHTML(); }, () => { MK.aiWhy = '이야기 AI를 확인하지 못했어요.'; });
+  }
+  if (MK.aiWhy == null) return '<p class="mknote mkai" id="mkai">이야기 AI를 이 기기에서 쓸 수 있는지 확인하는 중…</p>';
+  if (MK.aiWhy) return `<p class="mknote mkai bad" id="mkai"><b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>이대로 만들면 앱이 줄거리에 맞춘 기본 문장으로 이야기를 만들어요.</p>`;
+  return `<p class="mknote mkai ok" id="mkai"><b>✓ 이야기 AI(Gemma)를 쓸 수 있어요.</b> ${aiReadyBefore() ? '이 기기 안의 AI가 줄거리에 맞게 문장을 다듬어요. 에피소드마다 30초~1분쯤 걸려요.' : `처음 한 번 AI(${AI_SIZE})를 받아요. <b>와이파이</b>에서 해 주세요. 그다음부터는 인터넷 없이 이 기기에서 써요.`}</p>`;
 }
 function mkMakingHTML() {
   const items = MK.log.map(l => `<li class="${l.state}"><span>${esc(l.text)}${l.state === 'run' ? '<i class="dotdot" aria-hidden="true"></i>' : ''}</span></li>`).join('');
@@ -110,6 +120,7 @@ function mkDoneHTML() {
   return `<div class="mkdone"><div class="badge">${badgeSVG('#7CF29C')}<span>완성!</span></div>
     <p><b>${esc(d.name)}</b> — ${n}단어, 에피소드 ${d.scenes.length}개</p>
     <div class="mkthumbs">${d.scenes.map(s => `<div><img src="${'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">${genScene(d.panels[s.key] || [])}</svg>`)}" alt=""><span>${esc(s.title)}</span></div>`).join('')}</div>
+    ${MK.aiNote ? `<p class="mknote">${esc(MK.aiNote)}</p>` : ''}
     ${MK.saveNote ? `<p class="mksmall">${esc(MK.saveNote)}</p>` : ''}
     <p class="mksmall">교재로 만든 단어장은 개인 공부용으로만 써 주세요. 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
     <button type="button" class="startbtn" data-mk="play">${ICON.play}이 단어장으로 게임 시작</button></div>`;

@@ -123,7 +123,7 @@ async function mkMake() {
     MK.err = rows0.length < MK_MIN ? `쓸 수 있는 단어가 ${rows0.length}개예요. ${MK_MIN}단어 이상 필요해요 (같은 단어는 하나로 쳐요).` : `${MK_MAX}단어까지만 만들 수 있어요.`;
     renderMake(); return;
   }
-  MK.err = ''; MK.log = []; MK.step = 'making'; MK.saveNote = ''; mkPicN = 0;
+  MK.err = ''; MK.log = []; MK.step = 'making'; MK.saveNote = ''; MK.aiNote = ''; mkPicN = 0;
   const storySeed = Math.floor(Math.random() * SF.length);
   const ctl = MK.ctl = new AbortController(), id = 'u' + Date.now().toString(36);
   const rows = Object.create(null); for (const r of rows0) rows[r.en] = r;
@@ -175,8 +175,11 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
       if (await aiGpuOk()) {
         if (ctl.signal.aborted) throw { code: 'cancelled' };
         ai = await mkAiReady(ctl, null);
-        if (!ai) aiMsg = '이야기 AI를 준비하지 못해서(인터넷 연결이나 저장 공간을 확인해 주세요) 기본 문장으로 만들었어요. 다음에 만들 때 다시 시도해요.';
-      } else aiMsg = '이 기기(브라우저)에서는 이야기 AI를 돌릴 수 없어서 기본 문장으로 만들었어요. 휴대폰의 최신 크롬에서 열면 AI가 이야기를 써요.';
+        if (!ai) aiMsg = '이야기 AI를 내려받거나 준비하지 못했어요(인터넷 연결이나 저장 공간을 확인해 주세요). 다음에 만들 때 다시 시도해요.';
+      } else {
+        aiMsg = (await aiWhyNot()) || '이 기기(브라우저)에서는 이야기 AI를 돌릴 수 없어요.';
+        mkLogSet(mkLog('이야기 AI 확인'), 'warn', '이야기 AI를 쓸 수 없어서 기본 문장으로 만들어요');
+      }
     }
     let aiLines = 0, aiRetried = false;
     // 너무 작은 에피소드(1~2단어)는 앞 에피소드와 합침(최대 8단어)
@@ -238,7 +241,10 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     deck.scenes = deck.scenes.filter(sc => sc.words.length);
     if (!deck.scenes.length) throw { code: 'empty_completion' };
     const saved = await DeckStore.put(deck);
-    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') + (MK.useAI ? '' : aiMsg ? aiMsg + ' ' : aiLines ? '이야기는 이 기기 안의 AI(Gemma)가 썼어요. ' : '이야기와 그림은 이 기기에서 바로 만들었어요. ') +
+    // 이야기 AI가 몇 줄을 썼는지, 못 썼으면 왜 그런지 크게 알려 줘요
+    const wordN = deck.scenes.reduce((a, sc) => a + sc.words.length, 0);
+    MK.aiNote = MK.useAI ? '' : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : ai ? (aiLines ? `이야기 AI(Gemma)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요.') : '';
+    MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');
