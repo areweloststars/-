@@ -24,7 +24,7 @@ const ST_OTHER = { V: 'H', H: 'F', F: 'H' };
 // 그 줄을 하는 인물: 단어 앞에서 '은/는'이 붙은 인물(주어). 없으면 문장 틀 첫머리 인물, 그것도 없으면 주인공
 const stRoleOf = t => {
   const s = String(t || ''), at = s.search(/\{Wq?[:}]/), head = at < 0 ? s : s.slice(0, at);
-  const tp = [...head.matchAll(/\{([HFV]):(?:은|는)\}/g)].pop();
+  const tp = [...head.matchAll(/\{([HFV]):(?:은|는)\}/g)].pop() || (at >= 0 ? s.slice(at).match(/\{([HFV]):(?:은|는)\}/) : null);
   return tp ? tp[1] : /^\{V[:}]/.test(s) ? 'V' : /^\{F[:}]/.test(s) ? 'F' : 'H';
 };
 // 뜻 자체를 나타내는 기호 이모지(가위·공사 표지·금지 표시 …)는 건네거나 늘어놓는 물건으로 쓰지 않아요 (뜻이 거꾸로 읽혀요)

@@ -969,7 +969,10 @@ function stFill(t, f, w, prefix = '', nm = k => f[k]) {
   return t.replace(/\{(Wq|[HFVPGEW]|[a-z]+)(?::([^}]+))?\}/g, (all, k, form) => {
     if (/^[a-z]/.test(k)) { const x = (f.N && f.N[k]) || ST_NOUN[k] || k; return form ? koP(x, form) : x; }
     if (k !== 'W' && k !== 'Wq') return form ? koP(nm(k), form) : nm(k);
-    const isForm = form && ST_FORMS.has(form), core = isForm ? w.forms[form] : w.base;
+    const isForm = form && ST_FORMS.has(form);
+    let core = isForm ? w.forms[form] : w.base;
+    // '구식의 물건'·'예비의 조사'보다 '구식 물건'·'예비 조사'가 자연스러워요
+    if (form === 'attr' && /[가-힣]{2}의$/.test(core)) core = core.slice(0, -1);
     let s = `{${w.id}|${core}}`;
     if (k === 'Wq') s = `‘${s}’`;
     if (form && !isForm) s = koP(s, form);
@@ -1000,6 +1003,7 @@ function mkStory(epWords, rows, n) {
   // 처음 나올 때는 온이름, 그다음부터는 짧은 이름
   const seen = new Set(), nm = k => { const x = seen.has(k) && f.S && f.S[k] ? f.S[k] : f[k]; if (/^[HFV]$/.test(k)) seen.add(k); return x; };
   const lines = f.intro.map(t => stFill(t, f, null, '', nm)), words = {}, roles = {}, usedT = new Set(), usedLink = new Set();
+  const picSeen = new Set();
   let bridged = false;
   const N = epWords.length;
   // 문제가 생기는 단어 → 해결하는 단어 순서로 (같은 자리끼리는 원래 순서)
@@ -1025,18 +1029,24 @@ function mkStory(epWords, rows, n) {
     if (!bridged && prevSt === 0 && stg > 0) { lines.push(stFill(ST_BRIDGE[(n + i) % ST_BRIDGE.length], f, null, '', nm)); bridged = true; }
     // 이음말: 이름으로 시작하는 줄에만. 첫 줄·마지막 줄·자리가 바뀌는 줄, 그 밖에는 하나 걸러. 한 이야기에서 같은 말은 한 번만
     const key = i === 0 ? 'first' : i === N - 1 && stg === 2 ? 'end' : `${Math.max(0, prevSt)}${stg}`;
-    if ((i === 0 || i === N - 1 || stg !== prevSt || i % 2) && w.kind !== 'd' && /^\{[HFV]/.test(t) && !/드디어|마침내|그제야|갑자기|그때|결국|끝내|이번에도|이번엔|하필|우선|급한 대로|날마다|매일/.test(t)) {
+    // 상태를 말하는 줄('~했어요'가 아닌 '~였어요'·형용사)에는 '잠시 뒤'·'바로 그때' 같은 이음말을 붙이지 않아요
+    const stative = w.kind === 'a' || /이었어요\}|\{W:pp\}|이었어요[.!]?$|였어요[.!]?$|이었죠|였죠/.test(t);
+    if ((i === 0 || i === N - 1 || stg !== prevSt || i % 2) && w.kind !== 'd' && !stative && /^\{[HFV]/.test(t) && !/드디어|마침내|그제야|갑자기|그때|결국|끝내|이번에도|이번엔|하필|우선|급한 대로|날마다|매일/.test(t)) {
       const vk = /^\{V/.test(t) && ST_LINK['v' + key] ? 'v' + key : key;
       const prevLine = lines[lines.length - 1] || '', list = (ST_LINK[vk] || ST_LINK['11']).filter(x => !usedLink.has(x) && !prevLine.includes(x) && !t.includes(x.split(' ').pop()));
       if (list.length) { const x = list[(n + i) % list.length]; usedLink.add(x); line = x + ' ' + line; }
     }
-    if (/\}$/.test(line)) line += '.';
+    if (!/[.!?…”"]$/.test(line)) line += '.';
     if (lines.includes(line)) line = line.replace(/[.!]?$/, '!');
     lines.push(line);
     // 그림 칸: 그 줄을 하는 인물로, 뜻이 보이는 그림 (09-story-pics.js). 그림에는 영어 단어·뜻 글자를 쓰지 않아요
     const hit = (w.sem && w.sem[2]) || (autoPicHit(w.m) || autoPicHit(r.ko) || [])[1] || {};
     const role = stRoleOf(t), with2 = [...stNames(t)].find(k => /^[HFV]$/.test(k) && k !== role);
-    const panel = stPanel(w, r, f, i, role, hit, with2);
+    let panel = stPanel(w, r, f, i, role, hit, with2);
+    // 한 이야기 안에서 두 칸이 똑같은 그림이면 뒤 칸은 뜻 갈래 그림으로 (학생이 두 단어를 가를 수 있게)
+    const pk = JSON.stringify(panel);
+    if (picSeen.has(pk)) { const alt = stPanel(w, r, f, i, role, typeof hit === 'function' ? {} : hit, with2); if (!picSeen.has(JSON.stringify(alt))) panel = alt; }
+    picSeen.add(JSON.stringify(panel));
     roles[id] = role;
     const plain = line.replace(/\{[^|}]+\|([^}]+)\}/g, '$1');
     words[id] = { panel, pic: plain.slice(0, 120), tip: mkTip(id, w.m) };

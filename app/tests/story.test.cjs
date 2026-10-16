@@ -153,7 +153,7 @@ test('abstract words become events of the episode plot, with a matching picture'
       assert.ok(at('tentative') < at('proficiency') && at('restructure') < at('proficiency'), text);
       assert.equal(panels.appraisal.layout, 'act');
       assert.equal(panels.appraisal.a.emoji, f.N.X.judge);
-      assert.equal(panels.appraisal.b, f.N.X.G);
+      assert.deepEqual(panels.appraisal.b, f.hero, '심사하는 인물이 주인공의 솜씨를 평가해요 (목표 물건은 아직 없을 수도 있어요)');
     } else {
       assert.ok(at('deteriorate') < at('meticulous') && at('obsolete') < at('alleviate'), text);
       assert.deepEqual([panels.alleviate.from, panels.alleviate.to], ['😰', '😌']);
