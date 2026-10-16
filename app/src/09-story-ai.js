@@ -41,6 +41,7 @@ function aiDrop() {
 // 모델 준비: 처음이면 내려받고(진행률 onProgress(0~1, 단계 글)), 다음부터는 저장된 것으로 금방
 // 인터넷이 끊겨 실패하면 잠깐 쉬었다가 두 번 더 해 봐요 (다 받은 조각은 브라우저에 저장돼 있어서 이어 받아요)
 const AI_TRIES = 3;
+const AI_CTX = 3072;
 function aiLoad(onProgress) {
   if (AI.engine) return Promise.resolve(AI.engine);
   if (!AI.loading) {
@@ -77,7 +78,9 @@ async function aiStart(lib, gen) {
   dead.catch(() => { });
   // f16이 없는 기기는 0.7GB를 다 받기 전에 거절되게 (모델 기록에 빠져 있어서 채워 넣어요)
   const rec = lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list.find(m => m.model_id === AI_MODEL);
-  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'] }] } : undefined;
+  // 지금 올라와 있는 모델 설정은 '전체 창'과 '미끄럼 창'을 둘 다 켜 두어서, 이 WebLLM 판은 켜다가 멈춰요
+  // (WindowSizeConfigurationError). 전체 창만 쓰게 맞춰요: 이야기 한 편(지시 + 이야기 + 답)은 3천 토큰 안에 들어가요
+  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'], overrides: { ...(rec.overrides || {}), context_window_size: AI_CTX, sliding_window_size: -1, attention_sink_size: -1 } }] } : undefined;
   try {
     const eng = await Promise.race([lib.CreateWebWorkerMLCEngine(worker, AI_MODEL, {
       appConfig,
@@ -109,7 +112,7 @@ async function aiStorage() {
     return e ? { quota: +e.quota || 0, usage: +e.usage || 0 } : null;
   } catch (e) { return null; }
 }
-const aiMsgOf = e => String((e && (e.message || e.name || e.code)) || e || '').replace(/\s+/g, ' ').trim();
+const aiMsgOf = e => { const m = String((e && (e.message || e.code)) || (e && e.name) || e || ''), n = e && e.name && e.name !== 'Error' && !m.includes(e.name) ? e.name + ': ' : ''; return (n + m).replace(/\s+/g, ' ').trim(); };
 // 인터넷이 끊겨서 실패했는지 (다시 해 볼 만한 오류)
 const aiNetErr = e => /Failed to fetch|NetworkError|network|Load failed|ERR_|Cannot fetch|fetch failed|status:? ?(?:5\d\d|429)|timed? ?out|aborted by|connection/i.test(aiMsgOf(e)) && !/QuotaExceeded/i.test(aiMsgOf(e));
 // 실패를 학생이 읽을 말로: 어느 단계(받기 몇 %·기기에 올리기·마무리)에서 무슨 일이 났는지 + 실제 오류 글 조금
@@ -121,6 +124,7 @@ function aiErrInfo(e) {
   else if (aiNetErr(e)) why = '인터넷 연결이 끊겨서 다 받지 못했어요. 받은 부분은 저장돼 있어서 다시 받으면 이어서 받아요. 와이파이에서 화면을 켜 둔 채로 해 주세요.';
   else if (/device (?:was )?lost|DeviceLost|out of memory|OutOfMemory|Allocation|GPUOutOfMemory/i.test(raw)) why = '그래픽 메모리가 모자랐어요. 다른 앱을 닫고 다시 해 주세요.';
   else if (/exceeds limit|maxStorage|maxBuffer|maxCompute|requestDevice|Cannot initialize runtime/i.test(raw)) why = '이 휴대폰 그래픽 칩의 한도가 이 AI에 모자라요.';
+  else if (/WindowSize|AttentionSink|ConfigurationError|context_window_size|sliding_window_size/i.test(raw)) why = '앱의 AI 설정이 모델과 맞지 않았어요. 앱을 고쳐야 하는 문제라서 알려 주시면 고칠게요.';
   else if (/ai worker/i.test(raw)) why = 'AI를 돌리는 파일을 열지 못했어요. 페이지를 새로 고친 뒤 다시 해 주세요.';
   else why = '알 수 없는 오류가 났어요. 다시 받아 보고, 또 안 되면 이 화면을 캡처해서 알려 주세요.';
   return { where, why, raw: raw.slice(0, 120), text: `${where} 멈췄어요. ${why}${raw ? ` (오류: ${raw.slice(0, 120)})` : ''}` };
