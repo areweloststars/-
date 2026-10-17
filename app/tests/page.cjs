@@ -10,7 +10,8 @@ function fakeCanvas() {
 }
 
 // store: localStorage에 미리 넣어 둘 값 { 키: 글 또는 객체 }
-function bootPage(store = {}) {
+// before: 게임 코드보다 먼저 페이지 안에서 돌릴 코드 (가짜 휴대폰 목소리 등, 게임이 켜질 때 살펴보는 것)
+function bootPage(store = {}, before = '') {
   const errors = [];
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => errors.push(e.message));
@@ -18,6 +19,7 @@ function bootPage(store = {}) {
   const dom = new JSDOM(build(), { url: 'https://example.test/word-game/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
   const w = dom.window;
   w.scrollTo = () => { };
+  w.Element.prototype.scrollIntoView = () => { };
   w.matchMedia = () => ({ matches: false, addEventListener() { }, removeEventListener() { }, addListener() { }, removeListener() { } });
   w.HTMLCanvasElement.prototype.getContext = fakeCanvas;
   w.HTMLMediaElement.prototype.play = () => Promise.resolve();
@@ -29,6 +31,7 @@ function bootPage(store = {}) {
   for (const [k, v] of Object.entries(store)) w.localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
   const ctx = dom.getInternalVMContext();
   w.addEventListener('error', e => errors.push(String(e.message || e.error)));
+  if (before) vm.runInContext(before, ctx, { filename: 'test-before.js' });
   vm.runInContext(parts().js, ctx, { filename: 'word-game/app.js' });
   const run = code => vm.runInContext(code, ctx);
   return {

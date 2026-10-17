@@ -68,6 +68,7 @@ function bindEvents() {
       }
       else if (act === 'start') { Sound.unlock(); startPlay(); }
       else if (act === 'vfull') { Sound.unlock(); Narr.unlock(); if (FS.on) exitFS(); else enterFS(); }
+      else if (act === 'vfix') vFix();
       else if (act === 'vcopy') copyLink();
       else if (act === 'vout') openOutside();
       return;
@@ -218,7 +219,7 @@ function swControl(ms) {
 // (app/tests/offline.test.cjs가 실제 파일과 맞는지 봐요. llm/은 처음 열 때 받지 않으려고 sw.js가 미리 저장하지 않아요)
 // 글꼴 조각은 fonts/fonts.css에 적힌 것을 모두 받아요. 이야기 AI 모델은 WebLLM이 따로 받아 저장해요
 const OFFLINE_FILES = [
-  ['llm/web-llm.js', 6817339], ['llm/worker.js', 267],
+  ['llm/web-llm.js', 6817339], ['llm/worker.js', 417], ['llm/gpu-watch.js', 5932],
   ['ocr/tesseract.min.js', 66695], ['ocr/worker.min.js', 123724], ['ocr/tesseract-core-lstm.wasm.js', 3938277],
   ['ocr/eng-traineddata.wasm', 2952873], ['ocr/kor-traineddata.wasm', 1572336], ['ocr/words-en.txt', 1139787], ['ocr/ko-lex.txt', 1900788],
   ['tts/voices.json', 1582], ['tts/espeak-ng.js', 178386], ['tts/espeak-ng-gz.wasm', 9137545], ['tts/ort.wasm.min.js', 49026],
@@ -289,6 +290,8 @@ function boot(data) {
   renderHome();
   showScreen('home');
   mkInit();
+  // AI 진단 중에 탭이 꺼졌으면 (다음에 열 때) 결과가 남아 있다고 알려요
+  try { const b = aiBenchLoad(); if (b && b.crashNew) { b.crashNew = false; setTimeout(() => toast('AI 진단 중에 탭이 꺼졌어요. 새 단어장 만들기 화면에서 결과를 볼 수 있어요'), 1200); } } catch (e) { }
   // 내 Claude 계정 저장소에 연결되면 다른 기기에서 만든 단어장도 목록에 보임
   DeckStore.onChange(() => { if ($('#ov .decklist')) openDecks(); });
   DeckStore.connect();
