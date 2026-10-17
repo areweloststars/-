@@ -148,6 +148,7 @@ async function mkAiPrefetch() {
   const onProg = (p, t) => step(p, mkAiProgText(p, t, `이야기 AI(${AI_SIZE}) 받는 중`));
   const errs = [];
   put({ state: 'run', text: '받기 준비 중', p: 0 });
+  wakeHold('aidl'); // 받는 동안 화면이 꺼지지 않게
   try {
     if (MK.offline !== 'ok') {
       const r = await offlinePrep(p => step(p, `게임 파일 받는 중 ${Math.floor(clamp(p, 0, 1) * 100)}%`), ctl.signal);
@@ -167,11 +168,11 @@ async function mkAiPrefetch() {
     if (errs.length) put({ state: 'fail', text: errs.join(' ') });
     else { put({ state: 'ok' }); toast(MK.offline === 'ok' ? '인터넷 없이 쓸 준비가 됐어요' : '다 받아 두었어요'); }
   } catch (e) { put(e && e.code === 'cancelled' ? null : { state: 'fail', text: '받지 못했어요. 다시 받아 주세요.' }); }
-  finally { if (AI.onProgress === onProg) AI.onProgress = null; AI.onRetry = null; if (MK.aiDlCtl === ctl) MK.aiDlCtl = null; }
+  finally { if (AI.onProgress === onProg) AI.onProgress = null; AI.onRetry = null; if (MK.aiDlCtl === ctl) MK.aiDlCtl = null; wakeFree('aidl'); }
 }
 function mkMakingHTML() {
   const items = MK.log.map(l => `<li class="${l.state}"><span>${esc(l.text)}${l.state === 'run' ? '<i class="dotdot" aria-hidden="true"></i>' : ''}</span></li>`).join('');
-  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p><b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 이 화면을 열어 두세요.</small></p></div>
+  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p><b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 다 만들 때까지 이 화면을 켜 두세요. 다른 앱을 열면 이야기 AI가 멈출 수 있어요.</small></p></div>
     <ol class="mklog">${items}</ol>
     <button type="button" class="btn" data-mk="stop">그만두기</button>`;
 }
@@ -182,7 +183,7 @@ function mkDoneHTML() {
     <p><b>${esc(d.name)}</b> — ${n}단어, 에피소드 ${d.scenes.length}개</p>
     <div class="mkthumbs">${d.scenes.map(s => `<div><img src="${'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">${genScene(d.panels[s.key] || [])}</svg>`)}" alt=""><span>${esc(s.title)}</span></div>`).join('')}</div>
     ${MK.aiNote ? `<p class="mknote">${esc(MK.aiNote)}</p>` : ''}
-    ${MK.aiDiag && MK.aiDiag.length ? `<details class="mkdiag"><summary>AI가 쓴 글 보기 (문제 찾기용)</summary>${MK.aiDiag.map(d => `<p><b>${esc(d.title)}</b><br>${d.why.map(esc).join('<br>')}</p><pre>${esc(d.raw || '(빈 답)')}</pre>`).join('')}</details>` : ''}
+    ${MK.aiDiag && MK.aiDiag.length ? `<details class="mkdiag"><summary>AI가 쓴 글 보기 (문제 찾기용)</summary>${MK.aiEnv ? `<p><small>${esc(MK.aiEnv)}</small></p>` : ''}${MK.aiDiag.map(d => `<p><b>${esc(d.title)}</b>${d.info ? `<br><small>${esc(d.info)}</small>` : ''}<br>${d.why.map(esc).join('<br>')}</p><pre>${esc(d.raw || '(빈 답)')}</pre>`).join('')}</details>` : ''}
     ${MK.saveNote ? `<p class="mksmall">${esc(MK.saveNote)}</p>` : ''}
     <p class="mksmall">교재로 만든 단어장은 개인 공부용으로만 써 주세요. 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
     <button type="button" class="startbtn" data-mk="play">${ICON.play}이 단어장으로 게임 시작</button></div>`;
