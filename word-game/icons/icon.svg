@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 그림 스토리 단어 미션: 펼친 이야기책과 별 (게임 색: 남색 바탕, 흰 쪽, 주황 표지, 노란 별) -->
+  <rect width="512" height="512" rx="112" fill="#1D2140"/>
+  <g id="art">
+    <path d="M74 214 Q165 186 256 222 Q347 186 438 214 L438 404 Q347 378 256 414 Q165 378 74 404 Z" fill="#D9480F"/>
+    <path d="M92 200 Q172 172 248 206 L248 394 Q172 364 92 388 Z" fill="#FFFFFF"/>
+    <path d="M264 206 Q340 172 420 200 L420 388 Q340 364 264 394 Z" fill="#F2F4FB"/>
+    <path d="M118 246 Q172 228 222 248 M118 284 Q172 266 222 286 M118 322 Q172 304 222 324" fill="none" stroke="#D3D8EA" stroke-width="10" stroke-linecap="round"/>
+    <path d="M290 248 Q340 228 394 246 M290 286 Q340 266 394 284 M290 324 Q340 304 394 322" fill="none" stroke="#D3D8EA" stroke-width="10" stroke-linecap="round"/>
+    <path d="M256 210 L256 412" stroke="#1D2140" stroke-width="8" stroke-linecap="round" opacity=".18"/>
+    <path d="M256 70 L280 124 L338 128 L293 165 L308 222 L256 191 L204 222 L219 165 L174 128 L232 124 Z" fill="#FFD84D" stroke="#F0A500" stroke-width="8" stroke-linejoin="round"/>
+    <circle cx="150" cy="128" r="12" fill="#FFD84D"/>
+    <circle cx="372" cy="104" r="9" fill="#FFFFFF"/>
+    <circle cx="396" cy="160" r="7" fill="#FFD84D"/>
+  </g>
+</svg>

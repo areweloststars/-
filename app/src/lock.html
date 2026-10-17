@@ -3,6 +3,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
 <meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#ECEFF8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12142E" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>잠긴 페이지</title>
 <style>
 :root{color-scheme:light;--bg:#faf9f5;--fg:#141413;--mu:#6b6a63;--line:#dedcd3;--acc:#b5532f}
@@ -24,6 +29,7 @@ button{font:inherit;font-weight:700;padding:10px 18px;border:0;border-radius:10p
 <script>
 // 잠긴 게임: 게임 전체를 AES-GCM으로 잠가 이 파일에 넣었어요. 열쇠는 링크의 # 뒤에만 있어요(서버로 가지 않음, 저장소에도 없음).
 // 맞는 열쇠면 풀어서 이 자리에 게임을 그대로 띄우고, 이 기기에 열쇠를 기억해 두어 다음엔 주소만으로도 열려요
+// (홈 화면에 설치한 앱은 주소 끝 # 없이 './'로 열려요: 기억해 둔 열쇠로 열고, 인터넷이 없으면 서비스 워커가 저장해 둔 이 페이지가 열려요)
 (() => {
   const SITE = /*@@SITE@@*/null;
   const KEEP = 'word-game-site-key';

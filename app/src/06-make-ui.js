@@ -81,7 +81,8 @@ function mkPickHTML() {
       <p class="mksmall">한 줄에 하나씩 <b>영어 - 뜻</b> 모양으로 써요. 뜻이 여러 개면 쉼표로 나눠요.<br>예) explore - 탐험하다, 조사하다</p>
       <textarea id="mkpaste" rows="7" placeholder="explore - 탐험하다, 조사하다&#10;harvest - 수확">${esc(MK.paste)}</textarea>
       <button type="button" class="btn" data-mk="parse">이 단어들로 확인하기</button>
-    </details>`;
+    </details>
+    ${mkAiHTML()}`;
 }
 function mkReviewHTML() {
   const n = mkValidRows().length;
@@ -98,20 +99,35 @@ function mkReviewHTML() {
     ${mkAiHTML()}
     <button type="button" class="linkbtn" data-mk="restart">처음으로</button>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`;
 }
-// 이야기 AI를 이 브라우저에서 쓸 수 있는지 (만들기 전에 보여 줘요). 못 쓰면 까닭과 크롬으로 여는 방법.
-// 쓸 수 있으면 단어장을 만들기 전에 AI만 먼저 받아 둘 수 있어요 (진행률·실패 까닭·다시 받기)
+// 인터넷 없이 쓰게 준비하기 (사진 고르기·확인 화면에 보여 줘요)
+// 1) 이야기 AI를 이 브라우저에서 쓸 수 있는지. 못 쓰면 까닭과 크롬으로 여는 방법
+// 2) 사진 읽기·목소리·글꼴·AI 실행 파일(약 58MB)과 이야기 AI(약 3GB)를 한 번에 받아 두는 단추 (진행률·실패 까닭·다시 받기)
+//    모바일 데이터면 이야기 AI를 받기 전에 한 번 더 묻는 단추가 돼요 (confirmTap)
+//    다 받으면 그다음부터는 인터넷 없이(비행기 모드에서도) 사진을 읽고 이야기를 써요
 function mkAiHTML() {
   if (MK.aiWhy === undefined) {
     MK.aiWhy = null;
     aiWhyNot().then(w => { MK.aiWhy = w; mkAiPut(); }, () => { MK.aiWhy = '이야기 AI를 확인하지 못했어요.'; mkAiPut(); });
   }
+  if (MK.offline === undefined) {
+    MK.offline = null;
+    offlineHave().then(ok => { if (MK.offline == null) { MK.offline = ok ? 'ok' : 'no'; mkAiPut(); } });
+  }
   if (MK.aiWhy == null) return '<div class="mknote mkai" id="mkai">이야기 AI를 이 기기에서 쓸 수 있는지 확인하는 중…</div>';
-  if (MK.aiWhy) return `<div class="mknote mkai bad" id="mkai"><b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>이대로 만들면 앱이 줄거리에 맞춘 기본 문장으로 이야기를 만들어요.</div>`;
-  const dl = MK.aiDl || {};
-  if (AI.engine || (aiReadyBefore() && dl.state !== 'fail')) return '<div class="mknote mkai ok" id="mkai"><b>✓ 이야기 AI(Gemma)를 이 기기에 받아 두었어요.</b> 줄거리에 맞게 문장을 다듬어요. 에피소드마다 30초~1분쯤 걸려요.</div>';
-  if (dl.state === 'run') return `<div class="mknote mkai ok" id="mkai"><b>이야기 AI(Gemma, ${AI_SIZE}) 받는 중</b><br>${esc(dl.text || '')}<div class="ocrbar" aria-hidden="true"><i style="width:${Math.round((dl.p || 0) * 100)}%"></i></div><button type="button" class="linkbtn" data-mk="aidlstop">그만 받기</button></div>`;
-  if (dl.state === 'fail') return `<div class="mknote mkai bad" id="mkai"><b>⚠ 이야기 AI를 받지 못했어요.</b> ${esc(dl.text || '')}<br><button type="button" class="btn" data-mk="aidl">AI 다시 받기</button></div>`;
-  return `<div class="mknote mkai ok" id="mkai"><b>✓ 이 기기에서 이야기 AI(Gemma)를 쓸 수 있어요.</b> 처음 한 번 AI(${AI_SIZE})를 받아요. <b>와이파이</b>에서 화면을 켜 둔 채로 해 주세요. 그다음부터는 인터넷 없이 써요.<br><button type="button" class="btn" data-mk="aidl">지금 AI 받아 두기</button> <small>(안 받아 두면 ‘게임 만들기’를 누를 때 받아요)</small></div>`;
+  const dl = MK.aiDl || {}, ai = !MK.aiWhy, aiReady = ai && !!(AI.engine || aiReadyBefore()), files = MK.offline === 'ok' || MK.offline === 'nosw';
+  const done = files && (!ai || aiReady);
+  const aiPart = !ai ? `<b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>이대로 만들면 앱이 줄거리에 맞춘 기본 문장으로 이야기를 만들어요.`
+    : aiReady ? '<b>✓ 이야기 AI(Gemma 4)를 이 기기에 받아 두었어요.</b> 인터넷 없이도 줄거리에 맞게 문장을 다듬어요. 에피소드마다 30초~1분쯤 걸려요.'
+      : `<b>✓ 이 기기에서 이야기 AI(Gemma 4)를 쓸 수 있어요.</b> 처음 한 번 AI(${AI_SIZE})를 받아요.`;
+  const filePart = MK.offline === 'ok' ? (ai ? '✓ 사진 읽기·목소리 파일도 이 기기에 받아 두었어요.' : '✓ 사진 읽기·목소리 파일은 이 기기에 받아 두었어요. 인터넷 없이도 단어장을 만들고 게임을 해요.')
+    : MK.offline === 'nosw' ? '이 브라우저는 게임 파일을 저장해 두지 못해서 인터넷 없이는 열리지 않아요. 크롬이나 삼성 인터넷으로 열어 주세요.'
+      : `게임 파일(사진 읽기·목소리 등, 약 ${offlineMB()}MB)${ai ? '도' : '을'} 받아 두면 인터넷 없이 써요.`;
+  let act = '';
+  if (dl.state === 'run') act = `<b>인터넷 없이 쓰게 준비하는 중</b><br>${esc(dl.text || '')}<div class="ocrbar" aria-hidden="true"><i style="width:${Math.round((dl.p || 0) * 100)}%"></i></div><button type="button" class="linkbtn" data-mk="aidlstop">그만 받기</button>`;
+  else if (dl.state === 'fail') act = `<b>⚠ 다 받지 못했어요.</b> ${esc(dl.text || '')}<br><button type="button" class="btn" data-mk="aidl">다시 받기</button>`;
+  else if (!done) act = `${ai && !aiReady && aiMobileData() ? '<b>지금은 모바일 데이터로 연결돼 있어요.</b> ' : ''}<b>와이파이</b>에서 화면을 켜 둔 채로 받아 주세요. 한 번만 받으면 그다음부터는 인터넷 없이(비행기 모드에서도) 써요.<br><button type="button" class="btn" data-mk="aidl">인터넷 없이 쓰게 준비하기</button>${ai && !aiReady ? ' <small>(안 받아 두면 ‘게임 만들기’를 누를 때 이야기 AI만 받아요)</small>' : ''}`;
+  const head = ai && done && MK.offline === 'ok' && dl.state !== 'fail' ? '<b>✓ 인터넷 없이 쓸 준비가 됐어요.</b><br>' : '';
+  return `<div class="mknote mkai ${ai && dl.state !== 'fail' ? 'ok' : 'bad'}" id="mkai">${head}${aiPart}<br>${filePart}${act ? `<br>${act}` : ''}</div>`;
 }
 // 상자만 다시 그려요 (입력 중인 단어 칸은 그대로)
 function mkAiPut() { const el = document.getElementById('mkai'); if (el) el.outerHTML = mkAiHTML(); }
@@ -121,18 +137,36 @@ function mkAiProgText(p, t, lab) {
   const pct = Math.floor(clamp(p, 0, 1) * 100);
   return step ? `이야기 AI 준비 중 · ${step} ${pct}%` : `${lab} ${pct}%`;
 }
-// 단어장 없이 AI만 먼저 받기
+// 단어장 없이 먼저 받아 두기: 사진 읽기·목소리·글꼴·AI 실행 파일 → 이야기 AI(이 기기에서 돌릴 수 있을 때만)
+// 하나가 안 받아져도 다른 것은 받아요. 못 받은 것과 까닭을 모아 보여 줘요
 async function mkAiPrefetch() {
   if (MK.aiDl && MK.aiDl.state === 'run') return;
   const ctl = MK.aiDlCtl = new AbortController();
   let last = '';
   const put = st => { MK.aiDl = st; mkAiPut(); };
+  const step = (p, x) => { if (x !== last) { last = x; put({ state: 'run', text: x, p }); } };
+  const onProg = (p, t) => step(p, mkAiProgText(p, t, `이야기 AI(${AI_SIZE}) 받는 중`));
+  const errs = [];
   put({ state: 'run', text: '받기 준비 중', p: 0 });
-  const onProg = (p, t) => { const x = mkAiProgText(p, t, '받는 중'); if (x !== last) { last = x; put({ state: 'run', text: x, p }); } };
-  AI.onRetry = t => put({ state: 'run', text: `인터넷 연결이 끊겨서 이어 받는 중 (${t + 1}/${AI_TRIES}번째)`, p: (MK.aiDl && MK.aiDl.p) || 0 });
-  const aborted = new Promise((_, no) => ctl.signal.addEventListener('abort', () => { if (!AI.engine) aiDrop(); no({ code: 'cancelled' }); }, { once: true }));
-  try { await Promise.race([aiLoad(onProg), aborted]); put({ state: 'ok' }); toast('이야기 AI를 받아 두었어요'); }
-  catch (e) { put(e && e.code === 'cancelled' ? null : { state: 'fail', text: (AI.err && AI.err.text) || '이야기 AI를 받지 못했어요.' }); }
+  try {
+    if (MK.offline !== 'ok') {
+      const r = await offlinePrep(p => step(p, `게임 파일 받는 중 ${Math.floor(clamp(p, 0, 1) * 100)}%`), ctl.signal);
+      if (r.bad.length) errs.push(`게임 파일 ${r.bad.length}개를 받지 못했어요. 인터넷 연결을 확인하고 다시 받아 주세요.`);
+      else MK.offline = r.stored ? 'ok' : 'nosw';
+    }
+    if (!MK.aiWhy) {
+      AI.onRetry = t => put({ state: 'run', text: `인터넷 연결이 끊겨서 이어 받는 중 (${t + 1}/${AI_TRIES}번째)`, p: (MK.aiDl && MK.aiDl.p) || 0 });
+      const aborted = new Promise((_, no) => {
+        const f = () => { if (!AI.engine) aiDrop(); no({ code: 'cancelled' }); };
+        if (ctl.signal.aborted) f(); else ctl.signal.addEventListener('abort', f, { once: true });
+      });
+      aborted.catch(() => { });
+      try { await Promise.race([aiLoad(onProg), aborted]); }
+      catch (e) { if (e && e.code === 'cancelled') throw e; errs.push((AI.err && AI.err.text) || '이야기 AI를 받지 못했어요.'); }
+    }
+    if (errs.length) put({ state: 'fail', text: errs.join(' ') });
+    else { put({ state: 'ok' }); toast(MK.offline === 'ok' ? '인터넷 없이 쓸 준비가 됐어요' : '다 받아 두었어요'); }
+  } catch (e) { put(e && e.code === 'cancelled' ? null : { state: 'fail', text: '받지 못했어요. 다시 받아 주세요.' }); }
   finally { if (AI.onProgress === onProg) AI.onProgress = null; AI.onRetry = null; if (MK.aiDlCtl === ctl) MK.aiDlCtl = null; }
 }
 function mkMakingHTML() {
