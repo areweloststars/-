@@ -176,6 +176,95 @@ function bindEvents() {
   });
 }
 
+/* ---------- 인터넷 없이 쓰기 (설치하는 웹 앱) ----------
+   서비스 워커(word-game/sw.js)가 게임 페이지와 이 폴더의 파일을 이 기기 브라우저에 저장해요.
+   한 번 열어 두면 인터넷 없이도 게임이 열려요 (열쇠는 잠금 페이지가 이 기기에 기억해 둬요).
+   서비스 워커는 https나 이 컴퓨터(localhost)에서만 돌아요. Claude 화면 안에서는 켜지 않아요. */
+const PWA = { reg: null };
+function swRegister() {
+  try {
+    const sw = navigator.serviceWorker;
+    if (!sw || window.claude) return;
+    const local = /^(?:localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    if (!(location.protocol === 'https:' || (location.protocol === 'http:' && local))) return;
+    const first = !sw.controller;
+    // 처음 저장될 때: 서비스 워커가 맡기 전에 받은 이 폴더의 파일(글꼴 조각 등)을 한 번 더 불러 저장되게 해요 (보통 브라우저에 남아 있어서 금방이에요)
+    if (first) sw.addEventListener('controllerchange', () => setTimeout(swWarm, 500), { once: true });
+    PWA.reg = sw.register(new URL('sw.js', location.href).href, { scope: './' }).catch(() => null);
+  } catch (e) { }
+}
+function swWarm() {
+  try {
+    const base = new URL('./', location.href).href;
+    const seen = new Set();
+    for (const e of performance.getEntriesByType('resource')) {
+      const u = String(e.name || '').split('#')[0];
+      if (!u.startsWith(base) || u === base || /index\.html|sw\.js|\?/.test(u.slice(base.length)) || seen.has(u)) continue;
+      seen.add(u);
+      fetch(u).then(r => r.arrayBuffer()).catch(() => { });
+    }
+  } catch (e) { }
+}
+// 서비스 워커가 이 페이지를 맡을 때까지 기다려요 (처음 열 때는 조금 걸려요). 맡으면 true
+function swControl(ms) {
+  const sw = typeof navigator !== 'undefined' && navigator.serviceWorker;
+  if (!sw || sw.controller || !PWA.reg) return Promise.resolve(!!(sw && sw.controller));
+  return new Promise(ok => {
+    const t = setTimeout(() => ok(!!sw.controller), ms);
+    sw.addEventListener('controllerchange', () => { clearTimeout(t); ok(true); }, { once: true });
+  });
+}
+// 인터넷 없이 쓰려고 미리 받아 둘 파일: 사진 읽기(OCR)와 목소리(TTS). [경로, 바이트] (app/tests/offline.test.cjs가 실제 파일과 맞는지 봐요)
+// 글꼴 조각은 fonts/fonts.css에 적힌 것을 모두 받아요. 이야기 AI 모델은 WebLLM이 따로 받아 저장해요
+const OFFLINE_FILES = [
+  ['ocr/tesseract.min.js', 66695], ['ocr/worker.min.js', 123724], ['ocr/tesseract-core-lstm.wasm.js', 3938277],
+  ['ocr/eng-traineddata.wasm', 2952873], ['ocr/kor-traineddata.wasm', 1572336], ['ocr/words-en.txt', 1139787], ['ocr/ko-lex.txt', 1900788],
+  ['tts/voices.json', 1582], ['tts/espeak-ng.js', 178386], ['tts/espeak-ng-gz.wasm', 9137545], ['tts/ort.wasm.min.js', 49026],
+  ['tts/ort-wasm-simd-threaded.mjs', 24618], ['tts/ort-wasm-simd-threaded.wasm', 11246032], ['tts/en-joe.0.wasm', 9000000], ['tts/en-joe.1.wasm', 7599901]
+];
+const OFFLINE_FONT = 11000; // 글꼴 조각 하나 (평균 바이트, 진행률용)
+const OFFLINE_FONTS = 467;
+const offlineMB = () => Math.round((OFFLINE_FILES.reduce((a, f) => a + f[1], 0) + OFFLINE_FONTS * OFFLINE_FONT) / 1048576);
+// 다 받아 둔 적이 있는지: 사진 읽기·목소리 파일이 모두 저장소(서비스 워커)에 있으면 true
+async function offlineHave() {
+  try {
+    if (typeof caches === 'undefined' || !(navigator.serviceWorker && navigator.serviceWorker.controller)) return false;
+    for (const [p] of OFFLINE_FILES) if (!(await caches.match(new URL(p, location.href).href))) return false;
+    return true;
+  } catch (e) { return false; }
+}
+// 받아 두기: 파일을 한 번씩 불러요. 서비스 워커가 맡고 있으면 그때 이 기기에 저장해요. onProg(0~1)
+// 돌려줌: { bad: 못 받은 파일, stored: 저장됐는지(서비스 워커가 맡았는지) }. 그만두면 { code: 'cancelled' }
+async function offlinePrep(onProg, signal) {
+  const stop = () => { if (signal && signal.aborted) throw { code: 'cancelled' }; };
+  const stored = await swControl(20000);
+  stop();
+  const url = p => new URL(p, location.href).href;
+  let fonts = [];
+  try {
+    const r = await fetch(url('fonts/fonts.css'), { signal });
+    if (r.ok) fonts = [...new Set((await r.text()).match(/files\/[\w.-]+\.woff2/g) || [])].map(f => ['fonts/' + f, OFFLINE_FONT]);
+  } catch (e) { stop(); }
+  const list = OFFLINE_FILES.concat(fonts), total = list.reduce((a, f) => a + f[1], 0), bad = [];
+  let got = 0;
+  const tick = n => { got += n; if (onProg) onProg(Math.min(1, got / total)); };
+  const one = async ([p, size]) => {
+    let n = 0;
+    try {
+      const r = await fetch(url(p), { signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (r.body && r.body.getReader) {
+        const rd = r.body.getReader();
+        for (;;) { const { done, value } = await rd.read(); if (done) break; const k = Math.min(value.length, size - n); if (k > 0) { n += k; tick(k); } }
+      } else await r.arrayBuffer();
+    } catch (e) { stop(); bad.push(p); }
+    if (n < size) tick(size - n);
+  };
+  const queue = list.slice();
+  await Promise.all([0, 1, 2, 3].map(async () => { while (queue.length) { stop(); await one(queue.shift()); } }));
+  return { bad, stored };
+}
+
 function boot(data) {
   loadSave();
   if (data && data.save && typeof data.save === 'object') Object.assign(SAVE, data.save);
@@ -201,20 +290,22 @@ function boot(data) {
   // 내 Claude 계정 저장소에 연결되면 다른 기기에서 만든 단어장도 목록에 보임
   DeckStore.onChange(() => { if ($('#ov .decklist')) openDecks(); });
   DeckStore.connect();
+  swRegister();
   setTimeout(() => checkNewBuild(true), 3000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkNewBuild(false); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!$('#play').hidden && M.queue.length) fitWords(); });
 }
 // 새 판 알림: 휴대폰에 옛 판이 열려 있으면(탭을 닫지 않았거나 브라우저가 기억해 둔 판) 띠를 보여 주고, 누르면 새로 고쳐요.
 // 사이트 파일 속 지문("sum")을 이 판의 지문(잠금 페이지가 남긴 WG_BUILD)과 견줘요. 열 때와 화면으로 돌아올 때(10분에 한 번까지)
+// 인터넷이 없으면 하지 않아요. 사이트 파일만 받아 보고, 이 기기의 단어·기록·열쇠는 아무것도 보내지 않아요
 let buildCheckedAt = 0;
 async function checkNewBuild(force) {
   const cur = window.WG_BUILD;
-  if (!cur || !/^https?:$/.test(location.protocol) || $('#newbuild')) return false;
+  if (!cur || !/^https?:$/.test(location.protocol) || $('#newbuild') || navigator.onLine === false) return false;
   if (!force && Date.now() - buildCheckedAt < 10 * 60 * 1000) return false;
   buildCheckedAt = Date.now();
   try {
-    const r = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+    const r = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
     const m = (await r.text()).match(/"sum":"([0-9a-f]{12})/);
     if (!m || m[1] === cur) return false;
   } catch (e) { return false; }

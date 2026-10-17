@@ -1,4 +1,4 @@
-// 휴대폰 안 이야기 AI(Gemma)와 뜻 그림: 가짜 AI 엔진으로 문장 바꾸기·검사·되돌리기, 그림 꼴 고르기
+// 휴대폰 안 이야기 AI(Gemma 4)와 뜻 그림: 가짜 AI 엔진으로 문장 바꾸기·검사·되돌리기, 그림 꼴 고르기
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { bootPage } = require('./page.cjs');
@@ -85,7 +85,7 @@ const FAKE = `{ calls: 0, prompts: [], interruptGenerate() {}, chat: { completio
 } } } }`;
 
 test('AI story: lines with the meaning replace the app lines, copied lines stay; the deck says the AI wrote it', async () => {
-  const p = bootPage({ 'wg-ai-ready': 'gemma3-1b-it-q4f16_1-MLC' });
+  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
   try {
     const r = p.json(`(() => {
       const rows = ${rowsObj};
@@ -103,6 +103,8 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     // 요청 글에는 앱 이야기 전체(앞부분·다짐·끝맺음)가 들어가고, 단어 줄에만 번호
     for (const l of r.before) assert.ok(prompt.includes(l.replace(/\{[^|}]+\|([^}]+)\}/g, '$1')), l);
     assert.equal((prompt.match(/^\d+\. \[/gm) || []).length, 4);
+    // 읽는 사람은 어린이·청소년: 다정하고 깨끗하게
+    assert.match(prompt, /어린이와 청소년/); assert.match(prompt, /싸움·다치는 일·연애·무서운 말·거친 말은 쓰지 마/);
     const wordLines = res.lines.filter(l => /\{[^|}]+\|/.test(l));
     assert.equal(wordLines.length, 4);
     assert.equal(wordLines.filter(l => /깜짝 놀라/.test(l)).length, 2);
@@ -115,7 +117,7 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     const made = p.json('({ step: MK.step, err: MK.err, note: MK.aiNote, calls: AI.engine.calls, scenes: MK.deck.scenes.length, log: MK.log.map(l => l.text) })');
     assert.equal(made.step, 'done', made.err);
     assert.equal(made.calls, made.scenes);
-    assert.match(made.note, /이야기 AI\(Gemma\)가 단어 문장 \d+줄 가운데 [1-9]\d*줄을 다듬었어요/);
+    assert.match(made.note, /이야기 AI\(Gemma 4\)가 단어 문장 \d+줄 가운데 [1-9]\d*줄을 다듬었어요/);
     assert.ok(made.log.some(t => /이야기 AI 준비 완료/.test(t)), made.log.join('\n'));
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
@@ -145,7 +147,9 @@ test('AI loading: a worker that cannot start ends the wait, and the next deck tr
     // 모델 설정의 두 창 크기가 부딪치지 않게 (WindowSizeConfigurationError)
     const ov = p.json('__cfg.appConfig.model_list[0].overrides');
     assert.equal(ov.sliding_window_size, -1);
-    assert.ok(ov.context_window_size > 0 && ov.context_window_size <= 4096);
+    assert.equal(ov.context_window_size, 4096);
+    assert.equal(ov.attention_sink_size, -1);
+    assert.equal(p.json('__cfg.appConfig.model_list[0].model_id'), 'gemma-4-E2B-it-q4f16_1-MLC');
     p.run(`MK.rows = ${JSON.stringify(ROWS)};`);
     await p.run('mkMake()');
     assert.equal(p.json('__workers.length'), 2);
@@ -208,7 +212,18 @@ test('AI loading: too little browser storage is found before downloading, and pe
     await p.run('aiLoad(() => {}).catch(() => 0)');
     assert.equal(p.json('__workers.length'), 0);
     assert.equal(p.json('__persist'), 1);
-    assert.match(p.json('AI.err.text'), /브라우저 저장 공간이 모자라요 \(이 사이트가 쓸 수 있는 공간 약 300MB, 필요 약 820MB\)/);
+    assert.match(p.json('AI.err.text'), /브라우저 저장 공간이 모자라요 \(이 사이트가 쓸 수 있는 공간 약 300MB, 필요 약 3400MB\)/);
+  } finally { p.close(); }
+});
+
+test('AI loading: a phone that kept the old story AI (Gemma 3 1B) frees that space before getting Gemma 4', async () => {
+  const p = bootPage({ 'wg-ai-ready': 'gemma3-1b-it-q4f16_1-MLC' });
+  try {
+    p.run(PLAN_LIB([{ ok: true }]));
+    p.run('window.__del = []; AI.lib.deleteModelAllInfoInCache = async id => { __del.push(id); }');
+    assert.equal(await p.run('aiLoad(() => {}).then(e => !!e)'), true);
+    assert.deepEqual(p.json('__del'), ['gemma3-1b-it-q4f16_1-MLC']);
+    assert.equal(p.window.localStorage.getItem('wg-ai-ready'), 'gemma-4-E2B-it-q4f16_1-MLC');
   } finally { p.close(); }
 });
 
@@ -216,16 +231,19 @@ test('make screen: the story AI can be downloaded before making a deck, and a fa
   const p = bootPage();
   try {
     p.run(PLAN_LIB([{ at: 0.3, name: 'QuotaExceededError', err: 'The quota has been exceeded.' }, { ok: true }]));
+    // 사진 읽기·목소리 파일은 받아지는 휴대폰 (서비스 워커가 맡은 페이지)
+    p.run(`Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { controller: {} } }); window.fetch = async () => ({ ok: true, text: async () => '', arrayBuffer: async () => new ArrayBuffer(4) });`);
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.step = 'review'; MK.aiWhy = ''; showScreen('make'); renderMake();`);
     const box = () => p.document.getElementById('mkai');
-    assert.match(box().textContent, /쓸 수 있어요.*지금 AI 받아 두기/);
+    assert.match(box().textContent, /쓸 수 있어요.*인터넷 없이 쓰게 준비하기/);
     box().querySelector('[data-mk="aidl"]').click();
     await new Promise(r => setTimeout(r, 40));
-    assert.match(box().textContent, /받지 못했어요.*받는 중\(30%\)에 멈췄어요\. 브라우저 저장 공간이 모자라요.*QuotaExceededError|The quota/);
+    assert.match(box().textContent, /다 받지 못했어요.*받는 중\(30%\)에 멈췄어요\. 브라우저 저장 공간이 모자라요.*QuotaExceededError|The quota/);
+    assert.match(box().textContent, /사진 읽기·목소리 파일도 이 기기에 받아 두었어요/);
     assert.ok(box().querySelector('[data-mk="aidl"]'), '다시 받기 단추');
     box().querySelector('[data-mk="aidl"]').click();
     await new Promise(r => setTimeout(r, 40));
-    assert.match(box().textContent, /받아 두었어요/);
+    assert.match(box().textContent, /인터넷 없이 쓸 준비가 됐어요.*받아 두었어요/);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
@@ -264,7 +282,7 @@ test('deck list: a made deck can get new stories and pictures, keeping its words
 });
 
 test('AI story: an error while the AI writes is shown on the finished screen with its text', async () => {
-  const p = bootPage({ 'wg-ai-ready': 'gemma3-1b-it-q4f16_1-MLC' });
+  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
   try {
     p.run(`AI.gpu = true; AI.engine = { chat: { completions: { create: async () => { throw new Error('Prompt tokens exceed context window size'); } } } };`);
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
@@ -318,6 +336,68 @@ test('AI story: in an app browser such as KakaoTalk, the make screen says to ope
     Object.defineProperty(p.window.navigator, 'userAgent', { value: 'Mozilla/5.0 (Linux; Android 14; SM-S921N; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0 Mobile Safari/537.36 KAKAOTALK/10.9.0', configurable: true });
     const why = await p.run('aiWhyNot()');
     assert.match(why, /카카오톡 안에서 열린 화면.*다른 브라우저로 열기.*크롬/);
+  } finally { p.close(); }
+});
+
+test('AI check: low phone memory, a small GPU buffer limit and missing f16 each give a plain reason', async () => {
+  const p = bootPage();
+  try {
+    const nav = p.window.navigator;
+    const gpu = (f16, buf) => Object.defineProperty(nav, 'gpu', { configurable: true, value: { requestAdapter: async () => ({ features: new Set(f16 ? ['shader-f16'] : []), limits: { maxStorageBufferBindingSize: buf } }) } });
+    const why = async () => { p.run('AI.gpu = null; AI.gpuWhy = ""'); return p.run('aiWhyNot()'); };
+    // 메모리(RAM)가 4GB보다 작으면 그래픽 칩을 보기 전에 안 된다고 해요
+    gpu(true, 2 ** 30);
+    Object.defineProperty(nav, 'deviceMemory', { configurable: true, value: 2 });
+    assert.match(await why(), /메모리\(RAM\)가 작아서\(약 2GB\) 이야기 AI를 돌릴 수 없어요.*게임은 앱이 쓴 문장으로 그대로 할 수 있어요/);
+    assert.equal(p.json('AI.gpu'), false);
+    Object.defineProperty(nav, 'deviceMemory', { configurable: true, value: 8 });
+    // 그래픽 칩 버퍼 한도: 기본 128MB는 모자라요 (모델 기록이 없으면 192MB 필요)
+    gpu(true, 134217728);
+    assert.match(await why(), /한 번에 다룰 수 있는 크기가 작아요\(약 128MB, 이야기 AI는 약 192MB 필요\)/);
+    // 모델 기록이 있으면 그 값으로
+    p.run('AI.lib = { prebuiltAppConfig: { model_list: [{ model_id: AI_MODEL, buffer_size_required_bytes: 262144000 }] } }');
+    gpu(true, 201326592);
+    assert.match(await why(), /약 192MB, 이야기 AI는 약 250MB 필요/);
+    p.run('AI.lib = null');
+    gpu(false, 2 ** 30);
+    assert.match(await why(), /16비트 계산/);
+    gpu(true, 2 ** 30);
+    assert.equal(await why(), '');
+    assert.equal(p.json('AI.gpu'), true);
+  } finally { p.close(); }
+});
+
+test('AI answer: thinking blocks are removed before reading the numbered lines', () => {
+  const p = bootPage();
+  try {
+    const t = p.json(`[
+      '<think>1. 먼저 무엇을 쓸지 생각해요.</think>\\n1. 레오는 망원경을 빌렸어요.',
+      '<|channel>thought\\n1. 생각하는 줄이에요.<channel|>1. 레오는 망원경을 빌렸어요.',
+      '1. 생각만 남은 줄이에요.\\n</thought>\\n1. 레오는 망원경을 빌렸어요.',
+      '1. 레오는 망원경을 빌렸어요.\\n<think>2. 끝나지 않은 생각',
+      '1. 레오는 망원경을 빌렸어요.<end_of_turn>'
+    ].map(aiNoThink)`);
+    for (const x of t) assert.equal(x, '1. 레오는 망원경을 빌렸어요.');
+    assert.deepEqual(p.json(`aiParse(aiNoThink('<thought>1. 공주를 먼저 써야지.\\n2. 다음 줄도.</thought>1. 레오는 망원경을 빌렸어요.\\n2. 공주는 레오를 격려했어요.'), 2)`), [['레오는 망원경을 빌렸어요.'], ['공주는 레오를 격려했어요.']]);
+  } finally { p.close(); }
+});
+
+test('AI lines for children: rude, drug, gory or hateful lines fall back to the app line, with the reason', async () => {
+  const p = bootPage();
+  try {
+    assert.deepEqual(p.json(`['레오는 마약을 빌렸어요.', '레오는 피범벅이 된 망원경을 빌렸어요.', '새끼 고양이가 망원경을 빌렸어요.', '촛불이 꺼져서 레오는 망원경을 빌렸어요.', '레오는 망원경을 빌렸어요.'].map(aiLineWhy)`),
+      ['어린이에게 맞지 않는 말', '어린이에게 맞지 않는 말', '', '', '']);
+    // 가짜 AI: 첫 줄은 맞지 않는 말, 둘째 줄은 괜찮은 말
+    p.run(`AI.engine = { interruptGenerate() {}, chat: { completions: { create: async req => {
+      const list = req.messages[0].content.split('\\n').map(l => l.match(/^(\\d+)\\. \\[([^\\]]+)\\] (.+)$/)).filter(Boolean);
+      return { choices: [{ message: { content: list.map((m, i) => m[1] + '. ' + (i === 0 ? '모두가 마약 이야기를 하며 ' : '그러자 모두가 깜짝 놀라 ') + m[2].replace(/^~\\S*\\s/, '') + ' 일을 떠올렸어요.').join('\\n') } }] };
+    } } } };`);
+    await p.run(`(async () => { const rows = ${rowsObj}; const res = mkStory(['borrow', 'encourage'], rows, 0); window.__before = res.lines.slice(); window.__n = await aiRewrite(AI.engine, res, rows, 0, null); window.__res = res; })()`);
+    assert.equal(p.json('window.__n'), 1);
+    const why = p.json('AI.diag[AI.diag.length - 1].why');
+    assert.match(why[0], /: 어린이에게 맞지 않는 말$/);
+    assert.match(why[1], /: 씀$/);
+    assert.ok(!p.json('window.__res.lines.join(" ")').includes('마약'));
   } finally { p.close(); }
 });
 

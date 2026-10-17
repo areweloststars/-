@@ -34,6 +34,17 @@ npm test                             # 빌드가 최신인지 + 회귀 테스트
 | `app/tests/` | jsdom 회귀 테스트 |
 | `word-game/ocr/` | 글자 인식(Tesseract.js)과 영어·한국어 단어 목록 |
 | `word-game/tts/` | 영어 발음용 음성 엔진(Piper·eSpeak NG). 라이선스는 `word-game/tts/NOTICE.txt` |
+| `word-game/llm/` | 휴대폰 안 이야기 AI를 돌리는 WebLLM. 모델(Gemma 4 E2B, Apache 2.0)은 저장소에 없고 처음 한 번 휴대폰이 받아요: `word-game/llm/NOTICE.txt` |
+| `word-game/fonts/` | 게임 글꼴(@fontsource, OFL). 글꼴 서버에 연결하지 않아요: `word-game/fonts/README.md` |
+| `word-game/manifest.webmanifest`, `word-game/icons/` | 홈 화면에 설치하는 웹 앱 정보와 아이콘 (`icon.svg`가 원본) |
+| `word-game/sw.js` | 서비스 워커: 한 번 열어 두면 인터넷 없이도 게임이 열려요 |
+
+### 인터넷 없이 쓰기
+
+- 게임은 이 사이트의 파일만 불러요(글꼴도 `word-game/fonts/`). 다른 곳에 연결하는 것은 이야기 AI 모델을 처음 한 번 받을 때(Hugging Face·GitHub)뿐이고, WebLLM이 받은 모델을 브라우저에 저장해요.
+- `word-game/sw.js`가 페이지는 인터넷 먼저(안 되면 저장해 둔 판), 이 폴더의 파일은 저장해 둔 것 먼저 써요. 다른 사이트로 가는 요청은 건드리지 않아요.
+- 만들기 화면의 **인터넷 없이 쓰게 준비하기**: 사진 읽기·목소리·글꼴 파일(약 52MB)과 이야기 AI(약 3GB)를 한 번에 받아 둬요.
+- `word-game/` 안의 파일(`index.html` 말고)을 바꾸면 `word-game/sw.js`의 `VERSION`을 바꿔요. `npm test`가 새 값을 알려 줘요.
 
 ## 스크립트 모듈
 
@@ -48,14 +59,15 @@ npm test                             # 빌드가 최신인지 + 회귀 테스트
 | `07-ocr.js` | 사진 속 단어 읽기(이 기기 안에서), 줄·칸 맞추기, 사전으로 고치기. 어두운 바탕(다크 모드 앱 화면)은 밝기를 뒤집어 읽고, 두 줄로 나뉜 단어·뜻은 이어 붙여요. 사전식 쪽(큰 표제어 + 오른쪽 뜻)은 기운 글줄을 바로잡아 표제어·뜻을 크기를 바꿔 여러 번 읽고, 모양이 비슷한 한글을 낱말 목록으로 바로잡은 뒤 다수결. 단어장 쪽(낱말 줄 아래 그 낱말로 시작하는 예문)은 단이 둘이어도, 한 줄에 낱말이 둘이어도, 휘어 찍혀도 낱말 줄을 찾아 뜻만 읽어요 |
 | `08-korean.js` | 한국어 조사·활용(불규칙 포함), 뜻의 품사 짐작 |
 | `08-story-gen.js` | 단어 뜻으로 그림 고르기, 이야기 자동 만들기 (뜻 갈래별 장면 문장 + 품사별 기본 문장) |
-| `09-picture-editor.js` | 그림 꾸미기 |
+| `09-story-ai.js` | 휴대폰 안 이야기 AI(Gemma 4 E2B, WebLLM): 기기 확인, 받기, 문장 고쳐 쓰기·검사(어린이에게 맞지 않는 말 거르기) |
+| `09-story-pics.js` | 뜻 그림: 단어 뜻이 한눈에 보이는 그림 칸 |
 | `10-make-deck.js` | 정답 묶음 만들기, 에피소드 만들기, 저장 |
 | `11-app-core.js` | 저장 기록, 난이도, 공용 아이콘 |
 | `12-voice.js` | 효과음, 기기 음성(한국어·영어)·영어 생성 음성(Piper)·eSpeak(영어 마지막 수단) 읽기, 앱 안 화면 안내 |
 | `13-zoom-panel.js` | 확대되는 그림 패널 |
 | `14-screens.js` | 홈·스토리 화면 |
 | `15-mission.js` | 뜻 입력 미션·보스·복습 |
-| `16-events-boot.js` | 이벤트 연결, 시작 |
+| `16-events-boot.js` | 이벤트 연결, 시작, 서비스 워커 등록, 인터넷 없이 쓸 파일 받아 두기 |
 
 사용자 기록은 브라우저 `localStorage`에만 저장돼요 (`day02-voca-mission-v1`: 진행 기록, `voca-decks-v1`: 만든 단어장). 키 이름은 예전 기록을 잃지 않도록 그대로 둬요.
 

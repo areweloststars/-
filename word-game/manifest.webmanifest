@@ -1,0 +1,18 @@
+{
+  "name": "그림 스토리 단어 미션",
+  "short_name": "단어 미션",
+  "description": "그림 이야기로 영어 단어를 익히는 게임이에요. 한 번 열어 두면 인터넷 없이도 열려요.",
+  "lang": "ko",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ECEFF8",
+  "theme_color": "#ECEFF8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
