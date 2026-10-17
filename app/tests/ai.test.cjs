@@ -248,6 +248,64 @@ test('make screen: the story AI can be downloaded before making a deck, and a fa
   } finally { p.close(); }
 });
 
+test('mobile data: making a deck does not start the 3GB AI download, and says to use the get-ready button on Wi-Fi', async () => {
+  const p = bootPage();
+  try {
+    const conn = c => Object.defineProperty(p.window.navigator, 'connection', { configurable: true, value: c });
+    for (const c of [{ type: 'cellular' }, { type: 'wifi', saveData: true }]) {
+      conn(c);
+      p.run(PLAN_LIB([{ ok: true }]));
+      p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+      await p.run('mkMake()');
+      const a = p.json('({ step: MK.step, note: MK.aiNote, log: MK.log.map(l => l.text), n: __workers.length })');
+      assert.equal(a.step, 'done');
+      assert.equal(a.n, 0, '받기를 시작하지 않아요');
+      assert.match(a.note, /모바일 데이터로 연결돼 있어서 이야기 AI\(약 3GB\)는 받지 않았어요.*기본 문장.*와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추/);
+      assert.ok(a.log.some(t => /모바일 데이터라서 이야기 AI\(약 3GB\)는 받지 않고/.test(t)), a.log.join('\n'));
+    }
+    // 와이파이·유선이거나 종류를 모르면 지금처럼 받아요
+    for (const c of [{ type: 'wifi' }, { type: 'ethernet', saveData: false }, { type: 'unknown' }, undefined]) {
+      conn(c);
+      p.run('aiDrop(); localStorage.removeItem("wg-ai-ready")');
+      p.run(PLAN_LIB([{ ok: true }]));
+      p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+      await p.run('mkMake()');
+      assert.equal(p.json('__workers.length'), 1, JSON.stringify(c));
+      assert.doesNotMatch(p.json('MK.aiNote'), /모바일 데이터/);
+    }
+    // 이미 받아 둔 AI는 모바일 데이터여도 써요 (더 받지 않아요)
+    conn({ type: 'cellular' });
+    p.run('aiDrop()');
+    p.run(PLAN_LIB([{ ok: true }]));
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    await p.run('mkMake()');
+    assert.equal(p.json('__workers.length'), 1);
+  } finally { p.close(); }
+});
+
+test('mobile data: the get-ready button asks once more in the page (about 3GB, use Wi-Fi), then downloads', async () => {
+  const p = bootPage();
+  try {
+    Object.defineProperty(p.window.navigator, 'connection', { configurable: true, value: { type: 'cellular' } });
+    p.run(PLAN_LIB([{ ok: true }]));
+    p.run(`Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { controller: {} } }); window.fetch = async () => ({ ok: true, text: async () => '', arrayBuffer: async () => new ArrayBuffer(4) }); window.confirm = () => { throw new Error('no confirm()'); };`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.step = 'review'; MK.aiWhy = ''; MK.offline = 'no'; showScreen('make'); renderMake();`);
+    const box = () => p.document.getElementById('mkai');
+    assert.match(box().textContent, /지금은 모바일 데이터로 연결돼 있어요/);
+    const btn = box().querySelector('[data-mk="aidl"]');
+    btn.click();
+    await new Promise(r => setTimeout(r, 20));
+    assert.equal(p.json('__workers.length'), 0, '첫 번째 누름에는 받지 않아요');
+    assert.equal(p.json('MK.aiDl || null'), null);
+    assert.match(btn.textContent, /모바일 데이터로 연결돼 있어요\. 이야기 AI는 약 3GB라서 와이파이에서 받는 게 좋아요.*한 번 더 눌러요/);
+    btn.click();
+    await new Promise(r => setTimeout(r, 40));
+    assert.equal(p.json('__workers.length'), 1);
+    assert.match(box().textContent, /인터넷 없이 쓸 준비가 됐어요/);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
 test('deck list: a made deck can get new stories and pictures, keeping its words, episodes, id and progress key', async () => {
   const p = bootPage();
   try {

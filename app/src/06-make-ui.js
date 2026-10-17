@@ -101,7 +101,8 @@ function mkReviewHTML() {
 }
 // 인터넷 없이 쓰게 준비하기 (사진 고르기·확인 화면에 보여 줘요)
 // 1) 이야기 AI를 이 브라우저에서 쓸 수 있는지. 못 쓰면 까닭과 크롬으로 여는 방법
-// 2) 사진 읽기·목소리·글꼴 파일(약 52MB)과 이야기 AI(약 3GB)를 한 번에 받아 두는 단추 (진행률·실패 까닭·다시 받기)
+// 2) 사진 읽기·목소리·글꼴·AI 실행 파일(약 58MB)과 이야기 AI(약 3GB)를 한 번에 받아 두는 단추 (진행률·실패 까닭·다시 받기)
+//    모바일 데이터면 이야기 AI를 받기 전에 한 번 더 묻는 단추가 돼요 (confirmTap)
 //    다 받으면 그다음부터는 인터넷 없이(비행기 모드에서도) 사진을 읽고 이야기를 써요
 function mkAiHTML() {
   if (MK.aiWhy === undefined) {
@@ -120,11 +121,11 @@ function mkAiHTML() {
       : `<b>✓ 이 기기에서 이야기 AI(Gemma 4)를 쓸 수 있어요.</b> 처음 한 번 AI(${AI_SIZE})를 받아요.`;
   const filePart = MK.offline === 'ok' ? (ai ? '✓ 사진 읽기·목소리 파일도 이 기기에 받아 두었어요.' : '✓ 사진 읽기·목소리 파일은 이 기기에 받아 두었어요. 인터넷 없이도 단어장을 만들고 게임을 해요.')
     : MK.offline === 'nosw' ? '이 브라우저는 게임 파일을 저장해 두지 못해서 인터넷 없이는 열리지 않아요. 크롬이나 삼성 인터넷으로 열어 주세요.'
-      : `사진 읽기·목소리 파일(약 ${offlineMB()}MB)${ai ? '도' : '을'} 받아 두면 인터넷 없이 써요.`;
+      : `게임 파일(사진 읽기·목소리 등, 약 ${offlineMB()}MB)${ai ? '도' : '을'} 받아 두면 인터넷 없이 써요.`;
   let act = '';
   if (dl.state === 'run') act = `<b>인터넷 없이 쓰게 준비하는 중</b><br>${esc(dl.text || '')}<div class="ocrbar" aria-hidden="true"><i style="width:${Math.round((dl.p || 0) * 100)}%"></i></div><button type="button" class="linkbtn" data-mk="aidlstop">그만 받기</button>`;
   else if (dl.state === 'fail') act = `<b>⚠ 다 받지 못했어요.</b> ${esc(dl.text || '')}<br><button type="button" class="btn" data-mk="aidl">다시 받기</button>`;
-  else if (!done) act = `<b>와이파이</b>에서 화면을 켜 둔 채로 받아 주세요. 한 번만 받으면 그다음부터는 인터넷 없이(비행기 모드에서도) 써요.<br><button type="button" class="btn" data-mk="aidl">인터넷 없이 쓰게 준비하기</button>${ai && !aiReady ? ' <small>(안 받아 두면 ‘게임 만들기’를 누를 때 이야기 AI만 받아요)</small>' : ''}`;
+  else if (!done) act = `${ai && !aiReady && aiMobileData() ? '<b>지금은 모바일 데이터로 연결돼 있어요.</b> ' : ''}<b>와이파이</b>에서 화면을 켜 둔 채로 받아 주세요. 한 번만 받으면 그다음부터는 인터넷 없이(비행기 모드에서도) 써요.<br><button type="button" class="btn" data-mk="aidl">인터넷 없이 쓰게 준비하기</button>${ai && !aiReady ? ' <small>(안 받아 두면 ‘게임 만들기’를 누를 때 이야기 AI만 받아요)</small>' : ''}`;
   const head = ai && done && MK.offline === 'ok' && dl.state !== 'fail' ? '<b>✓ 인터넷 없이 쓸 준비가 됐어요.</b><br>' : '';
   return `<div class="mknote mkai ${ai && dl.state !== 'fail' ? 'ok' : 'bad'}" id="mkai">${head}${aiPart}<br>${filePart}${act ? `<br>${act}` : ''}</div>`;
 }
@@ -136,7 +137,7 @@ function mkAiProgText(p, t, lab) {
   const pct = Math.floor(clamp(p, 0, 1) * 100);
   return step ? `이야기 AI 준비 중 · ${step} ${pct}%` : `${lab} ${pct}%`;
 }
-// 단어장 없이 먼저 받아 두기: 사진 읽기·목소리·글꼴 파일 → 이야기 AI(이 기기에서 돌릴 수 있을 때만)
+// 단어장 없이 먼저 받아 두기: 사진 읽기·목소리·글꼴·AI 실행 파일 → 이야기 AI(이 기기에서 돌릴 수 있을 때만)
 // 하나가 안 받아져도 다른 것은 받아요. 못 받은 것과 까닭을 모아 보여 줘요
 async function mkAiPrefetch() {
   if (MK.aiDl && MK.aiDl.state === 'run') return;
@@ -149,8 +150,8 @@ async function mkAiPrefetch() {
   put({ state: 'run', text: '받기 준비 중', p: 0 });
   try {
     if (MK.offline !== 'ok') {
-      const r = await offlinePrep(p => step(p, `사진 읽기·목소리 파일 받는 중 ${Math.floor(clamp(p, 0, 1) * 100)}%`), ctl.signal);
-      if (r.bad.length) errs.push(`사진 읽기·목소리 파일 ${r.bad.length}개를 받지 못했어요. 인터넷 연결을 확인하고 다시 받아 주세요.`);
+      const r = await offlinePrep(p => step(p, `게임 파일 받는 중 ${Math.floor(clamp(p, 0, 1) * 100)}%`), ctl.signal);
+      if (r.bad.length) errs.push(`게임 파일 ${r.bad.length}개를 받지 못했어요. 인터넷 연결을 확인하고 다시 받아 주세요.`);
       else MK.offline = r.stored ? 'ok' : 'nosw';
     }
     if (!MK.aiWhy) {

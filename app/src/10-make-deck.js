@@ -171,12 +171,18 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
     }
     if (!eps.length) eps = mkChunk(rows0.map(r => r.en)).map((ws, i) => ({ title: `단어 미션 ${i + 1}`, theme: '', words: ws }));
     // 휴대폰 안 이야기 AI(Gemma 4) 준비: 처음이면 한 번 내려받아요. 못 돌리는 기기나 실패면 앱이 만든 문장 그대로
-    let ai = null, aiMsg = '';
+    // 아직 안 받았는데 모바일 데이터(데이터 절약 모드)면 3GB를 저절로 받지 않고 앱 문장으로 만들어요
+    let ai = null, aiMsg = '', aiData = false;
     if (!(MK.useAI && mkCanAI())) {
       if (await aiGpuOk()) {
         if (ctl.signal.aborted) throw { code: 'cancelled' };
-        ai = await mkAiReady(ctl, null);
-        if (!ai) aiMsg = (AI.err && AI.err.text) || '이야기 AI를 내려받거나 준비하지 못했어요.';
+        if (aiNeedsDownload() && aiMobileData()) {
+          aiData = true;
+          mkLogSet(mkLog('이야기 AI 확인'), 'warn', `모바일 데이터라서 이야기 AI(${AI_SIZE})는 받지 않고 기본 문장으로 만들어요`);
+        } else {
+          ai = await mkAiReady(ctl, null);
+          if (!ai) aiMsg = (AI.err && AI.err.text) || '이야기 AI를 내려받거나 준비하지 못했어요.';
+        }
       } else {
         aiMsg = (await aiWhyNot()) || '이 기기(브라우저)에서는 이야기 AI를 돌릴 수 없어요.';
         mkLogSet(mkLog('이야기 AI 확인'), 'warn', '이야기 AI를 쓸 수 없어서 기본 문장으로 만들어요');
@@ -249,7 +255,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     const saved = await DeckStore.put(deck);
     // 이야기 AI가 몇 줄을 썼는지, 못 썼으면 왜 그런지 크게 알려 줘요
     const wordN = deck.scenes.reduce((a, sc) => a + sc.words.length, 0);
-    MK.aiNote = MK.useAI ? '' : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : ai ? (aiLines ? `이야기 AI(Gemma 4)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : aiErrs.length ? `이야기 AI가 문장을 쓰다가 오류가 났어요 (오류: ${aiErrs[0].slice(0, 160)}). 이번 이야기는 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’에서 까닭을 볼 수 있어요.') : '';
+    MK.aiNote = MK.useAI ? '' : aiData ? `모바일 데이터로 연결돼 있어서 이야기 AI(${AI_SIZE})는 받지 않았어요. 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 한 번 받아 두세요.` : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : ai ? (aiLines ? `이야기 AI(Gemma 4)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : aiErrs.length ? `이야기 AI가 문장을 쓰다가 오류가 났어요 (오류: ${aiErrs[0].slice(0, 160)}). 이번 이야기는 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’에서 까닭을 볼 수 있어요.') : '';
     MK.aiDiag = ai ? (AI.diag || []).slice() : null;
     MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
@@ -309,7 +315,11 @@ function bindMake() {
     else if (a === 'rmrow') { MK.rows.splice(+b.dataset.i, 1); renderMake(); }
     else if (a === 'addrow') { MK.rows.push({ en: '', ko: '', pos: 'x' }); renderMake(); const ins = document.querySelectorAll('#make .mken'); if (ins.length) ins[ins.length - 1].focus(); }
     else if (a === 'make' || a === 'makeai') { const nm = $('#mkname'); if (nm) MK.name = nm.value; MK.useAI = a === 'makeai'; mkMake(); }
-    else if (a === 'aidl') mkAiPrefetch();
+    else if (a === 'aidl') {
+      // 모바일 데이터면 한 번 더 눌러야 받아요 (이야기 AI 약 3GB)
+      if (!MK.aiWhy && aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 이야기 AI는 ${AI_SIZE}라서 와이파이에서 받는 게 좋아요.</small><br>그래도 받으려면 한 번 더 눌러요`)) return;
+      mkAiPrefetch();
+    }
     else if (a === 'aidlstop') { if (MK.aiDlCtl) MK.aiDlCtl.abort(); }
     else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.note = ''; MK.redo = null; renderMake(); }
     else if (a === 'play') { const d = MK.deck; MK.step = 'pick'; MK.deck = null; if (d) switchDeck(d.id); goHome(); }

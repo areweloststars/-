@@ -214,9 +214,11 @@ function swControl(ms) {
     sw.addEventListener('controllerchange', () => { clearTimeout(t); ok(true); }, { once: true });
   });
 }
-// 인터넷 없이 쓰려고 미리 받아 둘 파일: 사진 읽기(OCR)와 목소리(TTS). [경로, 바이트] (app/tests/offline.test.cjs가 실제 파일과 맞는지 봐요)
+// 인터넷 없이 쓰려고 미리 받아 둘 파일: 사진 읽기(OCR), 목소리(TTS), 이야기 AI를 돌리는 WebLLM(llm/). [경로, 바이트]
+// (app/tests/offline.test.cjs가 실제 파일과 맞는지 봐요. llm/은 처음 열 때 받지 않으려고 sw.js가 미리 저장하지 않아요)
 // 글꼴 조각은 fonts/fonts.css에 적힌 것을 모두 받아요. 이야기 AI 모델은 WebLLM이 따로 받아 저장해요
 const OFFLINE_FILES = [
+  ['llm/web-llm.js', 6817339], ['llm/worker.js', 267],
   ['ocr/tesseract.min.js', 66695], ['ocr/worker.min.js', 123724], ['ocr/tesseract-core-lstm.wasm.js', 3938277],
   ['ocr/eng-traineddata.wasm', 2952873], ['ocr/kor-traineddata.wasm', 1572336], ['ocr/words-en.txt', 1139787], ['ocr/ko-lex.txt', 1900788],
   ['tts/voices.json', 1582], ['tts/espeak-ng.js', 178386], ['tts/espeak-ng-gz.wasm', 9137545], ['tts/ort.wasm.min.js', 49026],
@@ -317,7 +319,8 @@ async function checkNewBuild(force) {
   return true;
 }
 // 만드는 중이면 한 번 더 눌러야 새로 고쳐요 (만들던 단어장이 사라지니까)
-function confirmTap(el) { if (el.dataset.armed) return true; el.dataset.armed = '1'; el.innerHTML = '<b>단어장을 만드는 중이에요</b> · 한 번 더 누르면 멈추고 새로 고쳐요'; return false; }
+// html: 처음 눌렀을 때 단추에 보일 글 (한 번 더 누르면 true)
+function confirmTap(el, html = '<b>단어장을 만드는 중이에요</b> · 한 번 더 누르면 멈추고 새로 고쳐요') { if (el.dataset.armed) return true; el.dataset.armed = '1'; el.innerHTML = html; return false; }
 const buildLabel = () => window.WG_BUILD ? `판 ${String(window.WG_BUILD).slice(0, 7)}` : '';
 const HOT = window.claude && window.claude.hot;
 try { if (HOT && HOT.snapshot) HOT.snapshot(() => ({ save: SAVE })); } catch (e) { }

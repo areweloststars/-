@@ -45,6 +45,11 @@ async function aiWhyNot() {
 }
 // 전에 모델을 다 받아 둔 적이 있는지 (처음 안내 문구에만 써요)
 const aiReadyBefore = () => { try { return localStorage.getItem('wg-ai-ready') === AI_MODEL; } catch (e) { return false; } };
+// 모바일 데이터(또는 데이터 절약 모드)로 연결돼 있는지: 학생 요금제를 지키려고 3GB 모델은 이때 저절로 받지 않아요.
+// 연결 정보(navigator.connection)가 없거나 종류를 모르면(와이파이·유선 포함) false
+const aiMobileData = () => { try { const c = navigator.connection; return !!(c && (c.type === 'cellular' || c.saveData === true)); } catch (e) { return false; } };
+// 이야기 AI를 쓰려면 아직 받아야 하는지 (지금 올라와 있지도, 전에 다 받아 두지도 않았어요)
+const aiNeedsDownload = () => !AI.engine && !aiReadyBefore();
 // AI 일꾼을 멈추고 처음 상태로 (준비 실패·그만두기·GPU를 잃었을 때)
 function aiDrop() {
   const w = AI.worker;

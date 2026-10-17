@@ -67,13 +67,14 @@ test('the game loads no third-party files: fonts come from fonts/fonts.css next 
 });
 
 test('offline files: the list matches the OCR and voice files, and getting ready fetches them all with progress', async () => {
-  const want = ['ocr', 'tts'].flatMap(d => walk(d)).filter(f => !/LICENSE|NOTICE|COPYRIGHT/.test(f)).sort();
+  const want = ['llm', 'ocr', 'tts'].flatMap(d => walk(d)).filter(f => !/LICENSE|NOTICE|COPYRIGHT/.test(f)).sort();
+  assert.ok(want.includes('llm/web-llm.js') && want.includes('llm/worker.js'));
   const p = bootPage();
   try {
     const list = p.json('OFFLINE_FILES');
     assert.deepEqual(list.map(f => f[0]).sort(), want);
     for (const [f, n] of list) assert.equal(n, fs.statSync(path.join(GAME, f)).size, f);
-    assert.ok(p.json('offlineMB()') >= 45 && p.json('offlineMB()') <= 60);
+    assert.ok(p.json('offlineMB()') >= 50 && p.json('offlineMB()') <= 65);
     // 서비스 워커가 맡은 페이지처럼: 파일마다 한 번씩 받고, 진행률은 0 → 1
     p.run(`window.__got = []; window.__prog = [];
       Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { controller: {} } });
@@ -106,7 +107,7 @@ test('make screen: one button gets the files and the story AI ready for offline 
       AI.gpu = true; MK.step = 'pick'; MK.aiWhy = ''; showScreen('make'); renderMake();`);
     const box = () => p.document.getElementById('mkai');
     await new Promise(r => setTimeout(r, 10));
-    assert.match(box().textContent, /이야기 AI\(Gemma 4\)를 쓸 수 있어요.*약 3GB.*사진 읽기·목소리 파일\(약 \d+MB\).*와이파이.*비행기 모드.*인터넷 없이 쓰게 준비하기/);
+    assert.match(box().textContent, /이야기 AI\(Gemma 4\)를 쓸 수 있어요.*약 3GB.*게임 파일\(사진 읽기·목소리 등, 약 \d+MB\).*와이파이.*비행기 모드.*인터넷 없이 쓰게 준비하기/);
     box().querySelector('[data-mk="aidl"]').click();
     await new Promise(r => setTimeout(r, 60));
     assert.match(box().textContent, /인터넷 없이 쓸 준비가 됐어요.*이야기 AI\(Gemma 4\)를 이 기기에 받아 두었어요.*사진 읽기·목소리 파일도/);
@@ -180,6 +181,9 @@ test('sw.js: the page is network-first with a cached fallback, static files cach
   const v = SW.match(/const VERSION = '([^']*)'/)[1];
   assert.ok(stores.get('word-game-core-' + v).has('https://site.test/-/word-game/'));
   assert.ok(stores.get('word-game-core-' + v).has('https://site.test/-/word-game/fonts/fonts.css'));
+  // 처음 열 때는 작은 핵심만: 이야기 AI 실행 파일(llm/)은 미리 받지 않아요
+  assert.ok(![...stores.get('word-game-core-' + v).keys()].some(k => /\/llm\//.test(k)));
+  assert.ok(!net.some(u => /\/llm\//.test(u)));
   // 남의 저장소(WebLLM)와 옛 판 저장소: 옛 판만 지워요
   stores.set('webllm/model', new Map()); stores.set('word-game-files-old', new Map());
   await fire('activate', {});
@@ -197,6 +201,13 @@ test('sw.js: the page is network-first with a cached fallback, static files cach
   const n0 = net.length;
   assert.equal((await fire('fetch', { request: req(f) })).body, 'net:' + f);
   assert.equal(net.length, n0, '저장해 둔 것을 써요');
+  // llm/도 처음 쓸 때 저장하고, 그다음엔 인터넷 없이
+  online.on = true;
+  const lib = page + 'llm/web-llm.js';
+  await fire('fetch', { request: req(lib) });
+  assert.ok(stores.get('word-game-files-' + v).has(lib));
+  online.on = false;
+  assert.equal((await fire('fetch', { request: req(lib) })).body, 'net:' + lib);
   // 다른 사이트(AI 모델)·새 판 확인(?v=)·이 폴더 밖은 건드리지 않아요
   assert.equal(await fire('fetch', { request: req('https://huggingface.co/mlc-ai/x/resolve/main/params_shard_0.bin') }), undefined);
   assert.equal(await fire('fetch', { request: req(page + '?v=1') }), undefined);

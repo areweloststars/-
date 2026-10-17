@@ -3,13 +3,14 @@
 // - 이 폴더의 파일(llm/ ocr/ tts/ fonts/ icons/ manifest): 저장해 둔 것을 먼저 쓰고, 없으면 받아서 저장해요.
 // - 다른 사이트로 가는 요청(이야기 AI 모델·WebGPU 라이브러리 받기)은 건드리지 않아요. WebLLM이 자기 저장소에 따로 저장해요.
 //   이름이 PREFIX로 시작하지 않는 저장소(WebLLM 것 등)는 절대 지우지 않아요.
-// - 처음 설치할 때는 작은 핵심만 저장해요(CORE_FILES). 사진 읽기·목소리·글꼴 파일은 게임의 '인터넷 없이 쓰게 준비하기'로 받아요.
+// - 처음 설치할 때는 작은 핵심만 저장해요(CORE_FILES). 사진 읽기·목소리·글꼴·AI 실행(llm/) 파일은 게임의
+//   '인터넷 없이 쓰게 준비하기'로 받거나 처음 쓸 때 저장해요 (처음 열 때 받는 양을 줄이려고요).
 // VERSION = 이 폴더 파일들(index.html, sw.js 말고)의 지문. 파일이 바뀌면 바꿔요: npm test가 새 값을 알려 줘요 (app/tests/offline.test.cjs)
 const VERSION = '94527828c8c5';
 const PREFIX = 'word-game-';
 const CORE = PREFIX + 'core-' + VERSION;
 const FILES = PREFIX + 'files-' + VERSION;
-const CORE_FILES = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'fonts/fonts.css', 'llm/web-llm.js', 'llm/worker.js'];
+const CORE_FILES = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'fonts/fonts.css'];
 const PAGE_WAIT_MS = 3000;
 const SCOPE = self.registration.scope;
 const SCOPE_PATH = new URL(SCOPE).pathname;
