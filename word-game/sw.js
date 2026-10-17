@@ -6,7 +6,7 @@
 // - 처음 설치할 때는 작은 핵심만 저장해요(CORE_FILES). 사진 읽기·목소리·글꼴·AI 실행(llm/) 파일은 게임의
 //   '인터넷 없이 쓰게 준비하기'로 받거나 처음 쓸 때 저장해요 (처음 열 때 받는 양을 줄이려고요).
 // VERSION = 이 폴더 파일들(index.html, sw.js 말고)의 지문. 파일이 바뀌면 바꿔요: npm test가 새 값을 알려 줘요 (app/tests/offline.test.cjs)
-const VERSION = '94527828c8c5';
+const VERSION = '0f3813548f48';
 const PREFIX = 'word-game-';
 const CORE = PREFIX + 'core-' + VERSION;
 const FILES = PREFIX + 'files-' + VERSION;
