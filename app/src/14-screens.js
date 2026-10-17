@@ -138,6 +138,7 @@ function openMission(kind, key) {
   if (kind === 'scene' && !isUnlocked(key)) { toast(`에피소드 ${eul(sceneIdx(key))} 먼저 깨야 열려요`); return; }
   if (kind === 'boss' && !bossOpen()) { toast(`에피소드 ${epN()}개를 모두 깨야 보스 미션이 열려요`); return; }
   settlePending(); closeOverlay(); leaveStory(); Narr.unlock();
+  aiRelease(); // 게임 중에는 이야기 AI가 필요 없어요: 메모리를 비워 휴대폰 목소리가 소리를 낼 수 있게
   M.active = false; M.over = true;
   M.kind = kind; M.key = key || null;
   M.ids = kind === 'scene' ? sceneOf(key).words.slice()
@@ -210,6 +211,7 @@ function buildPlayer() {
     </div>
     ${scene ? '<button type="button" class="vbtn vfull" data-act="vfull" id="vfull"></button>' : ''}
     <div class="vsub" id="vsub" aria-live="polite"></div>
+    <div class="vnote" id="vnote" role="status" hidden></div>
   </div>`);
   SV.on = false; SV.busy = false; SV.i = 0; SV.ended = false; SV.failN = 0; SV.narrFail = !canSpeak && M.kind === 'scene';
   voiceWarm(true); voicePrefetch(); // 목소리를 준비하고 영어 단어 발음을 미리 만들어 둠 (읽는 중간에 끊기지 않게)
@@ -396,7 +398,31 @@ function svPlay() {
   if (!FS.on && window.innerWidth > window.innerHeight) { const f = SP.host.closest('.sframe'); if (f) f.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' }); }
   svShow(); fsQuiet(true);
 }
-function svHalt() { SV.on = false; SV.busy = false; SV.tok++; clearTimeout(SV.t); Narr.stop(); ttsStop(); }
+function svHalt() { SV.on = false; SV.busy = false; SV.tok++; clearTimeout(SV.t); Narr.stop(); ttsStop(); vIdle(); }
+/* 목소리가 안 나올 때: 음성을 켠 채 재생했는데 3초 안에 소리가 시작하지 않으면 그림 아래에 알려요.
+   미디어 음량을 확인하라는 말, ‘목소리 다시 준비’ 단추, 무엇이 안 됐는지 진단 줄. 소리가 시작하면 저절로 사라져요 */
+function vNoteShow() {
+  const el = $('#vnote');
+  if (!el || $('#story').hidden || !narrOn() || !(SV.on || SV.busy || M.kind !== 'scene')) return;
+  el.innerHTML = `<p><b>목소리가 나오지 않았어요.</b> 휴대폰 미디어 음량을 확인해 주세요. 그래도 안 들리면 아래 단추를 눌러 주세요.</p>
+    <button type="button" class="btn" data-act="vfix">목소리 다시 준비</button>
+    <p class="vdiag">진단: ${esc(voiceDiag())}</p>`;
+  if (el.hidden) { el.hidden = false; if (FS.on) toast('목소리가 나오지 않았어요 · 전체화면을 닫으면 다시 준비할 수 있어요'); }
+}
+function vNoteHide() { const el = $('#vnote'); if (el && !el.hidden) { el.hidden = true; el.innerHTML = ''; } }
+// 알림이 떠 있으면 진단 줄만 새로 (새 오류가 생길 때)
+function vNoteDiag() { const d = $('#vnote:not([hidden]) .vdiag'); if (d) d.textContent = '진단: ' + voiceDiag(); }
+VDiag.on = what => { if (what === 'start') vNoteHide(); else if (what === 'err') vNoteDiag(); else vNoteShow(); };
+// ‘목소리 다시 준비’: 목소리 엔진을 처음처럼 되돌리고(이야기 AI도 내려놓아요) 지금 줄부터 다시 읽어요
+function vFix() {
+  aiRelease();
+  voiceReset();
+  SV.narrFail = false; SV.failN = 0;
+  if (!SAVE.narr) { SAVE.narr = true; persist(); }
+  vNoteHide();
+  toast('목소리를 다시 준비했어요');
+  if (M.kind === 'scene') svPlay(); else svCtl();
+}
 function svPause() { svHalt(); progFreeze(); svCtl(); fsQuiet(false); }
 function svOne(i) {
   if (i < 0) return;

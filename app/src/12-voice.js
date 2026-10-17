@@ -84,6 +84,26 @@ function voiceScore(v, lang) {
 const langVoices = lang => ssVoices.filter(v => String(v.lang || '').replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2).toLowerCase())).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
 const voiceKey = v => v.voiceURI || v.name || '';
 const bestVoice = lang => { const vs = langVoices(lang), pick = SAVE[lang.slice(0, 2).toLowerCase() + 'Voice']; return (pick && vs.find(v => voiceKey(v) === pick)) || vs[0] || null; };
+/* 목소리 지켜보기: 소리를 내려고 한 뒤 3초 안에 실제로 시작하지 않으면 이야기 화면에 알려요(VDiag.on).
+   무엇이 안 됐는지 짧게 모아 두었다가 진단 줄로 보여 줘요 (주인이 화면을 캡처해 알려 줄 수 있게).
+   tries: 소리를 내려고 한 번 수, starts: 실제로 시작한 번 수, armAt: 아직 시작하지 않은 첫 시도 시각 */
+const VDiag = { tries: 0, starts: 0, armAt: 0, t: 0, errs: [], on: null, waitMs: 3000 };
+function vTry() {
+  VDiag.tries++;
+  if (VDiag.armAt) return;
+  VDiag.armAt = Date.now();
+  clearTimeout(VDiag.t);
+  VDiag.t = setTimeout(() => { if (VDiag.armAt && VDiag.on) VDiag.on('nostart'); }, VDiag.waitMs);
+}
+function vStart() { VDiag.starts++; VDiag.armAt = 0; clearTimeout(VDiag.t); if (VDiag.on) VDiag.on('start'); }
+// 지켜보기를 쉬어요 (멈춤·화면 나감)
+function vIdle() { VDiag.armAt = 0; clearTimeout(VDiag.t); }
+// 안 된 까닭 (같은 것은 한 번만, 최근 4개)
+function vErr(what) {
+  const s = String(what || '').slice(0, 48); if (!s) return;
+  VDiag.errs = VDiag.errs.filter(x => x !== s); VDiag.errs.push(s); if (VDiag.errs.length > 4) VDiag.errs.shift();
+  if (VDiag.on) VDiag.on('err');
+}
 // 말하는 중인 문장을 붙잡아 둠 (크롬은 붙잡지 않은 문장을 치워 버려서 끝 신호가 오지 않을 때가 있어요)
 let ssCur = null, ssWoke = false;
 // 그 언어 기기 목소리가 소리를 못 냈으면 이번에는 다른 방법으로
@@ -104,9 +124,14 @@ function ssSpeak(text, lang, rate, probe = false) {
       const fin = (ok, err) => { if (done) return; done = true; clearTimeout(st); clearTimeout(g); clearInterval(poll); if (ssCur === u) ssCur = null; ok ? res() : rej(err); };
       // 목소리 목록은 있는데 실제로는 소리가 안 나는 화면이 있어요: 시작하지 않으면 실패로 보고 다른 방법으로
       // (첫 문장은 음성 엔진이 깨어나느라 늦을 수 있어 더 기다려요)
-      const st = setTimeout(() => { try { speechSynthesis.cancel(); } catch (e) { } fin(false, Object.assign(new Error('tts did not start'), { nostart: true })); }, probe ? 2500 : ssWoke ? 3500 : 7000);
+      // (먼저 실패로 정해 두고 멈춰요: 멈출 때 바로 오는 ‘취소됨’ 신호를 그만두기로 잘못 읽으면 이야기가 멈춰 버려요)
+      const st = setTimeout(() => {
+        if (!probe) vErr(`기기 ${lang.slice(0, 2)}: 시작 안 함`);
+        fin(false, Object.assign(new Error('tts did not start'), { nostart: true }));
+        try { speechSynthesis.cancel(); } catch (e) { }
+      }, probe ? 2500 : ssWoke ? 3500 : 7000);
       u.onstart = () => {
-        ssWoke = true; clearTimeout(st);
+        ssWoke = true; clearTimeout(st); vStart();
         // 끝 신호가 안 오는 기기용: 말하기가 멈췄는지 살펴보고(말하는 중이라고 한 번은 알려 준 기기에서만, 두 번 연달아 멈춰 있을 때),
         // 그래도 안 끝나면 아주 넉넉한 시간 뒤에 넘어가요. 예전에는 시간을 글자 수로 짧게 잡아서,
         // 천천히 읽는 기기에서는 다음 문장이 앞 문장을 중간에 끊었어요
@@ -115,9 +140,14 @@ function ssSpeak(text, lang, rate, probe = false) {
         g = setTimeout(() => fin(true), 8000 + [...text].length * 500 / rate);
       };
       u.onend = () => fin(true);
-      u.onerror = e => fin(false, e && (e.error === 'interrupted' || e.error === 'canceled') ? { name: 'AbortError' } : new Error('tts'));
+      u.onerror = e => {
+        const stop = e && (e.error === 'interrupted' || e.error === 'canceled');
+        if (!stop && !probe) vErr(`기기 ${lang.slice(0, 2)}: ${(e && e.error) || '오류'}`);
+        fin(false, stop ? { name: 'AbortError' } : new Error('tts'));
+      };
+      if (!probe) vTry();
       speechSynthesis.speak(u);
-    } catch (e) { rej(e); }
+    } catch (e) { vErr(`기기 ${lang.slice(0, 2)}: ${(e && e.name) || '오류'}`); rej(e); }
   });
 }
 /* 기기 목소리가 없을 때: 앱 옆에 올려 둔 eSpeak NG(WASM, GPL-3.0)로 이 기기 안에서 목소리를 만들어요. API·토큰 없음.
@@ -270,13 +300,13 @@ const Voice = (() => {
         const m = e.data;
         if (m.t === 'prog') { prog = m.p; listeners.forEach(f => f()); }
         else if (m.t === 'ready') { if (m.lang === 'en') readyEn = true; prog = 1; listeners.forEach(f => f()); }
-        else if (m.t === 'err' && m.id == null) { failed = true; listeners.forEach(f => f()); } // 준비 실패: 기기 목소리·eSpeak로
+        else if (m.t === 'err' && m.id == null) { failed = true; vErr('고품질 준비: ' + m.msg); listeners.forEach(f => f()); } // 준비 실패: 기기 목소리·eSpeak로
         else if (m.t === 'wav' || m.t === 'err') {
           const p = pend.get(m.id); if (!p) return; pend.delete(m.id);
           if (m.t === 'wav') p.ok(URL.createObjectURL(new Blob([m.wav], { type: 'audio/wav' }))); else { if (/fetch|init|session/i.test(m.msg) && !readyEn) failed = true; p.no(new Error(m.msg)); }
         }
       };
-      w.onerror = () => { failed = true; for (const p of pend.values()) p.no(new Error('voice worker')); pend.clear(); listeners.forEach(f => f()); };
+      w.onerror = e => { failed = true; vErr('고품질 일꾼: ' + ((e && e.message) || '오류')); for (const p of pend.values()) p.no(new Error('voice worker')); pend.clear(); listeners.forEach(f => f()); };
       w.postMessage({ t: 'init', base: new URL('tts/', location.href).href });
     } catch (e) { failed = true; }
   }
@@ -313,8 +343,24 @@ const Voice = (() => {
     if (readyEn || failed || !w) return Promise.resolve(readyEn);
     return new Promise(res => { const t = setTimeout(() => res(readyEn), ms); const f = () => { if (readyEn || failed) { clearTimeout(t); res(readyEn); } }; listeners.push(f); });
   }
+  // 처음 상태로: 일꾼을 닫고 기다리던 문장은 그만둬요. 준비에 실패했었다면 이 기기에 저장해 둔 목소리 파일이
+  // 망가졌을 수 있어서 지워요 (다음에 쓸 때 다시 받아요. 미리 받아 두었으면 인터넷 없이도 돼요)
+  function reset() {
+    const was = failed;
+    if (w) try { w.terminate(); } catch (e) { }
+    w = null; failed = false; readyEn = false; prog = 0;
+    clearTimeout(waitT); waitT = 0;
+    // (줄을 먼저 비워요: 만들던 문장을 그만두면 다음 문장을 꺼내 가려고 해요)
+    const jobs = queue.splice(0), ps = [...pend.values()];
+    pend.clear(); cache.clear();
+    for (const j of jobs) j.rej({ name: 'AbortError' });
+    for (const p of ps) p.no({ name: 'AbortError' });
+    busy = false;
+    if (was) try { indexedDB.deleteDatabase('voca-voice'); } catch (e) { }
+    listeners.forEach(f => f());
+  }
   return {
-    start, synth, whenReady, onChange(f) { listeners.push(f); },
+    start, synth, whenReady, reset, onChange(f) { listeners.push(f); },
     ready: lang => !failed && /^en/i.test(lang) && readyEn,
     get failed() { return failed || !ok; }, get progress() { return prog; }, get loading() { return !!w && !readyEn && !failed; }
   };
@@ -358,7 +404,7 @@ async function tts(text, lang, rate) {
     }
     if (gone()) throw { name: 'AbortError' };
   }
-  if (ko) throw { name: 'NoKoVoice' };
+  if (ko) { if (hasSS) vErr(ssVoices.length ? '한국어 기기 목소리 안 됨' : '기기 목소리 목록 없음'); throw { name: 'NoKoVoice' }; }
   if (!Voice.failed) {
     Voice.start();
     // 기기에 저장해 둔 목소리를 엔진에 올리는 중이면 잠깐 기다려요
@@ -369,10 +415,11 @@ async function tts(text, lang, rate) {
         const u = await Voice.synth(text, lang, rate, true);
         if (gone()) throw { name: 'AbortError' };
         return await Narr.playUrl(u);
-      } catch (e) { if (e && e.name === 'AbortError') throw e; }
+      } catch (e) { if (e && e.name === 'AbortError') throw e; vErr('고품질: ' + ((e && (e.message || e.name)) || '오류')); }
     } else if (Voice.loading) throw { name: 'VoiceLoading' };
   }
-  if (canEsp) return Esp.speak(text, lang, rate);
+  if (canEsp) return Esp.speak(text, lang, rate).catch(e => { if (!(e && e.name === 'AbortError')) vErr('eSpeak: ' + ((e && (e.message || e.name)) || '오류')); throw e; });
+  vErr('쓸 수 있는 목소리 없음');
   throw new Error('no tts');
 }
 // 기기에 영어 목소리가 없을 때만(앱 안 화면 등) 고품질 영어 목소리를 미리 받아 둠
@@ -402,6 +449,8 @@ function openOutside() { location.href = 'kakaotalk://web/openExternal?url=' + e
 // 한국어 기기 목소리가 없을 때 이야기 화면에 보여 줄 안내 (HTML)
 function voiceOutsideHTML() {
   if (!SAVE.narr || devVoice('ko-KR')) return '';
+  // 한국어 목소리는 있는데 소리를 내지 않았을 때 (굳어 버린 음성 엔진 등)
+  if (hasSS && ssHas('ko-KR') && ssBroken.ko) return `휴대폰의 한국어 목소리가 소리를 내지 않아서 한국어 자막은 글로만 보여 줘요. 휴대폰 미디어 음량을 확인하고 <button type="button" class="linkbtn" data-act="vfix">목소리 다시 준비</button>를 눌러 보세요.`;
   if (!inApp) return `이 기기에는 한국어 목소리가 없어서 한국어 자막은 글로만 보여 주고, 영어 단어는 소리로 들려줘요. 휴대폰 <b>설정 → 텍스트 음성 변환(TTS)</b>에서 한국어 음성을 받으면 자막도 읽어 줘요.`;
   return `이 앱 안 화면(Claude 앱·카카오톡 등)에서는 휴대폰 목소리를 쓸 수 없어서 한국어 자막은 글로만 보여 줘요. <b>Chrome</b>이나 <b>삼성 인터넷</b>에서 열면 휴대폰의 자연스러운 목소리로 자막과 영어 발음을 읽어 줘요. 아래 단추로 링크를 복사해 주소창에 붙여 넣으면 돼요.
     ${inKakao ? '<button type="button" class="linkbtn" data-act="vout">다른 브라우저로 열기</button> ' : ''}<button type="button" class="linkbtn" data-act="vcopy">링크 복사</button>`;
@@ -484,12 +533,16 @@ const Narr = (() => {
       const stopper = () => { try { el.pause(); } catch (e) { } fin(false, { name: 'AbortError' }); };
       cur = stopper;
       el.onended = () => fin(true);
-      el.onerror = () => fin(false, new Error('media error'));
+      el.onerror = () => { vErr('재생기: 파일 오류'); fin(false, new Error('media error')); };
+      let began = false;
+      const go = () => { if (!done && !began) { began = true; vStart(); } };
+      el.onplaying = go;
       el.muted = false; el.src = u;
       try { el.preservesPitch = true; el.webkitPreservesPitch = true; } catch (e) { }
       el.defaultPlaybackRate = rate; el.playbackRate = rate;
+      vTry();
       const p = el.play();
-      if (p && p.catch) p.catch(err => fin(false, err));
+      if (p && p.then) p.then(go, err => { if (!(err && err.name === 'AbortError')) vErr('재생기: ' + ((err && err.name) || '막힘')); fin(false, err); });
       guard = setTimeout(() => fin(true), 40000);
     });
   }
@@ -497,7 +550,7 @@ const Narr = (() => {
   const ubufs = new Map();
   async function playUrlWA(u, rate) {
     const c = ac();
-    if (!c || c.state !== 'running') throw new Error('audio locked');
+    if (!c || c.state !== 'running') { vErr('웹 오디오: ' + (c ? c.state : '없음')); throw new Error('audio locked'); }
     if (!ubufs.has(u)) {
       const ab = await (await fetch(u)).arrayBuffer();
       ubufs.set(u, await new Promise((res, rej) => c.decodeAudioData(ab, res, rej)));
@@ -515,7 +568,9 @@ const Narr = (() => {
       const guard = setTimeout(() => fin(true), (buf.duration / rate) * 1000 + 3000);
       s.onended = () => fin(true);
       cur = stopper; src = s;
+      vTry();
       s.start();
+      if (c.state === 'running') vStart();
     });
   }
   async function playUrl(u, rate = 1) {
@@ -526,6 +581,41 @@ const Narr = (() => {
     }
     await playUrlWA(u, rate);
   }
-  return { unlock, playUrl, stop, setRate, quiet };
+  // 처음 상태로: 재생기와 Web Audio 엔진을 버리고 다음 탭에서 새로 만들어요 (굳어 버린 소리 흐름 풀기)
+  function reset() {
+    stop();
+    try { if (el) { el.pause(); el.removeAttribute('src'); } } catch (e) { }
+    try { if (ctx && ctx.close) ctx.close().catch(() => { }); } catch (e) { }
+    el = null; ctx = null; src = null; unlocked = false; mode = 'el'; ubufs.clear();
+  }
+  // 진단 줄용: 재생 방법(<audio> 또는 Web Audio)과 Web Audio 상태
+  const state = () => (mode === 'el' ? '재생기' : '웹 오디오') + (ctx ? ' ' + ({ running: '켜짐', suspended: '쉬는 중', closed: '닫힘' }[ctx.state] || ctx.state) : '');
+  return { unlock, playUrl, stop, setRate, quiet, reset, state };
 })();
+// '목소리 다시 준비': 목소리 엔진들을 처음처럼 되돌려요. 굳은 기기 목소리 깨우기, 안 된다고 적어 둔 기록 지우기,
+// 재생기·고품질 목소리 새로 준비. 누른 탭 안에서 불러야 재생 권한도 다시 받아요(Narr.unlock)
+function voiceReset() {
+  ttsStop();
+  if (hasSS) { try { speechSynthesis.cancel(); if (speechSynthesis.paused) speechSynthesis.resume(); } catch (e) { } }
+  for (const o of [ssBroken, ssOk, ssProbed]) for (const k of Object.keys(o)) delete o[k];
+  ssWoke = false; ssWaited = null; ssCur = null;
+  if (hasSS) ssLoad();
+  Narr.reset();
+  Voice.reset();
+  vIdle(); VDiag.tries = 0; VDiag.starts = 0; VDiag.errs = [];
+  Narr.unlock(); Sound.unlock();
+}
+// 진단 줄: 무엇이 안 됐는지 한 줄로 (화면을 캡처해 알려 줄 수 있게). 이 기기의 단어·기록은 넣지 않아요
+function voiceDiag() {
+  const n = l => ssVoices.filter(v => String(v.lang || '').toLowerCase().startsWith(l)).length;
+  let ss = '없음';
+  if (hasSS) { ss = `한${n('ko')} 영${n('en')}`; try { ss += speechSynthesis.speaking ? ' 말하는 중' : speechSynthesis.pending ? ' 대기' : ''; if (speechSynthesis.paused) ss += ' 멈춤'; } catch (e) { } }
+  const broken = Object.keys(ssBroken).filter(k => ssBroken[k]);
+  const hq = Voice.ready('en') ? '준비됨' : Voice.loading ? `받는 중 ${Math.round(Voice.progress * 100)}%` : Voice.failed ? '실패' : '안 씀';
+  const sw = typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.controller ? '켬' : '끔';
+  const ai = typeof AI !== 'undefined' && (AI.engine || AI.worker) ? '올라가 있음' : '없음';
+  return [`기기 목소리 ${ss}${broken.length ? ` (안 됨: ${broken.join('·')})` : ''}`, `시도 ${VDiag.tries} · 시작 ${VDiag.starts}`,
+    VDiag.errs.length ? `오류: ${VDiag.errs.join(', ')}` : '', `고품질 영어 ${hq}`, Narr.state(), `오프라인 저장 ${sw}`, `이야기 AI ${ai}`,
+    inApp ? '앱 안 화면' : '', typeof buildLabel === 'function' ? buildLabel() : ''].filter(Boolean).join(' · ');
+}
 
