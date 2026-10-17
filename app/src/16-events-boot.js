@@ -68,6 +68,7 @@ function bindEvents() {
       }
       else if (act === 'start') { Sound.unlock(); startPlay(); }
       else if (act === 'vfull') { Sound.unlock(); Narr.unlock(); if (FS.on) exitFS(); else enterFS(); }
+      else if (act === 'vfix') vFix();
       else if (act === 'vcopy') copyLink();
       else if (act === 'vout') openOutside();
       return;

@@ -681,6 +681,12 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .vbar .vsub p { display: block; padding: 0; background: none; color: var(--fg); font-size: 16px; line-height: 1.65; font-weight: 600; }
 .vbar .vsub mark { color: var(--tap); }
 @media (max-width: 380px) { .vbar .vfull span { display: none; } .vbar .vfull { padding: 0 10px; } }
+/* 목소리가 안 나올 때 알림 (그림 아래) */
+.vnote { flex: 1 0 100%; padding: 10px 12px; border: 2px solid var(--bad); border-radius: 12px; background: var(--surface2); font-size: 14px; line-height: 1.55; }
+.vnote p { margin: 0 0 8px; }
+.vnote b { color: var(--bad); }
+.vnote .btn { font-size: 16px; padding: 8px 12px; }
+.vnote .vdiag { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); word-break: break-all; }
 /* 전체화면에서 재생 중에는 단추를 잠시 숨김 (그림을 누르면 다시 보여요) */
 .panel.fs .vctl, .panel.fs .vfull { transition: opacity .3s; }
 .panel.fs.quiet .vctl, .panel.fs.quiet .vfull { opacity: 0; pointer-events: none; }

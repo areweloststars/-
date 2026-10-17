@@ -56,6 +56,15 @@ function aiDrop() {
   AI.gen++; AI.worker = null; AI.engine = null; AI.loading = null; AI.onProgress = null;
   if (w) try { w.terminate(); } catch (e) { }
 }
+// 게임(이야기·미션)을 열 때 이야기 AI를 내려놓아요. AI(약 3GB)가 그래픽 칩·메모리에 올라가 있으면 메모리가 작은
+// 휴대폰에서 휴대폰 목소리(TTS)가 소리를 못 내거나 화면이 꺼질 수 있어요. 단어장을 만들거나 받는 중이면 그대로 둬요.
+// 다음에 만들 때는 이 기기에 저장해 둔 모델을 다시 올려요 (인터넷 없이). 내려놓았으면 true
+function aiRelease() {
+  if (!AI.engine && !AI.worker) return false;
+  if (MK.step === 'making' || (MK.aiDl && MK.aiDl.state === 'run')) return false;
+  aiDrop();
+  return true;
+}
 // 모델 준비: 처음이면 내려받고(진행률 onProgress(0~1, 단계 글)), 다음부터는 저장된 것으로 금방
 // 인터넷이 끊겨 실패하면 잠깐 쉬었다가 두 번 더 해 봐요 (다 받은 조각은 브라우저에 저장돼 있어서 이어 받아요)
 const AI_TRIES = 3;
