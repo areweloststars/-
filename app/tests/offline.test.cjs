@@ -7,6 +7,8 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 const { build, parts } = require('../build.cjs');
 const { bootPage } = require('./page.cjs');
+// 화면이 바뀔 때까지 기다려요 (정해진 짧은 시간만 기다리면 컴퓨터가 바쁠 때 실패해요)
+const until = async (ok, ms = 3000) => { const t = Date.now(); while (!ok() && Date.now() - t < ms) await new Promise(r => setTimeout(r, 15)); };
 
 const GAME = path.join(__dirname, '..', '..', 'word-game');
 const rd = p => fs.readFileSync(path.join(GAME, p));
@@ -106,10 +108,10 @@ test('make screen: one button gets the files and the story AI ready for offline 
       AI.lib = { prebuiltAppConfig: { model_list: [{ model_id: AI_MODEL }] }, CreateWebWorkerMLCEngine: async (w, id, cfg) => { cfg.initProgressCallback({ progress: 0.5, text: 'Fetching param cache[3/20]' }); return { chat: {} }; } };
       AI.gpu = true; MK.step = 'pick'; MK.aiWhy = ''; showScreen('make'); renderMake();`);
     const box = () => p.document.getElementById('mkai');
-    await new Promise(r => setTimeout(r, 10));
+    await until(() => /이야기 AI\(Gemma 4\)를 쓸 수 있어요/.test(box().textContent));
     assert.match(box().textContent, /이야기 AI\(Gemma 4\)를 쓸 수 있어요.*약 3GB.*게임 파일\(사진 읽기·목소리 등, 약 \d+MB\).*와이파이.*비행기 모드.*인터넷 없이 쓰게 준비하기/);
     box().querySelector('[data-mk="aidl"]').click();
-    await new Promise(r => setTimeout(r, 60));
+    await until(() => /인터넷 없이 쓸 준비가 됐어요/.test(box().textContent));
     assert.match(box().textContent, /인터넷 없이 쓸 준비가 됐어요.*이야기 AI\(Gemma 4\)를 이 기기에 받아 두었어요.*사진 읽기·목소리 파일도/);
     assert.equal(box().querySelector('[data-mk="aidl"]'), null);
     // 이야기 AI를 못 쓰는 휴대폰도 사진 읽기·목소리 파일은 받아 둘 수 있어요
@@ -118,7 +120,7 @@ test('make screen: one button gets the files and the story AI ready for offline 
     // 서비스 워커가 없는 브라우저: 저장해 둘 수 없다고 말해요
     p.run(`Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: undefined });`);
     box().querySelector('[data-mk="aidl"]').click();
-    await new Promise(r => setTimeout(r, 40));
+    await until(() => /저장해 두지 못해서/.test(box().textContent));
     assert.match(box().textContent, /저장해 두지 못해서 인터넷 없이는 열리지 않아요/);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }

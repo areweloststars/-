@@ -2,6 +2,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { bootPage } = require('./page.cjs');
+// 화면이 바뀔 때까지 기다려요 (정해진 짧은 시간만 기다리면 컴퓨터가 바쁠 때 실패해요)
+const until = async (ok, ms = 3000) => { const t = Date.now(); while (!ok() && Date.now() - t < ms) await new Promise(r => setTimeout(r, 15)); };
 
 const ROWS = [['borrow', '빌리다'], ['encourage', '격려하다'], ['anxious', '불안한, 걱정하는'], ['abandon', '버리다, 포기하다'], ['reduce', '줄이다'], ['compare', '비교하다']]
   .map(([en, ko]) => ({ en, ko, pos: 'x' }));
@@ -237,12 +239,12 @@ test('make screen: the story AI can be downloaded before making a deck, and a fa
     const box = () => p.document.getElementById('mkai');
     assert.match(box().textContent, /쓸 수 있어요.*인터넷 없이 쓰게 준비하기/);
     box().querySelector('[data-mk="aidl"]').click();
-    await new Promise(r => setTimeout(r, 40));
+    await until(() => /다 받지 못했어요/.test(box().textContent));
     assert.match(box().textContent, /다 받지 못했어요.*받는 중\(30%\)에 멈췄어요\. 브라우저 저장 공간이 모자라요.*QuotaExceededError|The quota/);
     assert.match(box().textContent, /사진 읽기·목소리 파일도 이 기기에 받아 두었어요/);
     assert.ok(box().querySelector('[data-mk="aidl"]'), '다시 받기 단추');
     box().querySelector('[data-mk="aidl"]').click();
-    await new Promise(r => setTimeout(r, 40));
+    await until(() => /인터넷 없이 쓸 준비가 됐어요/.test(box().textContent));
     assert.match(box().textContent, /인터넷 없이 쓸 준비가 됐어요.*받아 두었어요/);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
@@ -299,7 +301,7 @@ test('mobile data: the get-ready button asks once more in the page (about 3GB, u
     assert.equal(p.json('MK.aiDl || null'), null);
     assert.match(btn.textContent, /모바일 데이터로 연결돼 있어요\. 이야기 AI는 약 3GB라서 와이파이에서 받는 게 좋아요.*한 번 더 눌러요/);
     btn.click();
-    await new Promise(r => setTimeout(r, 40));
+    await until(() => /인터넷 없이 쓸 준비가 됐어요/.test(box().textContent));
     assert.equal(p.json('__workers.length'), 1);
     assert.match(box().textContent, /인터넷 없이 쓸 준비가 됐어요/);
     assert.deepEqual(p.errors, []);
@@ -359,7 +361,7 @@ test('AI loading: stopping during the first download stops the worker and the pr
   try {
     p.run(FAKE_LIB(false));
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; window.__done = mkMake();`);
-    await new Promise(r => setTimeout(r, 80));
+    await until(() => p.json('MK.log.map(l => l.text)').some(t => /12%/.test(t)));
     const mid = p.json('MK.log.map(l => l.text)');
     assert.ok(mid.some(t => /12%/.test(t)), mid.join('\n'));
     p.run('MK.ctl.abort()');
@@ -383,7 +385,7 @@ test('AI story: a phone that cannot run the AI still gets a deck, and is told wh
     assert.ok(made.log.some(t => /이야기 AI를 쓸 수 없어서/.test(t)), made.log.join('\n'));
     // 만들기 전 화면에도 까닭이 보여요
     p.run('MK.step = "review"; MK.aiWhy = undefined; renderMake()');
-    await new Promise(r => setTimeout(r, 20));
+    await until(() => /이야기 AI를 쓸 수 없어요/.test(p.document.getElementById('mkai').textContent));
     assert.match(p.document.getElementById('mkai').textContent, /이야기 AI를 쓸 수 없어요.*WebGPU/);
   } finally { p.close(); }
 });
