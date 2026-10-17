@@ -11499,6 +11499,30 @@ function getChunkedPrefillInputData(inputData, prefillChunkSize, getImageEmbedSi
     }
     return [chunks, chunkLens];
 }
+// word-game patch: the prefill chunk size the app asked for (config.wg_prefill_chunk at load,
+// LLMChatPipeline.wgSetPrefillChunk between requests). Used only when 0 < want < compiled size;
+// otherwise the compiled size. The compiled prefill function takes any length up to the compiled size.
+function wgPrefillChunk(compiled, want) {
+    const n = Math.floor(Number(want));
+    return n > 0 && n < compiled ? n : compiled;
+}
+// word-game patch: report each prefill chunk to globalThis.wgPrefillChunkDone (set by word-game/llm/gpu-watch.js).
+// When the hook is set, wait for the GPU to finish this chunk (device.sync: submit the batched commands, then
+// queue.onSubmittedWorkDone) and report ms from just before the chunk's embedding until then.
+// Without the hook nothing changes.
+async function wgPrefillChunkDone(pipeline, t0, tokens, index, count) {
+    const hook = globalThis.wgPrefillChunkDone;
+    if (typeof hook !== "function") {
+        return;
+    }
+    await pipeline.device.sync();
+    try {
+        hook({ ms: performance.now() - t0, tokens, index, count, size: pipeline.prefillChunkSize });
+    }
+    catch (e) {
+        // the report must never break generation
+    }
+}
 /**
  * A lock implemented using Promise.
  *
@@ -11876,6 +11900,9 @@ class LLMChatPipeline {
         if (this.prefillChunkSize <= 0) {
             throw new MinValueError("prefill_chunk_size", 0);
         }
+        // word-game patch: keep the compiled size and use a smaller chunk if the app asks (config.wg_prefill_chunk)
+        this.wgCompiledPrefillChunk = this.prefillChunkSize;
+        this.wgSetPrefillChunk(config.wg_prefill_chunk);
         // 5. Consolidate KVCache settings: context window, sliding window, attention sink
         this.slidingWindowSize = config.sliding_window_size;
         this.contextWindowSize = config.context_window_size;
@@ -11929,7 +11956,7 @@ class LLMChatPipeline {
             const createKVCache = LLMChatPipeline.getRequiredVMFunctionByName((_d = (_c = this.artifact) === null || _c === void 0 ? void 0 : _c.program.exports.create_kv_cache) !== null && _d !== void 0 ? _d : "create_tir_paged_kv_cache", vmFunctionRegistry);
             this.kvCache = this.tvm.detachFromCurrentScope(createKVCache(this.tvm.makeShapeTuple([defaultMaxNumSequence]), // max_num_sequence
             this.tvm.makeShapeTuple([maxTotalSeqLen]), // max_total_sequence_length
-            this.tvm.makeShapeTuple([this.prefillChunkSize]), // prefill_chunk_size
+            this.tvm.makeShapeTuple([this.wgCompiledPrefillChunk]), // prefill_chunk_size (word-game patch: compiled size, so every smaller chunk fits)
             this.tvm.makeShapeTuple([defaultPageSize]), // page_size, hard coded for now
             this.tvm.makeShapeTuple([this.slidingWindowSize != -1 ? 1 : 0])));
         }
@@ -12283,6 +12310,12 @@ class LLMChatPipeline {
             yield this.tvm.asyncLoadWebGPUPipelines(this.vm.getInternalModule());
         });
     }
+    // word-game patch: set the prefill chunk size (1..compiled size) between requests; returns the size in use
+    wgSetPrefillChunk(want) {
+        this.prefillChunkSize = wgPrefillChunk(this.wgCompiledPrefillChunk, want);
+        log.info("word-game prefillChunkSize: ", this.prefillChunkSize);
+        return this.prefillChunkSize;
+    }
     /**
      * Generate the first token given input prompt
      */
@@ -12384,8 +12417,10 @@ class LLMChatPipeline {
                     for (let i = 0; i < chunks.length; i++) {
                         const chunk = chunks[i];
                         const previousLength = this.filledKVCacheLength;
+                        const wgT0 = performance.now(); // word-game patch
                         const embeddings = (_a = chunk.embeddings) !== null && _a !== void 0 ? _a : this.getArtifactTextEmbeddings(chunk.tokenIds);
                         const chunkLogits = this.artifactPrefillAndForward(embeddings, chunk.tokenIds, chunk.modalityIds);
+                        yield wgPrefillChunkDone(this, wgT0, chunk.tokenIds.length, i, chunks.length); // word-game patch
                         if (this.filledKVCacheLength !==
                             previousLength + chunk.tokenIds.length) {
                             throw new Error("Internal Error: filledKVCacheLength does not match expected value.");
@@ -12408,7 +12443,9 @@ class LLMChatPipeline {
                     const [chunks, chunkLens] = getChunkedPrefillInputData(inputData, this.prefillChunkSize, getEmbedSize);
                     for (let i = 0; i < chunks.length; i++) {
                         const previousLength = this.filledKVCacheLength;
+                        const wgT0 = performance.now(); // word-game patch
                         const chunkLogits = yield this.embedAndForward(chunks[i], chunkLens[i]);
+                        yield wgPrefillChunkDone(this, wgT0, chunkLens[i], i, chunks.length); // word-game patch
                         if (this.filledKVCacheLength !== previousLength + chunkLens[i]) {
                             throw new Error("Internal Error: filledKVCacheLength does not match expected value.");
                         }

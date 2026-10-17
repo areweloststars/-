@@ -132,8 +132,8 @@ function mkAiHTML() {
 // AI 진단 단추와 결과 (이야기 AI를 받아 두었거나 받을 수 있는 기기에서만)
 function mkBenchHTML() {
   const b = aiBenchLoad(), run = !!MK.benchCtl;
-  return `<div class="mkbench"><button type="button" class="btn" data-mk="bench"${run || (MK.aiDl && MK.aiDl.state === 'run') ? ' disabled' : ''}>${run ? 'AI 진단 중…' : 'AI 진단 (2~4분)'}</button>${run ? ' <button type="button" class="linkbtn" data-mk="benchstop">진단 그만두기</button>' : ''}
-    <p class="mksmall">휴대폰 그래픽 칩이 어느 단계에서 멈추는지 알아봐요. 결과는 이 휴대폰에만 남고 어디로도 보내지 않아요.</p>${b ? `<pre id="mkbenchout">${esc(aiBenchText(b))}</pre>${run ? '' : '<button type="button" class="btn" data-mk="benchcopy">결과 복사</button>'}` : ''}</div>`;
+  return `<div class="mkbench"><button type="button" class="btn" data-mk="bench"${run || (MK.aiDl && MK.aiDl.state === 'run') ? ' disabled' : ''}>${run ? 'AI 진단 중…' : 'AI 진단 (3~6분)'}</button>${run ? ' <button type="button" class="linkbtn" data-mk="benchstop">진단 그만두기</button>' : ''}
+    <p class="mksmall">휴대폰 그래픽 칩이 어느 단계에서 멈추는지 알아보고, 글을 나눠 읽을 안전한 조각 크기를 찾아요. 결과는 이 휴대폰에만 남고 어디로도 보내지 않아요.</p>${b ? `<pre id="mkbenchout">${esc(aiBenchText(b))}</pre>${run ? '' : '<button type="button" class="btn" data-mk="benchcopy">결과 복사</button>'}` : ''}</div>`;
 }
 // 상자만 다시 그려요 (입력 중인 단어 칸은 그대로)
 function mkAiPut() { const el = document.getElementById('mkai'); if (el) el.outerHTML = mkAiHTML(); }

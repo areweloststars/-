@@ -11,7 +11,8 @@ const AI_SIZE = '약 3GB';
 // work: 지금 쓰는 중인 글 하나의 기록 (단계·시작 시각·쓴 토큰 수). 쓰지 않을 때는 null
 // gpuLog: AI 일꾼이 보낸 그래픽 칩 소식 (끊김·오류·콘솔 오류 글), gpuDev: 일꾼이 쓰는 그래픽 칩 정보, wnames: 이 화면이 띄운 일꾼 이름들
 // bench: 'AI 진단' 기록 (아직 안 읽었으면 undefined)
-const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null, gpuLog: [], gpuDev: null, wnames: new Set(), gpuCh: null, onGpu: null };
+// chunk: 지금 일꾼이 글을 나눠 읽는 조각 크기(토큰, 일꾼이 없으면 0), chunkLog: 일꾼이 보낸 조각마다 걸린 시간, onChunk: 조각 시간이 올 때마다
+const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null, gpuLog: [], gpuDev: null, wnames: new Set(), gpuCh: null, onGpu: null, chunk: 0, chunkLog: [], onChunk: null };
 const aiURL = p => new URL(p, location.href).href;
 // WebLLM의 모델 기록 (가짜 AI.lib 또는 받아 둔 AI.web). 아직 안 받았으면 null
 const aiRec = () => { const L = AI.lib || AI.web, list = L && L.prebuiltAppConfig && L.prebuiltAppConfig.model_list; return (list && list.find(m => m.model_id === AI_MODEL)) || null; };
@@ -34,6 +35,7 @@ async function aiGpuOk() {
     // 문제 찾기용: 어떤 그래픽 칩인지 ('qualcomm adreno-8xx' 같은 이름)
     const inf = a && a.info;
     AI.gpuName = inf ? [inf.vendor, inf.architecture || inf.device || inf.description].filter(Boolean).join(' ').slice(0, 60) : '';
+    AI.gpuInfo = aiInfoOf(inf);
     AI.gpuWhy = !navigator.gpu ? 'nogpu' : !a ? 'noadapter' : !f16 ? 'nof16' : AI.gpuBuf < aiBufNeed() ? 'buf' : '';
     AI.gpu = !AI.gpuWhy;
   } catch (e) { AI.gpu = false; AI.gpuWhy = 'noadapter'; }
@@ -62,7 +64,7 @@ const aiNeedsDownload = () => !AI.engine && !aiReadyBefore();
 // AI 일꾼을 멈추고 처음 상태로 (준비 실패·그만두기·GPU를 잃었을 때)
 function aiDrop() {
   const w = AI.worker;
-  AI.gen++; AI.worker = null; AI.engine = null; AI.loading = null; AI.onProgress = null;
+  AI.gen++; AI.worker = null; AI.engine = null; AI.loading = null; AI.onProgress = null; AI.chunk = 0;
   if (w) try { w.terminate(); } catch (e) { }
 }
 // 게임(이야기·미션)을 열 때 이야기 AI를 내려놓아요. AI(약 3GB)가 그래픽 칩·메모리에 올라가 있으면 메모리가 작은
@@ -74,6 +76,72 @@ function aiRelease() {
   aiDrop();
   return true;
 }
+/* ---------- 글을 나눠 읽는 조각 크기 ----------
+   AI는 요청 글을 조각으로 나눠 읽어요. 이 모델은 512토큰 조각으로 만들어졌어요(모델 파일 이름의 cs512).
+   조각 하나는 그래픽 칩이 한 번에 하는 일 하나예요. 휴대폰 그래픽 칩(갤럭시 S25의 Adreno)은 한 번에 하는 일이 너무 오래 걸리면
+   멈춘 것으로 보고 그래픽 칩을 다시 켜요(VK_ERROR_DEVICE_LOST). 47토큰은 됐고, 약 275토큰을 한 조각으로 읽다가 끊겼어요.
+   그래서 휴대폰은 32토큰씩 나눠 읽고(web-llm.js의 'word-game patch'), 컴퓨터는 512토큰 그대로 읽어요.
+   'AI 진단'이 조각 크기를 바꿔 가며 재서 이 기기에서 안전한 크기를 찾으면, 그 크기를 이 기기(localStorage)에 모델·그래픽 칩마다 남겨서 써요.
+   그래픽 칩을 잃었거나 탭이 꺼진 크기, 조각 하나가 너무 오래 걸린 크기는 다시 쓰지 않아요 (그보다 작은 크기로) */
+const AI_CHUNK = 512;
+const AI_CHUNK_PHONE = 32;
+const AI_CHUNK_KEY = 'wg-ai-chunk';
+// 조각 하나가 AI_CHUNK_OK_MS보다 짧게 끝나야 안전한 크기로 남겨요. AI_CHUNK_SLOW_MS보다 길면 그래픽 칩 한계에 가까워서 더 큰 조각은 재지 않아요
+const AI_CHUNK_OK_MS = 1000, AI_CHUNK_SLOW_MS = 1200;
+const aiInfoOf = inf => { const s = k => String((inf && inf[k]) || '').trim().slice(0, 80); return { vendor: s('vendor'), architecture: s('architecture'), device: s('device'), description: s('description') }; };
+// 이 화면이 본 그래픽 칩 이름 (aiGpuOk가 먼저 읽어 뒀으면 그대로)
+async function aiGpuInfo() {
+  if (AI.gpuInfo) return AI.gpuInfo;
+  let inf = null;
+  try { const a = typeof navigator !== 'undefined' && navigator.gpu && await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }); inf = a && a.info; } catch (e) { inf = null; }
+  return (AI.gpuInfo = aiInfoOf(inf));
+}
+// 휴대폰인지: 안드로이드 브라우저이거나 휴대폰 그래픽 칩(Qualcomm Adreno, Arm Mali, Imagination PowerVR)
+function aiIsPhone(info) {
+  let ua = '';
+  try { ua = navigator.userAgent || ''; } catch (e) { }
+  const g = info || AI.gpuInfo || {};
+  return /Android/i.test(ua) || /^(?:qualcomm|arm|imagination)\b/i.test(g.vendor || '') || /adreno|mali|powervr|valhall|bifrost|midgard|rogue/i.test([g.architecture, g.device, g.description].join(' '));
+}
+// 남겨 둘 이름: 모델 + 그래픽 칩 이름
+const aiChunkKey = info => { const g = info || AI.gpuInfo || {}; return `${AI_MODEL} · ${[g.vendor, g.architecture, g.device, g.description].filter(Boolean).join(' / ') || '그래픽 칩 이름 모름'}`; };
+function aiChunkAll() {
+  try { const o = JSON.parse(localStorage.getItem(AI_CHUNK_KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; }
+}
+// 이 기기의 기록: safe 안전한 크기(0 = 모름), bad 쓰지 않을 크기들
+function aiChunkRec(key) {
+  const r = aiChunkAll()[key] || {};
+  return { safe: +r.safe > 0 ? Math.floor(+r.safe) : 0, bad: Array.isArray(r.bad) ? r.bad.map(Number).filter(n => n > 0) : [], at: +r.at || 0 };
+}
+function aiChunkPut(key, f) {
+  const all = aiChunkAll(), r = aiChunkRec(key);
+  f(r); r.at = Date.now(); all[key] = r;
+  try { localStorage.setItem(AI_CHUNK_KEY, JSON.stringify(all)); } catch (e) { }
+  return r;
+}
+// 이 크기는 이 기기에서 다시 쓰지 않아요 (그래픽 칩을 잃음·탭이 꺼짐·조각 하나가 너무 오래 걸림)
+const aiChunkBad = (key, n) => aiChunkPut(key, r => { if (!r.bad.includes(n)) r.bad.push(n); r.bad.sort((a, b) => a - b); if (r.safe >= n) r.safe = 0; });
+// 쓸 조각 크기: 진단으로 찾은 안전한 크기, 없으면 휴대폰 32·컴퓨터 512. 안 되는 크기가 있으면 그보다 작게(반씩)
+function aiChunkPick(info) {
+  aiBenchLoad(); // 진단 중에 탭이 꺼졌으면 그때 재던 크기를 먼저 '안 됨'으로 적어요
+  const r = aiChunkRec(aiChunkKey(info));
+  let n = r.safe || (aiIsPhone(info) ? AI_CHUNK_PHONE : AI_CHUNK);
+  const lim = r.bad.length ? Math.min(...r.bad) : Infinity;
+  while (n > 1 && n >= lim) n = Math.floor(n / 2);
+  return Math.max(1, Math.min(n, AI_CHUNK));
+}
+// 올라와 있는 AI가 글을 n토큰씩 나눠 읽게 해요 (일꾼에게 알려요). 글을 쓰는 중이 아닐 때만 불러요
+function aiChunkSet(n) {
+  const w = AI.worker;
+  AI.chunk = n;
+  if (w && typeof w.postMessage === 'function') try { w.postMessage({ wgPrefillChunk: n }); } catch (e) { }
+}
+// t0(ms) 뒤에 온 조각 시간: n 조각 수, max 가장 오래 걸린 조각(ms), size 조각 크기
+function aiChunkSince(t0) {
+  const L = AI.chunkLog.filter(e => e.at >= t0);
+  return { n: L.length, max: L.reduce((m, e) => Math.max(m, e.took), 0), size: L.length ? L[L.length - 1].size : 0 };
+}
+
 // 모델 준비: 처음이면 내려받고(진행률 onProgress(0~1, 단계 글)), 다음부터는 저장된 것으로 금방
 // 인터넷이 끊겨 실패하면 잠깐 쉬었다가 두 번 더 해 봐요 (다 받은 조각은 브라우저에 저장돼 있어서 이어 받아요)
 const AI_TRIES = 3;
@@ -110,9 +178,13 @@ function aiLoad(onProgress) {
 async function aiStart(lib, gen) {
   // 일꾼마다 이름을 붙여요: 일꾼이 그래픽 칩 소식을 보낼 때 이 이름을 붙여서, 이 화면이 띄운 일꾼 소식만 받아요
   aiGpuListen();
+  // 글을 나눠 읽을 조각 크기 (휴대폰은 작게, 진단으로 찾은 크기가 있으면 그 크기). 512보다 작을 때만 모델 설정에 넣어요
+  const chunk = aiChunkPick(await aiGpuInfo());
+  if (gen !== AI.gen) throw { code: 'cancelled' };
   const name = 'wg-ai-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   AI.wnames.add(name);
   const worker = AI.worker = new Worker(aiURL('llm/worker.js'), { type: 'module', name });
+  AI.chunk = chunk;
   // 일꾼이 아예 못 뜨면(파일을 못 받음 등) 답이 영영 안 오니, 오류가 나면 바로 끝내요
   const dead = new Promise((_, no) => worker.addEventListener('error', e => no(new Error('ai worker: ' + ((e && e.message) || 'failed to start'))), { once: true }));
   dead.catch(() => { });
@@ -121,7 +193,8 @@ async function aiStart(lib, gen) {
   // WebLLM의 sliding_window_size는 모델 속 '부분 주의'가 아니라 기억(KV 캐시) 전체를 고리처럼 돌려 쓰는 설정이에요.
   // 모델 설정이 '전체 창'과 '미끄럼 창'을 둘 다 켜 두면 켜다가 멈춰요 (WindowSizeConfigurationError).
   // 전체 창만 쓰게 맞춰요(-1 = 끔): 이야기 한 편(지시 + 이야기 + 답)은 4천 토큰 안에 들어가요
-  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'], overrides: { ...(rec.overrides || {}), context_window_size: AI_CTX, sliding_window_size: -1, attention_sink_size: -1 } }] } : undefined;
+  // wg_prefill_chunk: 글을 이 크기 조각으로 나눠 읽어요 (web-llm.js의 'word-game patch')
+  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'], overrides: { ...(rec.overrides || {}), context_window_size: AI_CTX, sliding_window_size: -1, attention_sink_size: -1, ...(chunk < AI_CHUNK ? { wg_prefill_chunk: chunk } : {}) } }] } : undefined;
   try {
     const eng = await Promise.race([lib.CreateWebWorkerMLCEngine(worker, AI_MODEL, {
       appConfig,
@@ -189,6 +262,7 @@ const aiLost = e => { const m = aiMsgOf(e); return /ModelNotLoaded|not loaded/i.
 // 이야기 AI가 지금 그래픽 칩을 쓰는 중인지 (그래픽 칩에 올리는 중이거나 글을 쓰는 중)
 const aiBusy = () => !!AI.work || (!!AI.loading && !AI.engine);
 // 'AI가 쓴 글 보기'에 보일 한 줄: 어느 단계에서(이야기 읽기 → 글쓰기) 몇 초 만에, 토큰을 몇 개 쓰고 멈췄는지 (failed: 오류로 멈춤)
+// 글을 몇 토큰씩 나눠 읽었는지, 조각 하나가 가장 오래 걸린 시간도 (그래픽 칩 한계에 얼마나 가까웠는지)
 function aiWorkText(w, failed) {
   const sec = ms => `${(Math.max(0, ms) / 1000).toFixed(1)}초`, u = w.usage || {};
   const toks = +u.completion_tokens || w.tokens, out = [];
@@ -197,6 +271,8 @@ function aiWorkText(w, failed) {
   if (w.first) out.push(`이야기 읽기 ${sec(w.first - w.t0)}`);
   if (+u.prompt_tokens) out.push(`읽은 토큰 ${+u.prompt_tokens}개`);
   if (w.stream || +u.completion_tokens) out.push(`쓴 토큰 ${toks}개`);
+  const c = aiChunkSince(w.t0), size = c.size || w.size;
+  if (size) out.push(`읽기 조각 ${size}토큰${c.n ? ` · 조각 ${c.n}개 · 조각 최대 ${c.max}ms` : ''}`);
   if (w.hidden) out.push(`그동안 화면 꺼짐·다른 앱 ${w.hidden}번`);
   return out.join(' · ');
 }
@@ -220,6 +296,14 @@ function aiGpuListen() {
 }
 function aiGpuGot(d) {
   if (!d || typeof d !== 'object' || !AI.wnames.has(d.w)) return;
+  // 글 읽기 조각 하나가 끝남 (took: 걸린 ms, tokens: 토큰 수, size: 조각 크기). 그래픽 칩 소식과 따로 남겨요
+  if (d.kind === 'chunk') {
+    const ev = { kind: 'chunk', at: Date.now(), took: Math.max(0, Math.round(+d.took || 0)), tokens: +d.tokens || 0, size: +d.size || 0 };
+    AI.chunkLog.push(ev);
+    if (AI.chunkLog.length > 400) AI.chunkLog.splice(0, AI.chunkLog.length - 400);
+    if (AI.onChunk) try { AI.onChunk(ev); } catch (e) { }
+    return;
+  }
   const s = (v, n) => String(v == null ? '' : v).slice(0, n || 500);
   const ev = { kind: s(d.kind, 20), at: Date.now(), ms: +d.ms || 0, n: +d.n || 0, reason: s(d.reason, 40), type: s(d.type, 60), level: s(d.level, 10), msg: s(d.msg), by: s(d.by, 300) };
   if (ev.kind === 'adapter') AI.gpuDev = Object.assign(AI.gpuDev || {}, { info: d.info || {}, limits: d.limits || {}, feats: d.feats || {}, fallback: !!d.fallback });
@@ -435,9 +519,11 @@ async function aiRewrite(eng, res, rows, n, signal) {
   const stop = () => { try { eng.interruptGenerate(); } catch (e) { } };
   if (signal) { if (signal.aborted) throw { code: 'cancelled' }; signal.addEventListener('abort', stop, { once: true }); }
   let text = '';
+  // 진단이 이 기기의 안전한 조각 크기를 새로 찾았으면 올라와 있는 AI도 그 크기로 읽어요
+  if (AI.chunk) { const want = aiChunkPick(AI.gpuInfo); if (want !== AI.chunk) aiChunkSet(want); }
   // 글을 조금씩 받아요(stream): 이야기를 다 읽었는지(첫 토큰), 토큰을 몇 개 썼는지 알 수 있어요. 멈추면 그 기록을 남겨요
   // (stream이 아닌 답이 와도 읽어요: 시험용 가짜 AI)
-  const work = AI.work = { step: 'read', t0: Date.now(), first: 0, tokens: 0, hidden: 0, stream: false, usage: null };
+  const work = AI.work = { step: 'read', t0: Date.now(), first: 0, tokens: 0, hidden: 0, stream: false, usage: null, size: AI.chunk };
   try {
     const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: prompt }], temperature: 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * items.length + 60), stream: true, stream_options: { include_usage: true } });
     if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
@@ -497,29 +583,39 @@ async function aiRewrite(eng, res, rows, n, signal) {
 }
 
 /* ---------- AI 진단 (문제 찾기용) ----------
-   만들기 화면 AI 상자의 'AI 진단' 단추: 진짜 AI로 다섯 단계를 차례로 해 보고, 처음 실패한 단계에서 멈춰요.
-   단계마다 성공·실패, 걸린 시간, 읽은·쓴 토큰 수, 초당 토큰 수(WebLLM이 알려 준 값), 그동안 그래픽 칩이 알려 준 일(끊김 까닭·오류)을 남겨요.
-   결과는 이 휴대폰(localStorage)에만 남고 어디에도 보내지 않아요. 진단 중에 탭이 꺼지면, 다음에 열 때 하던 단계를 '탭 꺼짐'으로 보여 줘요 */
+   만들기 화면 AI 상자의 'AI 진단' 단추: 진짜 AI로 단계를 차례로 해 보고, 처음 실패한 단계에서 멈춰요.
+   1 불러오기 → 2 그래픽 준비(처음 쓸 때 그래픽 칩이 계산 방법을 준비하는 시간을 따로 재요) → 3 짧은 글 →
+   4~7 같은 중간 글(약 275토큰)을 16·32·64·128토큰씩 나눠 읽기 → 8 실제 크기 요청 → 9 길게 쓰기 (8·9는 찾은 안전한 조각 크기로).
+   조각 크기 재기: 조각 하나가 1.2초를 넘으면 그래픽 칩 한계에 가까워서 더 큰 크기는 재지 않아요. 1초 안에 끝난 가장 큰 크기를
+   이 기기의 안전한 조각 크기로 남기고 이야기 만들기에 써요. 실패하면(그래픽 칩을 잃음) 그 엔진은 다시 쓰지 않고 멈춰요.
+   단계마다 성공·실패, 걸린 시간, 조각 크기·조각 수·가장 오래 걸린 조각, 읽은·쓴 토큰 수, 초당 토큰 수(WebLLM이 알려 준 값),
+   그동안 그래픽 칩이 알려 준 일(끊김 까닭·오류)을 남겨요.
+   결과는 이 휴대폰(localStorage)에만 남고 어디에도 보내지 않아요. 진단 중에 탭이 꺼지면, 다음에 열 때 하던 단계를 '탭 꺼짐'으로 보여 주고
+   그때 재던 조각 크기는 다시 쓰지 않아요 */
 const AI_BENCH_KEY = 'wg-ai-bench';
 const AI_BENCH = [
   { k: 'load', label: '1 저장소에서 불러오기' },
-  { k: 'tiny', label: '2 짧은 글 읽기', out: 16 },
-  { k: 'chunk', label: '3 중간 글 읽기(한 조각)', out: 16 },
-  { k: 'long', label: '4 긴 글 읽기(실제 크기)', out: 16 },
-  { k: 'write', label: '5 길게 쓰기', out: 300 }
+  { k: 'warm', label: '2 그래픽 준비(처음 한 번)', out: 4 },
+  { k: 'tiny', label: '3 짧은 글 읽기', out: 16 },
+  { k: 'sweep', size: 16, label: '4 중간 글 16토큰씩 읽기', out: 4 },
+  { k: 'sweep', size: 32, label: '5 중간 글 32토큰씩 읽기', out: 4 },
+  { k: 'sweep', size: 64, label: '6 중간 글 64토큰씩 읽기', out: 4 },
+  { k: 'sweep', size: 128, label: '7 중간 글 128토큰씩 읽기', out: 4 },
+  { k: 'long', label: '8 긴 글 읽기(실제 크기)', out: 16 },
+  { k: 'write', label: '9 길게 쓰기', out: 300 }
 ];
 // 진단에 쓰는 단어 (일반 사전 낱말과 직접 쓴 뜻). 실제 에피소드처럼 6개
 const AI_BENCH_WORDS = [['borrow', '빌리다'], ['encourage', '격려하다'], ['whisper', '속삭이다'], ['brave', '용감한'], ['harvest', '수확'], ['compare', '비교하다']];
+const AI_BENCH_WARM = '안녕! 한 낱말로 인사해 줘.';
 const AI_BENCH_TINY = '너는 어린이 그림책 작가야. 읽는 사람은 어린이와 청소년이야. 용감한 고양이가 나오는 이야기의 첫 문장을 한 문장으로 써 줘.';
-// 이 모델은 글을 512토큰씩 나눠 읽어요 (모델 파일 이름의 cs512). 3단계는 한 조각 안, 4단계는 여러 조각
-const AI_CHUNK = 512;
 // 실제 에피소드 요청 글: 단어장 만들기와 똑같이 앱 이야기(mkStory)를 만들고 aiRewrite와 같은 방법(aiReq)으로
 function aiBenchLong() {
   const rows = Object.create(null);
   for (const [en, ko] of AI_BENCH_WORDS) rows[en] = { en, ko, pos: 'x' };
   return aiReq(mkStory(AI_BENCH_WORDS.map(w => w[0]), rows, 0), rows, 0).prompt;
 }
-// 한 조각 안의 글: 실제 요청 글의 앞부분. 2단계에서 잰 '글자당 토큰'으로 약 450토큰이 되게 잘라요 (실제 글보다는 늘 짧게)
+// 중간 글: 실제 요청 글의 앞부분. 3단계에서 잰 '글자당 토큰'으로 450토큰 안쪽이 되게 잘라요 (실제 글보다는 늘 짧게).
+// 갤럭시 S25에서는 약 275토큰이었어요 (이 글을 한 조각으로 읽다가 그래픽 칩이 끊겼어요). 조각 크기 재기는 모두 이 글로 해요
 function aiBenchChunk(long, perChar) {
   const r = perChar > 0.1 && perChar < 3 ? perChar : 0.7, n = Math.min(Math.floor(420 / r), Math.floor(long.length * 0.75));
   let t = long.slice(0, n);
@@ -535,19 +631,24 @@ const aiUaText = () => {
   } catch (e) { return ''; }
 };
 function aiBenchSave(b) { b.seen = Date.now(); try { localStorage.setItem(AI_BENCH_KEY, JSON.stringify(b)); } catch (e) { } }
-// 저장해 둔 진단 결과. 진단하는 중으로 남아 있으면 그때 탭이 꺼진 거예요: 하던 단계를 '탭 꺼짐'으로 바꿔요 (crashNew: 이번에 처음 찾음)
+// 저장해 둔 진단 결과. 진단하는 중으로 남아 있으면 그때 탭이 꺼진 거예요: 하던 단계를 '탭 꺼짐'으로 바꿔요 (crashNew: 이번에 처음 찾음).
+// 조각 크기를 재거나 긴 글을 읽다가 꺼졌으면 그 조각 크기는 이 기기에서 다시 쓰지 않아요
 function aiBenchLoad() {
   if (AI.bench !== undefined) return AI.bench;
   let b = null;
   try { b = JSON.parse(localStorage.getItem(AI_BENCH_KEY) || 'null'); } catch (e) { b = null; }
   if (!b || b.v !== 1 || !Array.isArray(b.stages)) b = null;
+  AI.bench = b;
   if (b && b.state === 'run') {
     b.state = 'crash';
-    for (const st of b.stages) if (st.state === 'run') { st.state = 'crash'; st.s = Math.max(0, ((b.seen || st.t0) - st.t0) / 1000); }
+    for (const st of b.stages) {
+      if (st.state !== 'run') continue;
+      st.state = 'crash'; st.s = Math.max(0, ((b.seen || st.t0) - st.t0) / 1000);
+      if (b.ckey && st.size > 0 && (st.k === 'sweep' || st.k === 'long')) { aiChunkBad(b.ckey, st.size); st.note = `${st.size}토큰 조각은 이제 쓰지 않아요`; }
+    }
     aiBenchSave(b);
     b.crashNew = true;
   }
-  AI.bench = b;
   return b;
 }
 // 한 단계 묻기: 실제 이야기 쓰기와 같은 설정, 정해 둔 토큰 수만큼 끝까지 쓰게(ignore_eos). 조금씩 받아서 첫 글자까지 걸린 시간도 재요
@@ -569,19 +670,27 @@ async function aiBenchAsk(eng, prompt, out, st) {
     st.pre = +x.prefill_tokens_per_s || 0; st.dec = +x.decode_tokens_per_s || 0;
   }
 }
-// 진단하기: 다섯 단계를 차례로. 실패하면 거기서 멈춰요. onChange(b): 단계가 바뀌거나 그래픽 칩 소식이 올 때마다
+// 진단하기: 단계를 차례로. 실패하면 거기서 멈춰요. onChange(b): 단계가 바뀌거나 그래픽 칩 소식·조각 시간이 올 때마다
 async function aiBenchRun(signal, onChange) {
-  const b = AI.bench = { v: 1, t0: Date.now(), state: 'run', env: aiEnvText(), dev: '', ua: aiUaText(), stages: AI_BENCH.map(s => ({ k: s.k, label: s.label, state: '' })) };
+  const b = AI.bench = { v: 1, t0: Date.now(), state: 'run', env: aiEnvText(), dev: '', ua: aiUaText(), ckey: '', safe: 0, stages: AI_BENCH.map(s => Object.assign({ k: s.k, label: s.label, state: '' }, s.size ? { size: s.size } : {})) };
   if (aiNeedsDownload()) b.stages[0].label = '1 받기·저장소에서 불러오기';
-  let cur = null, eng = null, perChar = 0, long = '';
+  // top: 이 크기부터는 재지 않아요 (한계에 가까웠던 크기)
+  let cur = null, eng = null, perChar = 0, long = '', mid = '', top = Infinity;
   const put = () => { aiBenchSave(b); if (onChange) try { onChange(b); } catch (e) { } };
   AI.onGpu = ev => {
     if (AI.bench !== b) return;
     if (ev.kind === 'adapter' || ev.kind === 'device') { b.dev = aiDevText(); put(); return; }
     // 끝난 뒤 10초 안에 온 소식은 마지막 단계에 붙여요 (끊김 소식이 오류보다 늦게 올 수 있어요)
-    const st = cur || (b.end && Date.now() - b.end < 10000 ? b.stages.filter(s => s.state).pop() : null);
+    const st = cur || (b.end && Date.now() - b.end < 10000 ? b.stages.filter(s => s.state && s.state !== 'skip').pop() : null);
     if (!st) return;
     st.gpu = (st.gpu || []).concat([aiGpuLine(ev)]).slice(0, 16);
+    put();
+  };
+  // 조각 하나가 끝날 때마다 그 단계에 적고 저장해요 (탭이 꺼져도 어디까지 읽었는지 남게)
+  AI.onChunk = ev => {
+    if (AI.bench !== b || !cur || cur.k === 'load') return;
+    cur.cn = (cur.cn || 0) + 1; cur.cmax = Math.max(cur.cmax || 0, ev.took);
+    if (ev.size) cur.size = ev.size;
     put();
   };
   const stopped = new Promise((_, no) => {
@@ -592,9 +701,22 @@ async function aiBenchRun(signal, onChange) {
   const PH = { init: '준비 시작', fetch: '받는 중', load: '그래픽 칩에 올리는 중', shader: '마무리하는 중' };
   put();
   try {
+    const info = await Promise.race([aiGpuInfo(), stopped]);
+    b.ckey = aiChunkKey(info);
     for (let i = 0; i < AI_BENCH.length; i++) {
-      const def = AI_BENCH[i], st = cur = b.stages[i];
-      st.state = 'run'; st.t0 = Date.now(); put();
+      const def = AI_BENCH[i], st = b.stages[i];
+      if (def.k === 'sweep') {
+        // 처음 재기 전에 전에 찾은 안전한 크기를 지워요 (이번에 다시 찾아요). 전에 안 된 크기와 그보다 큰 크기, 한계에 가까웠던 크기부터는 건너뛰어요
+        if (def === AI_BENCH.find(d => d.k === 'sweep')) aiChunkPut(b.ckey, r => { r.safe = 0; });
+        const bad = aiChunkRec(b.ckey).bad.filter(n => n <= def.size);
+        if (bad.length || def.size >= top) {
+          st.state = 'skip';
+          st.note = def.size >= top ? `${top}토큰 조각이 한계에 가까워서 건너뛰었어요` : bad.includes(def.size) ? '전에 이 크기가 안 돼서 건너뛰었어요' : `전에 ${bad[0]}토큰 조각이 안 돼서 건너뛰었어요`;
+          put();
+          continue;
+        }
+      }
+      cur = st; st.state = 'run'; st.t0 = Date.now(); put();
       try {
         if (def.k === 'load') {
           // 늘 새로 불러와서 재요 (올라와 있던 AI는 내려놓아요)
@@ -605,18 +727,27 @@ async function aiBenchRun(signal, onChange) {
           st.at = '';
         } else {
           if (!long) long = aiBenchLong();
-          const prompt = def.k === 'long' ? long : def.k === 'chunk' ? aiBenchChunk(long, perChar) : AI_BENCH_TINY;
-          if (def.k !== 'tiny' && perChar) st.est = Math.round(prompt.length * perChar + 8);
+          if (def.k === 'sweep') { if (!mid) mid = aiBenchChunk(long, perChar); aiChunkSet(def.size); }
+          // 실제 크기 요청과 길게 쓰기는 이 기기에 쓸 조각 크기로 (방금 찾은 안전한 크기)
+          if (def.k === 'long' || def.k === 'write') aiChunkSet(aiChunkPick(info));
+          st.size = AI.chunk;
+          const prompt = def.k === 'long' ? long : def.k === 'sweep' ? mid : def.k === 'warm' ? AI_BENCH_WARM : AI_BENCH_TINY;
+          if ((def.k === 'sweep' || def.k === 'long') && perChar) st.est = Math.round(prompt.length * perChar + 8);
           await Promise.race([aiBenchAsk(eng, prompt, def.out, st), stopped]);
           if (def.k === 'tiny' && st.tin > 8) perChar = (st.tin - 8) / AI_BENCH_TINY.length;
-          if (def.k === 'chunk' && st.tin > AI_CHUNK) st.note = `한 조각(${AI_CHUNK}토큰)보다 길었어요`;
-          if (def.k === 'long' && st.tin && st.tin <= AI_CHUNK) st.note = `한 조각(${AI_CHUNK}토큰) 안이었어요`;
+          if (def.k === 'sweep') {
+            if (!st.cn) st.note = '조각 시간을 받지 못해서 안전한 크기로 남기지 않았어요';
+            else if (st.cmax > AI_CHUNK_SLOW_MS) { top = def.size; aiChunkBad(b.ckey, def.size); st.note = `조각 하나가 ${(AI_CHUNK_SLOW_MS / 1000).toFixed(1)}초를 넘어서 그래픽 칩 한계에 가까워요`; }
+            else if (st.cmax < AI_CHUNK_OK_MS) { b.safe = def.size; aiChunkPut(b.ckey, r => { r.safe = def.size; }); }
+          }
         }
         st.state = 'ok';
       } catch (e) {
         if (e && e.code === 'cancelled') { st.state = 'stop'; throw e; }
         st.state = 'fail';
         st.err = (def.k === 'load' && AI.err ? AI.err.text : aiMsgOf(e) || '알 수 없는 오류').slice(0, 300);
+        // 이 조각 크기는 이 기기에서 다시 쓰지 않아요 (실제 크기 요청은 그래픽 칩을 잃었을 때만)
+        if (st.size > 0 && (def.k === 'sweep' || (def.k === 'long' && aiLost(e)))) { aiChunkBad(b.ckey, st.size); st.note = `${st.size}토큰 조각은 이제 쓰지 않아요`; }
         // 그래픽 칩을 잃었으면 끊김 소식을 잠깐 기다려요
         if (def.k === 'load' || aiLost(e)) await aiGpuWait(st.t0);
         throw e;
@@ -628,7 +759,7 @@ async function aiBenchRun(signal, onChange) {
     if (b.state === 'stop') { if (eng) try { eng.interruptGenerate(); } catch (x) { } if (!AI.engine) aiDrop(); }
     // 실패한 엔진은 다시 쓰지 않아요 (다음 단어장은 새로 불러와요)
     else aiDrop();
-  } finally { cur = null; b.end = Date.now(); put(); }
+  } finally { cur = null; b.end = Date.now(); if (AI.onChunk && AI.bench === b) AI.onChunk = null; put(); }
   return b;
 }
 // 진단 중에 화면이 꺼지거나 다른 앱이 열리면 그 단계에 적어요
@@ -638,21 +769,23 @@ function aiBenchOnVis() {
   const st = b.stages.find(s => s.state === 'run');
   if (st) { st.hid = (st.hid || 0) + 1; aiBenchSave(b); }
 }
-// 진단 결과 글: 한 단계에 한 줄 + 기기 줄 + 그래픽 칩 소식 (복사해서 보낼 수 있게 글로만)
+// 진단 결과 글: 한 단계에 한 줄 + 기기 줄 + 그래픽 칩 소식 + 이 기기의 안전한 조각 크기 (복사해서 보낼 수 있게 글로만)
 function aiBenchText(b) {
   if (!b) return '';
   const d = new Date(b.t0), two = n => String(n).padStart(2, '0');
   const out = [`AI 진단 · ${AI_MODEL} · ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}${b.ua ? ' · ' + b.ua : ''}`];
   if (b.env) out.push(b.env);
   if (b.dev) out.push(b.dev);
-  const ST = { ok: 'ok (성공)', fail: 'fail (실패)', crash: 'crashed (탭 꺼짐)', stop: '그만둠', run: '하는 중', '': '안 함' };
+  const ST = { ok: 'ok (성공)', fail: 'fail (실패)', crash: 'crashed (탭 꺼짐)', stop: '그만둠', run: '하는 중', skip: '건너뜀', '': '안 함' };
   for (const st of b.stages) {
     const p = [`${st.label}: ${ST[st.state] != null ? ST[st.state] : st.state}`];
     if (st.state === 'run') p.push(`${aiSec(Date.now() - st.t0)}째`);
-    else if (st.state && st.s != null) p.push(`${(+st.s).toFixed(1)}초${st.state === 'crash' ? ' 뒤 꺼짐' : ''}`);
+    else if (st.state && st.state !== 'skip' && st.s != null) p.push(`${(+st.s).toFixed(1)}초${st.state === 'crash' ? ' 뒤 꺼짐' : ''}`);
     if (st.at) p.push(st.at);
-    if (st.tin) p.push(`읽은 토큰 ${st.tin}`); else if (st.est && st.state) p.push(`읽을 토큰 약 ${st.est}(어림)`);
-    if (st.k !== 'load' && st.state) p.push(`쓴 토큰 ${st.tout || 0}`);
+    if (st.k !== 'load' && st.k !== 'sweep' && st.size && st.state && st.state !== 'skip') p.push(`조각 ${st.size}토큰`);
+    if (st.cn) p.push(`조각 ${st.cn}개 · 조각 최대 ${st.cmax}ms`);
+    if (st.tin) p.push(`읽은 토큰 ${st.tin}`); else if (st.est && st.state && st.state !== 'skip') p.push(`읽을 토큰 약 ${st.est}(어림)`);
+    if (st.k !== 'load' && st.state && st.state !== 'skip') p.push(`쓴 토큰 ${st.tout || 0}`);
     if (st.first != null) p.push(`첫 글자까지 ${(+st.first).toFixed(1)}초`);
     if (st.pre) p.push(`읽기 ${(+st.pre).toFixed(1)}토큰/초`);
     if (st.dec) p.push(`쓰기 ${(+st.dec).toFixed(1)}토큰/초`);
@@ -662,8 +795,10 @@ function aiBenchText(b) {
     out.push(p.join(' · '));
     for (const g of st.gpu || []) out.push(`   - ${g}`);
   }
+  // 조각 크기를 재기 시작했으면: 이번에 찾은 안전한 크기 (이야기를 만들 때 이 크기로 읽어요)
+  if (b.stages.some(s => s.k === 'sweep' && s.state && s.state !== 'skip')) out.push(b.safe ? `이 기기의 안전한 조각 크기: ${b.safe}토큰 (이야기를 만들 때 이 크기로 나눠 읽어요)` : '이 기기의 안전한 조각 크기: 아직 못 찾았어요');
   const bad = b.stages.find(s => s.state === 'fail' || s.state === 'crash');
-  out.push(b.state === 'run' ? '결과: 진단하는 중이에요. 화면을 켜 둔 채 기다려 주세요.' : b.state === 'done' ? '결과: 다섯 단계를 모두 마쳤어요.' : b.state === 'stop' ? '결과: 중간에 그만뒀어요.'
+  out.push(b.state === 'run' ? '결과: 진단하는 중이에요. 화면을 켜 둔 채 기다려 주세요.' : b.state === 'done' ? '결과: 모든 단계를 마쳤어요.' : b.state === 'stop' ? '결과: 중간에 그만뒀어요.'
     : bad ? `결과: ${bad.label.split(' ')[0]}단계에서 멈췄어요${bad.state === 'crash' ? ' (진단 중에 탭이 꺼졌어요)' : ''}.` : '결과: 멈췄어요.');
   return out.join('\n');
 }
