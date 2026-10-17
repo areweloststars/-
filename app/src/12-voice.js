@@ -482,10 +482,10 @@ function voiceTry(lang) {
 // 발음 단추를 눌렀는데 영어 목소리가 아직 준비 중일 때 알려 줌
 function voiceWait(e) { if (e && e.name === 'VoiceLoading') toast(`영어 발음용 고품질 목소리를 준비하고 있어요 (${Math.round(Voice.progress * 100)}%) · 다 되면 발음이 나와요`); }
 function ttsStop() { ttsTok++; if (hasSS) try { speechSynthesis.cancel(); } catch (e) { } Esp.stop(); Narr.stop(); }
-// 영어 단어 발음은 음성 속도 설정과 상관없이 보통 빠르기보다 빨라지지 않게 (느리게는 됨)
+// 영어 단어 발음은 음성 속도 설정과 상관없이 보통 빠르기보다 빨라지지 않게 (느리게는 됨). 휴대폰 목소리는 보통 빠르기도 빠르게 들려서 0.72배로 또박또박
 const wordRate = () => Math.min(SAVE.rate, 1);
 const wordSay = id => WORDS[id] && WORDS[id].say || shortW(id);
-function sayWord(id, rate) { return tts(wordSay(id), 'en-US', Math.min(rate, 1) * .85); }
+function sayWord(id, rate) { return tts(wordSay(id), 'en-US', Math.min(rate, 1) * .72); }
 function announce(t) { const el = $('#live'); if (el) el.textContent = t; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /* 기기 안에서 만든 목소리(wav 주소)를 재생. 앱 안 화면처럼 브라우저 음성 기능이 없는 곳에서도 들리게 함.

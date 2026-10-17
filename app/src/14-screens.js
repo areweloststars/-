@@ -340,7 +340,7 @@ async function svTTS(L, ms, after) {
   }
   if (!live()) return;
   // 영어 단어 발음은 따로: 안 돼도 이야기는 계속
-  if (L.word && ok) { await sleep(120); if (!live()) return; try { await sayWord(L.word, SAVE.rate); } catch (e) { } }
+  if (L.word && ok) { await sleep(250); if (!live()) return; try { await sayWord(L.word, SAVE.rate); } catch (e) { } }
   if (!live()) return;
   if (ok) after(); else SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0)));
 }
