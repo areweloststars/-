@@ -356,6 +356,125 @@ test('AI story: an error while the AI writes is shown on the finished screen wit
   } finally { p.close(); }
 });
 
+// 휴대폰이 그래픽 칩(GPU)을 잃었을 때 크롬이 내는 오류 (WebLLM 일꾼이 글로 보내요)
+const LOST = "AbortError: Failed to execute 'mapAsync' on 'GPUBuffer': Buffer was unmapped before mapping was resolved.";
+// 가짜 WebLLM: 엔진을 만들 때마다 정해 둔 차례대로 다른 엔진을 줘요
+//  'lost' 쓰자마자 그래픽 칩을 잃음, 'lost-stream' 토큰 3개를 쓰고 잃음, 'stream' 조금씩 써서 끝까지(쓴 토큰 수도 알려 줌), 'write' 한 번에 다 씀
+// __calls: 몇 번째 엔진이 글을 썼는지, __onCall: 쓰기 시작할 때 부를 함수
+const ENGINES_LIB = kinds => `(() => {
+  window.__workers = []; window.__kinds = ${JSON.stringify(kinds)}; window.__calls = []; window.__onCall = null;
+  window.Worker = class { constructor() { this.l = {}; this.dead = false; __workers.push(this); } addEventListener(k, f) { (this.l[k] = this.l[k] || []).push(f); } terminate() { this.dead = true; } };
+  AI.retryMs = 0;
+  const rewrite = req => req.messages[0].content.split('\\n').map(l => l.match(/^(\\d+)\\. \\[([^\\]]+)\\] (.+)$/)).filter(Boolean)
+    .map(m => m[1] + '. 그러자 모두가 깜짝 놀라 ' + m[2].replace(/^~\\S*\\s/, '') + ' 일을 떠올렸어요.').join('\\n');
+  const make = (kind, n) => ({ interruptGenerate() {}, chat: { completions: { create: async req => {
+    __calls.push(n); if (__onCall) __onCall(n);
+    if (kind === 'lost') throw ${JSON.stringify(LOST)};
+    if (kind === 'lost-stream') return (async function* () { for (const t of ['1.', ' 그러자', ' 모두']) yield { choices: [{ delta: { content: t } }] }; throw ${JSON.stringify(LOST)}; })();
+    if (kind === 'stream') { const text = rewrite(req); return (async function* () { for (const t of text.match(/[\\s\\S]{1,6}/g)) yield { choices: [{ delta: { content: t } }] }; yield { choices: [], usage: { prompt_tokens: 321, completion_tokens: 42 } }; })(); }
+    return { choices: [{ message: { content: rewrite(req) } }] };
+  } } } });
+  let n = 0;
+  AI.lib = { prebuiltAppConfig: { model_list: [{ model_id: AI_MODEL }] }, CreateWebWorkerMLCEngine: (w, id, cfg) => new Promise(ok => { const k = n++; setTimeout(() => { cfg.initProgressCallback({ progress: 1, text: 'Loading model from cache[20/20]' }); ok(make(__kinds[k] || 'write', k)); }, 5); }) };
+  AI.gpu = true;
+})()`;
+// 화면을 가리거나(다른 앱·화면 꺼짐) 다시 보이게 해요
+const VIS = `window.setVis = on => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => !on }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => on ? 'visible' : 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); };`;
+
+test('AI story: the lost-graphics-chip error (mapAsync, unmapped) is classed as lost; the engine is dropped, reloaded once and the same episode is written again', async () => {
+  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
+  try {
+    assert.deepEqual(p.json(`[${JSON.stringify(LOST)}, new Error(${JSON.stringify(LOST)}), 'The Device was lost before mapping was resolved.', 'Instance dropped', 'GPUDevice lost', 'context lost', 'Error: Model not loaded before trying to complete ChatCompletionRequest.', 'Prompt tokens exceed context window size', 'TypeError: Failed to fetch', 'Cannot find model record'].map(aiLost)`),
+      [true, true, true, true, true, true, true, false, false, false]);
+    // 단어 6개 = 에피소드 하나 (휴대폰에서 실패한 경우와 같아요). 첫 엔진은 토큰 3개를 쓰고 그래픽 칩을 잃어요
+    p.run(ENGINES_LIB(['lost-stream', 'write']));
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
+    await p.run('mkMake()');
+    const a = p.json('({ step: MK.step, note: MK.aiNote, calls: __calls, dead: __workers.map(w => w.dead), diag: MK.aiDiag, log: MK.log.map(l => l.text), scenes: MK.deck.scenes.length, lines: MK.deck.scenes[0].lines })');
+    assert.equal(a.step, 'done');
+    assert.equal(a.scenes, 1);
+    assert.deepEqual(a.calls, [0, 1], '다시 준비한 엔진이 같은 에피소드를 한 번 더 써요');
+    assert.deepEqual(a.dead, [true, false], '잃은 엔진의 일꾼은 멈춰요');
+    assert.ok(a.lines.some(l => /깜짝 놀라/.test(l)), a.lines.join('\n'));
+    assert.match(a.note, /단어 문장 6줄 가운데 6줄을 다듬었어요\. 쓰는 중에 그래픽 칩 연결이 한 번 끊겨서.*AI를 다시 준비해 그 에피소드를 다시 썼어요/);
+    assert.ok(a.log.some(t => /쓰는 중에 그래픽 칩 연결이 끊겼어요\. AI를 다시 준비해서 한 번 더 써요/.test(t)), a.log.join('\n'));
+    assert.ok(a.log.some(t => /완성 \(AI 문장 6줄\)/.test(t)), a.log.join('\n'));
+    // 'AI가 쓴 글 보기': 어느 단계에서 몇 초 만에 토큰 몇 개를 쓰고 멈췄는지, 그때까지 쓴 글
+    assert.match(a.diag[0].why[0], /AI가 문장을 쓰다가 오류가 났어요: AbortError: .*mapAsync.*unmapped/);
+    assert.match(a.diag[0].info, /^멈춘 단계: 글을 쓰는 중 · 시작하고 \d+\.\d초 뒤 · 이야기 읽기 \d+\.\d초 · 쓴 토큰 3개$/);
+    assert.equal(a.diag[0].raw, '1. 그러자 모두');
+    assert.match(p.document.querySelector('#make .mkdiag').textContent, /멈춘 단계: 글을 쓰는 중.*쓴 토큰 3개.*mapAsync/);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI story: losing the graphics chip again after the reload does not loop; the next deck starts a fresh engine', async () => {
+  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
+  try {
+    p.run(ENGINES_LIB(['lost', 'lost', 'write']));
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
+    await p.run('mkMake()');
+    const a = p.json('({ step: MK.step, note: MK.aiNote, calls: __calls, dead: __workers.map(w => w.dead), eng: !!AI.engine, diag: MK.aiDiag, lines: MK.deck.scenes[0].lines })');
+    assert.equal(a.step, 'done');
+    assert.deepEqual(a.calls, [0, 1], '한 번만 다시 써요');
+    assert.deepEqual(a.dead, [true, true], '엔진은 한 번만 다시 준비하고, 또 잃으면 버려요');
+    assert.equal(a.eng, false, '죽은 엔진을 다음 단어장에 쓰지 않아요');
+    assert.ok(!a.lines.some(l => /깜짝 놀라/.test(l)), '앱의 기본 문장으로');
+    assert.match(a.note, /문장을 쓰다가 오류가 났어요 \(오류: AbortError: Failed to execute 'mapAsync'.*AI를 다시 준비해서 한 번 더 써 봤지만 또 끊겨서, 남은 이야기는 기본 문장으로 만들었어요\. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 두세요\./);
+    assert.equal(a.diag.length, 2);
+    for (const d of a.diag) assert.match(d.info, /^멈춘 단계: 이야기를 읽고 쓰는 중 · 시작하고 \d+\.\d초 뒤$/);
+    // 다음 단어장: 새 엔진을 준비해서 써요
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    await p.run('mkMake()');
+    assert.deepEqual(p.json('__calls'), [0, 1, 2]);
+    assert.equal(p.json('__workers.length'), 3);
+    assert.match(p.json('MK.aiNote'), /다듬었어요\.$/);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('making a deck keeps the screen awake, asks again after the page comes back, explains the hidden page, and lets go at the end', async () => {
+  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
+  try {
+    // 가짜 화면 켜 두기: 브라우저는 화면이 가려지면 스스로 풀어요 (release 이벤트)
+    p.run(`window.__wl = { asked: 0, freed: 0, live: null, fail: false };
+      Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request: async type => {
+        __wl.asked++; __wl.type = type;
+        if (__wl.fail) throw new DOMException('not allowed', 'NotAllowedError');
+        const s = { released: false, l: [], addEventListener(k, f) { if (k === 'release') s.l.push(f); }, release: async () => { if (!s.released) { s.released = true; __wl.freed++; s.l.forEach(f => f()); } } };
+        __wl.live = s; return s;
+      } } });
+      window.__uaRelease = () => { const s = __wl.live; if (s && !s.released) { s.released = true; s.l.forEach(f => f()); } };`);
+    p.run(VIS);
+    p.run(ENGINES_LIB(['stream']));
+    // AI가 쓰는 동안 다른 앱을 열었다가 돌아와요
+    p.run(`__onCall = () => { __wl.atCall = !!(__wl.live && !__wl.live.released); setVis(false); __uaRelease(); __wl.hiddenLog = MK.log.length; setVis(true); };`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
+    await p.run('mkMake()');
+    const a = p.json('({ step: MK.step, note: MK.aiNote, wl: __wl, held: WAKE.tags.size, lock: !!WAKE.lock, log: MK.log.map(l => l.text), diag: MK.aiDiag, env: MK.aiEnv })');
+    assert.equal(a.step, 'done');
+    assert.equal(a.wl.type, 'screen');
+    assert.equal(a.wl.atCall, true, 'AI가 쓰는 동안 화면을 켜 둬요');
+    assert.equal(a.wl.asked, 2, '돌아오면 다시 부탁해요');
+    assert.equal(a.wl.freed, 1, '다 만들면 풀어요');
+    assert.equal(a.held, 0); assert.equal(a.lock, false);
+    // 돌아오면 무슨 일인지 기록에, 다 만들면 안내 글에
+    assert.ok(a.log.slice(a.wl.hiddenLog).some(t => t === '만드는 중에 화면이 꺼지거나 다른 앱이 열렸어요. 이러면 크롬이 AI의 그래픽 작업을 멈출 수 있어요. 다 만들 때까지 이 화면을 켜 두세요.'), a.log.join('\n'));
+    assert.match(a.note, /다듬었어요\. 만드는 중에 화면이 꺼지거나 다른 앱이 열렸어요\. 이러면 크롬이 AI의 그래픽 작업을 멈출 수 있어요\. 다음에는 다 만들 때까지 이 화면을 켜 두세요\.$/);
+    // 끝까지 쓴 글의 기록: 걸린 시간, 읽은·쓴 토큰 수, 가려진 횟수
+    assert.match(a.diag[0].info, /^걸린 시간 \d+\.\d초 · 이야기 읽기 \d+\.\d초 · 읽은 토큰 321개 · 쓴 토큰 42개 · 그동안 화면 꺼짐·다른 앱 1번$/);
+    assert.match(a.diag[0].why.join(' '), /: 씀/);
+    // 거절돼도 그냥 만들어요 (오류 없음)
+    p.run(`__wl.fail = true; __onCall = null; MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    await p.run('mkMake()');
+    assert.equal(p.json('MK.step'), 'done');
+    assert.equal(p.json('__wl.asked'), 3);
+    assert.doesNotMatch(p.json('MK.aiNote'), /화면이 꺼지거나/);
+    assert.equal(p.json('WAKE.tags.size'), 0);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
 test('AI loading: stopping during the first download stops the worker and the progress updates', async () => {
   const p = bootPage();
   try {
@@ -405,11 +524,13 @@ test('AI check: low phone memory, a small GPU buffer limit and missing f16 each 
     const nav = p.window.navigator;
     const gpu = (f16, buf) => Object.defineProperty(nav, 'gpu', { configurable: true, value: { requestAdapter: async () => ({ features: new Set(f16 ? ['shader-f16'] : []), limits: { maxStorageBufferBindingSize: buf } }) } });
     const why = async () => { p.run('AI.gpu = null; AI.gpuWhy = ""'); return p.run('aiWhyNot()'); };
-    // 메모리(RAM)가 4GB보다 작으면 그래픽 칩을 보기 전에 안 된다고 해요
+    // 크롬이 알려 준 메모리(RAM)가 8GB보다 작으면(실제 4~6GB 휴대폰) 그래픽 칩을 보기 전에 안 된다고 해요: 올리다가 탭이 꺼져요
     gpu(true, 2 ** 30);
-    Object.defineProperty(nav, 'deviceMemory', { configurable: true, value: 2 });
-    assert.match(await why(), /메모리\(RAM\)가 작아서\(약 2GB\) 이야기 AI를 돌릴 수 없어요.*게임은 앱이 쓴 문장으로 그대로 할 수 있어요/);
-    assert.equal(p.json('AI.gpu'), false);
+    for (const mem of [2, 4]) {
+      Object.defineProperty(nav, 'deviceMemory', { configurable: true, value: mem });
+      assert.match(await why(), new RegExp(`메모리\\(RAM\\)가 작아서 이야기 AI를 돌릴 수 없어요 \\(크롬이 알려 준 메모리 약 ${mem}GB, 이야기 AI는 8GB 필요\\).*게임은 앱이 쓴 문장으로 그대로 할 수 있어요`));
+      assert.equal(p.json('AI.gpu'), false);
+    }
     Object.defineProperty(nav, 'deviceMemory', { configurable: true, value: 8 });
     // 그래픽 칩 버퍼 한도: 기본 128MB는 모자라요 (모델 기록이 없으면 192MB 필요)
     gpu(true, 134217728);
@@ -424,6 +545,10 @@ test('AI check: low phone memory, a small GPU buffer limit and missing f16 each 
     gpu(true, 2 ** 30);
     assert.equal(await why(), '');
     assert.equal(p.json('AI.gpu'), true);
+    // 문제 찾기용: 그래픽 칩 이름을 기억해요 ('AI가 쓴 글 보기' 맨 위 줄)
+    Object.defineProperty(nav, 'gpu', { configurable: true, value: { requestAdapter: async () => ({ features: new Set(['shader-f16']), limits: { maxStorageBufferBindingSize: 2 ** 30 }, info: { vendor: 'qualcomm', architecture: 'adreno-8xx' } }) } });
+    assert.equal(await why(), '');
+    assert.equal(p.json('aiEnvText()'), '기기: 메모리 약 8GB · 그래픽 칩 qualcomm adreno-8xx · 버퍼 한도 1024MB');
   } finally { p.close(); }
 });
 

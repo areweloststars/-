@@ -8,23 +8,30 @@
 const AI_MODEL = 'gemma-4-E2B-it-q4f16_1-MLC';
 const AI_SIZE = '약 3GB';
 // gen: 준비를 그만둘 때마다 늘어요 (그만둔 준비가 늦게 끝나도 쓰지 않게)
-const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 } };
+// work: 지금 쓰는 중인 글 하나의 기록 (단계·시작 시각·쓴 토큰 수). 쓰지 않을 때는 null
+const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null };
 const aiURL = p => new URL(p, location.href).href;
 // WebLLM의 모델 기록 (가짜 AI.lib 또는 받아 둔 AI.web). 아직 안 받았으면 null
 const aiRec = () => { const L = AI.lib || AI.web, list = L && L.prebuiltAppConfig && L.prebuiltAppConfig.model_list; return (list && list.find(m => m.model_id === AI_MODEL)) || null; };
 // 그래픽 칩이 한 번에 다뤄야 하는 버퍼 크기 (모델 기록 값, 없으면 WebLLM 0.2.86 기록의 192MB)
 const AI_BUF = 201326592;
 const aiBufNeed = () => +((aiRec() || {}).buffer_size_required_bytes) || AI_BUF;
-// 이 기기에서 AI를 돌릴 수 있는지: 메모리(RAM) 4GB 이상 + WebGPU + 반정밀도(shader-f16) + 큰 버퍼.
-// 이 모델은 f16 셰이더가 있어야 돌아가고, 그래픽 칩이 192MB짜리 버퍼를 다룰 수 있어야 해요
+// 이 기기에서 AI를 돌릴 수 있는지: 메모리(RAM) 8GB + WebGPU + 반정밀도(shader-f16) + 큰 버퍼.
+// 이 모델은 f16 셰이더가 있어야 돌아가고, 그래픽 칩이 192MB짜리 버퍼를 다룰 수 있어야 해요.
+// 모델이 그래픽 메모리를 약 3.4GB 써요. 휴대폰은 RAM을 그래픽 칩과 나눠 써서, 크롬이 4GB라고 알려 주는 휴대폰(실제 4~6GB)은
+// 그래픽 칩에 올리다가 탭이 꺼져요 (갤럭시 A16: '그래픽 칩에 올리는 중 3%'). 크롬은 RAM을 가까운 2의 거듭제곱으로, 8GB까지만 알려 줘요
+const AI_MEM = 8;
 async function aiGpuOk() {
   if (AI.gpu != null) return AI.gpu;
   try {
     const mem = typeof navigator !== 'undefined' ? navigator.deviceMemory : undefined;
-    if (typeof mem === 'number' && mem < 4) { AI.gpu = false; AI.gpuWhy = 'mem'; AI.gpuMem = mem; return false; }
+    if (typeof mem === 'number' && mem < AI_MEM) { AI.gpu = false; AI.gpuWhy = 'mem'; AI.gpuMem = mem; return false; }
     const a = navigator.gpu && await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     const f16 = !!(a && a.features && a.features.has('shader-f16'));
     AI.gpuBuf = a && a.limits ? +a.limits.maxStorageBufferBindingSize || 0 : 0;
+    // 문제 찾기용: 어떤 그래픽 칩인지 ('qualcomm adreno-8xx' 같은 이름)
+    const inf = a && a.info;
+    AI.gpuName = inf ? [inf.vendor, inf.architecture || inf.device || inf.description].filter(Boolean).join(' ').slice(0, 60) : '';
     AI.gpuWhy = !navigator.gpu ? 'nogpu' : !a ? 'noadapter' : !f16 ? 'nof16' : AI.gpuBuf < aiBufNeed() ? 'buf' : '';
     AI.gpu = !AI.gpuWhy;
   } catch (e) { AI.gpu = false; AI.gpuWhy = 'noadapter'; }
@@ -36,7 +43,7 @@ const AI_INAPP = [[/KAKAOTALK/i, '카카오톡'], [/NAVER\(inapp|NAVER/, '네이
 async function aiWhyNot() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '', app = (AI_INAPP.find(([re]) => re.test(ua)) || [])[1];
   if (await aiGpuOk()) return '';
-  if (AI.gpuWhy === 'mem') return `이 휴대폰은 메모리(RAM)가 작아서${AI.gpuMem ? `(약 ${AI.gpuMem}GB)` : ''} 이야기 AI를 돌릴 수 없어요. 이야기 AI는 4GB 넘게 필요해요. 게임은 앱이 쓴 문장으로 그대로 할 수 있어요.`;
+  if (AI.gpuWhy === 'mem') return `이 휴대폰은 메모리(RAM)가 작아서 이야기 AI를 돌릴 수 없어요 (크롬이 알려 준 메모리 약 ${AI.gpuMem}GB, 이야기 AI는 ${AI_MEM}GB 필요). 게임은 앱이 쓴 문장으로 그대로 할 수 있어요.`;
   if (app) return `${app} 안에서 열린 화면이에요. 오른쪽 위 ⋮ 메뉴에서 ‘다른 브라우저로 열기’를 눌러 크롬으로 열어 주세요.`;
   if (AI.gpuWhy === 'nogpu') return '이 브라우저에는 AI 계산 기능(WebGPU)이 없어요. 휴대폰의 최신 크롬으로 열어 주세요.';
   if (AI.gpuWhy === 'nof16') return '이 휴대폰의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.';
@@ -149,7 +156,7 @@ function aiErrInfo(e) {
   let why;
   if ((e && e.code === 'quota') || /QuotaExceeded|quota/i.test(raw)) why = `브라우저 저장 공간이 모자라요${e && e.quota ? ` (이 사이트가 쓸 수 있는 공간 약 ${Math.round(e.quota / 1048576)}MB, 필요 약 ${Math.round(AI_NEED / 1048576)}MB)` : ''}. 휴대폰 저장 공간을 더 비운 뒤 다시 받아 주세요.`;
   else if (aiNetErr(e)) why = '인터넷 연결이 끊겨서 다 받지 못했어요. 받은 부분은 저장돼 있어서 다시 받으면 이어서 받아요. 와이파이에서 화면을 켜 둔 채로 해 주세요.';
-  else if (/device (?:was )?lost|DeviceLost|out of memory|OutOfMemory|Allocation|GPUOutOfMemory/i.test(raw)) why = '그래픽 메모리가 모자랐어요. 다른 앱을 닫고 다시 해 주세요.';
+  else if (AI_GPU_LOST.test(raw) || /out of memory|OutOfMemory|Allocation|GPUOutOfMemory/i.test(raw)) why = '그래픽 메모리가 모자랐어요. 다른 앱을 닫고 다시 해 주세요.';
   else if (/exceeds limit|maxStorage|maxBuffer|maxCompute|requestDevice|Cannot initialize runtime/i.test(raw)) why = '이 휴대폰 그래픽 칩의 한도가 이 AI에 모자라요.';
   else if (/ShaderF16|FeatureSupport|shader-f16/i.test(raw)) why = '이 휴대폰의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.';
   else if (/WindowSize|AttentionSink|ConfigurationError|context_window_size|sliding_window_size/i.test(raw)) why = '앱의 AI 설정이 모델과 맞지 않았어요. 앱을 고쳐야 하는 문제라서 알려 주시면 고칠게요.';
@@ -157,8 +164,35 @@ function aiErrInfo(e) {
   else why = '알 수 없는 오류가 났어요. 다시 받아 보고, 또 안 되면 이 화면을 캡처해서 알려 주세요.';
   return { where, why, raw: raw.slice(0, 120), text: `${where} 멈췄어요. ${why}${raw ? ` (오류: ${raw.slice(0, 120)})` : ''}` };
 }
-// GPU를 잃었거나 모델이 내려간 오류인지 (한 번 다시 준비해 볼 만한 오류)
-const aiLost = e => /ModelNotLoaded|not loaded|device (?:was )?lost|DeviceLost/i.test(String((e && e.message) || e));
+// 그래픽 칩(GPU)을 잃었을 때 나오는 오류 글. 크롬은 그래픽 칩을 잃으면(GPU 프로세스가 꺼짐·메모리 부족·그래픽 칩이 오래 걸린 일을 멈춤·
+// 화면이 꺼지거나 다른 앱으로 감) device.lost를 알려요. 그러면 WebLLM과 TVM이 엔진을 내리면서 device.destroy()를 부르고,
+// 크롬은 그때 읽기를 기다리던 버퍼를 풀어서 'AbortError: … mapAsync … Buffer was unmapped before mapping was resolved.'가 나요.
+// 그냥 잃었으면 'The Device was lost before mapping was resolved.', 크롬 연결이 끊기면 'Instance dropped'·'GPU connection lost' 같은 글이에요
+const AI_GPU_LOST = /device (?:was |is )?lost|DeviceLost|GPUDevice lost|lost before mapping|mapAsync|unmapped|destroyed before mapping|Instance dropped|instance reference no longer exists|context (?:was )?lost|GPU connection lost/i;
+// GPU를 잃었거나 모델이 내려간 오류인지 (엔진을 버리고 한 번 다시 준비해 볼 만한 오류)
+const aiLost = e => { const m = aiMsgOf(e); return /ModelNotLoaded|not loaded/i.test(m) || AI_GPU_LOST.test(m); };
+// 이야기 AI가 지금 그래픽 칩을 쓰는 중인지 (그래픽 칩에 올리는 중이거나 글을 쓰는 중)
+const aiBusy = () => !!AI.work || (!!AI.loading && !AI.engine);
+// 'AI가 쓴 글 보기'에 보일 한 줄: 어느 단계에서(이야기 읽기 → 글쓰기) 몇 초 만에, 토큰을 몇 개 쓰고 멈췄는지 (failed: 오류로 멈춤)
+function aiWorkText(w, failed) {
+  const sec = ms => `${(Math.max(0, ms) / 1000).toFixed(1)}초`, u = w.usage || {};
+  const toks = +u.completion_tokens || w.tokens, out = [];
+  if (failed) out.push(`멈춘 단계: ${!w.stream ? '이야기를 읽고 쓰는 중' : w.step === 'write' ? '글을 쓰는 중' : '이야기를 읽는 중(아직 쓴 글 없음)'}`, `시작하고 ${sec(Date.now() - w.t0)} 뒤`);
+  else out.push(`걸린 시간 ${sec(Date.now() - w.t0)}`);
+  if (w.first) out.push(`이야기 읽기 ${sec(w.first - w.t0)}`);
+  if (+u.prompt_tokens) out.push(`읽은 토큰 ${+u.prompt_tokens}개`);
+  if (w.stream || +u.completion_tokens) out.push(`쓴 토큰 ${toks}개`);
+  if (w.hidden) out.push(`그동안 화면 꺼짐·다른 앱 ${w.hidden}번`);
+  return out.join(' · ');
+}
+// 'AI가 쓴 글 보기' 맨 위 한 줄: 이 기기 (크롬이 알려 준 메모리, 그래픽 칩 이름, 버퍼 한도)
+function aiEnvText() {
+  const out = [];
+  try { const m = navigator.deviceMemory; if (m) out.push(`메모리 약 ${m}GB`); } catch (e) { }
+  if (AI.gpuName) out.push(`그래픽 칩 ${AI.gpuName}`);
+  if (AI.gpuBuf) out.push(`버퍼 한도 ${Math.round(AI.gpuBuf / 1048576)}MB`);
+  return out.length ? `기기: ${out.join(' · ')}` : '';
+}
 
 /* ---------- AI 문장에서 단어 뜻 찾기 ----------
    열쇠 = 학생 뜻의 기본꼴·줄기·활용꼴(모든 뜻에서), 짧은 열쇠는 뒤에 붙을 글자(need)까지 맞아야 해요
@@ -328,10 +362,30 @@ async function aiRewrite(eng, res, rows, n, signal) {
   const stop = () => { try { eng.interruptGenerate(); } catch (e) { } };
   if (signal) { if (signal.aborted) throw { code: 'cancelled' }; signal.addEventListener('abort', stop, { once: true }); }
   let text = '';
+  // 글을 조금씩 받아요(stream): 이야기를 다 읽었는지(첫 토큰), 토큰을 몇 개 썼는지 알 수 있어요. 멈추면 그 기록을 남겨요
+  // (stream이 아닌 답이 와도 읽어요: 시험용 가짜 AI)
+  const work = AI.work = { step: 'read', t0: Date.now(), first: 0, tokens: 0, hidden: 0, stream: false, usage: null };
   try {
-    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: aiPrompt(story) }], temperature: 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * items.length + 60) });
-    text = (reply && reply.choices && reply.choices[0] && reply.choices[0].message && reply.choices[0].message.content) || '';
-  } finally { if (signal) signal.removeEventListener('abort', stop); }
+    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: aiPrompt(story) }], temperature: 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * items.length + 60), stream: true, stream_options: { include_usage: true } });
+    if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
+      work.stream = true;
+      for await (const ch of reply) {
+        const c0 = ch && ch.choices && ch.choices[0], d = c0 && c0.delta && c0.delta.content;
+        if (d) { if (!work.tokens) { work.step = 'write'; work.first = Date.now(); } work.tokens++; text += d; }
+        if (ch && ch.usage) work.usage = ch.usage;
+      }
+    } else {
+      text = (reply && reply.choices && reply.choices[0] && reply.choices[0].message && reply.choices[0].message.content) || '';
+      work.usage = (reply && reply.usage) || null;
+    }
+  } catch (e) {
+    // 문제 찾기용 기록: 어느 단계에서 몇 초 만에 몇 토큰을 쓰고 멈췄는지 (그만두기는 빼요)
+    if (!(e && e.code === 'cancelled') && !(signal && signal.aborted)) {
+      const msg = aiMsgOf(e) || '알 수 없는 오류';
+      AI.diag = (AI.diag || []).concat([{ title: f.title, raw: String(text).slice(0, 1600), why: [`AI가 문장을 쓰다가 오류가 났어요: ${msg.slice(0, 300)}`], info: aiWorkText(work, true) }]).slice(-8);
+    }
+    throw e;
+  } finally { if (AI.work === work) AI.work = null; if (signal) signal.removeEventListener('abort', stop); }
   if (signal && signal.aborted) throw { code: 'cancelled' };
   const cand = aiParse(aiNoThink(text), items.length);
   // 앞에 붙은 '인물 이름:' 꼬리표는 떼요
@@ -341,7 +395,7 @@ async function aiRewrite(eng, res, rows, n, signal) {
   const same = (a, b) => a.replace(/[.!?]$/, '').trim() === b.replace(/[.!?]$/, '').trim();
   let changed = 0;
   // 문제 찾기용 기록: AI가 쓴 글과 줄마다 쓰지 못한 까닭 (완성 화면에서 펼쳐 볼 수 있어요)
-  const diag = { title: f.title, raw: String(text).slice(0, 1600), why: [] };
+  const diag = { title: f.title, raw: String(text).slice(0, 1600), why: [], info: aiWorkText(work, false) };
   items.forEach((x, k) => {
     let marked = null, why = cand[k].length ? '' : '답에서 이 번호를 못 찾음';
     for (const t0 of cand[k]) {
