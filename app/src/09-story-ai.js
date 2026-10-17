@@ -9,7 +9,9 @@ const AI_MODEL = 'gemma-4-E2B-it-q4f16_1-MLC';
 const AI_SIZE = '약 3GB';
 // gen: 준비를 그만둘 때마다 늘어요 (그만둔 준비가 늦게 끝나도 쓰지 않게)
 // work: 지금 쓰는 중인 글 하나의 기록 (단계·시작 시각·쓴 토큰 수). 쓰지 않을 때는 null
-const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null };
+// gpuLog: AI 일꾼이 보낸 그래픽 칩 소식 (끊김·오류·콘솔 오류 글), gpuDev: 일꾼이 쓰는 그래픽 칩 정보, wnames: 이 화면이 띄운 일꾼 이름들
+// bench: 'AI 진단' 기록 (아직 안 읽었으면 undefined)
+const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null, gpuLog: [], gpuDev: null, wnames: new Set(), gpuCh: null, onGpu: null };
 const aiURL = p => new URL(p, location.href).href;
 // WebLLM의 모델 기록 (가짜 AI.lib 또는 받아 둔 AI.web). 아직 안 받았으면 null
 const aiRec = () => { const L = AI.lib || AI.web, list = L && L.prebuiltAppConfig && L.prebuiltAppConfig.model_list; return (list && list.find(m => m.model_id === AI_MODEL)) || null; };
@@ -68,7 +70,7 @@ function aiDrop() {
 // 다음에 만들 때는 이 기기에 저장해 둔 모델을 다시 올려요 (인터넷 없이). 내려놓았으면 true
 function aiRelease() {
   if (!AI.engine && !AI.worker) return false;
-  if (MK.step === 'making' || (MK.aiDl && MK.aiDl.state === 'run')) return false;
+  if (MK.step === 'making' || (MK.aiDl && MK.aiDl.state === 'run') || (AI.bench && AI.bench.state === 'run')) return false;
   aiDrop();
   return true;
 }
@@ -106,7 +108,11 @@ function aiLoad(onProgress) {
 }
 // 한 번 해 보기: 새 일꾼을 띄워 모델을 올려요. 실패하면 일꾼을 닫아요
 async function aiStart(lib, gen) {
-  const worker = AI.worker = new Worker(aiURL('llm/worker.js'), { type: 'module' });
+  // 일꾼마다 이름을 붙여요: 일꾼이 그래픽 칩 소식을 보낼 때 이 이름을 붙여서, 이 화면이 띄운 일꾼 소식만 받아요
+  aiGpuListen();
+  const name = 'wg-ai-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  AI.wnames.add(name);
+  const worker = AI.worker = new Worker(aiURL('llm/worker.js'), { type: 'module', name });
   // 일꾼이 아예 못 뜨면(파일을 못 받음 등) 답이 영영 안 오니, 오류가 나면 바로 끝내요
   const dead = new Promise((_, no) => worker.addEventListener('error', e => no(new Error('ai worker: ' + ((e && e.message) || 'failed to start'))), { once: true }));
   dead.catch(() => { });
@@ -201,6 +207,59 @@ function aiEnvText() {
   if (AI.gpuName) out.push(`그래픽 칩 ${AI.gpuName}`);
   if (AI.gpuBuf) out.push(`버퍼 한도 ${Math.round(AI.gpuBuf / 1048576)}MB`);
   return out.length ? `기기: ${out.join(' · ')}` : '';
+}
+
+/* ---------- 그래픽 칩이 스스로 알려 주는 일 (문제 찾기용) ----------
+   AI 일꾼(word-game/llm/gpu-watch.js)이 그래픽 칩 정보, 장치를 잃은 까닭(device.lost), 잡히지 않은 오류(uncapturederror),
+   device.destroy()를 부른 곳, 일꾼의 console.error·warn 글을 BroadcastChannel('wg-ai-gpu')로 보내요 (WebLLM의 메시지와 따로).
+   이 휴대폰 안에서만 오가요. 'AI가 쓴 글 보기'와 'AI 진단' 결과에 붙여요 */
+const AI_GPU_CH = 'wg-ai-gpu';
+function aiGpuListen() {
+  if (AI.gpuCh || typeof BroadcastChannel !== 'function') return;
+  try { AI.gpuCh = new BroadcastChannel(AI_GPU_CH); AI.gpuCh.onmessage = m => aiGpuGot(m && m.data); } catch (e) { AI.gpuCh = null; }
+}
+function aiGpuGot(d) {
+  if (!d || typeof d !== 'object' || !AI.wnames.has(d.w)) return;
+  const s = (v, n) => String(v == null ? '' : v).slice(0, n || 500);
+  const ev = { kind: s(d.kind, 20), at: Date.now(), ms: +d.ms || 0, n: +d.n || 0, reason: s(d.reason, 40), type: s(d.type, 60), level: s(d.level, 10), msg: s(d.msg), by: s(d.by, 300) };
+  if (ev.kind === 'adapter') AI.gpuDev = Object.assign(AI.gpuDev || {}, { info: d.info || {}, limits: d.limits || {}, feats: d.feats || {}, fallback: !!d.fallback });
+  if (ev.kind === 'device') AI.gpuDev = Object.assign(AI.gpuDev || {}, { want: d.want || {}, wantF: Array.isArray(d.feats) ? d.feats.map(String) : [] });
+  AI.gpuLog.push(ev);
+  if (AI.gpuLog.length > 80) AI.gpuLog.splice(0, AI.gpuLog.length - 80);
+  if (AI.onGpu) try { AI.onGpu(ev); } catch (e) { }
+}
+// t0(ms) 뒤에 온 소식 (그래픽 칩 정보는 빼요)
+const aiGpuSince = t0 => AI.gpuLog.filter(e => e.at >= t0 && e.kind !== 'adapter' && e.kind !== 'device');
+const aiSec = ms => `${(Math.max(0, ms) / 1000).toFixed(1)}초`;
+// 소식 한 줄: GPU 끊김 까닭: reason / message, GPU 오류: 종류 / 글 …
+function aiGpuLine(e) {
+  const at = ` (일꾼 ${aiSec(e.ms)})`;
+  if (e.kind === 'lost') return `GPU 끊김 까닭: ${e.reason || '?'} / ${e.msg || '(글 없음)'}${at}`;
+  if (e.kind === 'error') return `GPU 오류: ${e.type || '?'} / ${e.msg || '(글 없음)'}${at}`;
+  if (e.kind === 'destroy') return `GPU 장치를 닫음(device.destroy): ${e.by || '(부른 곳 모름)'}${at}`;
+  if (e.kind === 'device-fail') return `GPU 장치를 만들지 못함: ${e.type || '?'} / ${e.msg || '(글 없음)'}${at}`;
+  if (e.kind === 'console') return `일꾼 ${e.level === 'warn' ? '경고' : '오류'} 글: ${e.msg}${at}`;
+  if (e.kind === 'reject') return `일꾼에서 처리 안 된 오류: ${e.msg}${at}`;
+  return `${e.kind}: ${e.msg}${at}`;
+}
+const aiGpuLines = t0 => { const L = aiGpuSince(t0).map(aiGpuLine); return L.length > 14 ? L.slice(0, 13).concat([`… 소식 ${L.length - 13}개 더`]) : L; };
+// 그래픽 칩을 잃었다는 오류가 났을 때: 끊김 소식(device.lost)이 오류보다 조금 늦게 올 수 있어서 잠깐(최대 0.6초) 기다려요
+function aiGpuWait(t0) {
+  const ms = AI.gpuLateMs == null ? 600 : AI.gpuLateMs, end = Date.now() + ms;
+  const has = () => aiGpuSince(t0).some(e => e.kind === 'lost');
+  return new Promise(ok => { const f = () => (!AI.gpuCh || has() || Date.now() >= end ? ok() : setTimeout(f, 40)); f(); });
+}
+// AI 일꾼이 쓰는 그래픽 칩: 이름(vendor / architecture / device / description), 한도, 기능, WebLLM이 부탁한 한도
+function aiDevText() {
+  const d = AI.gpuDev;
+  if (!d || !d.info) return '';
+  const fmt = (k, v) => !(+v) ? '?' : k === 'maxComputeWorkgroupStorageSize' ? `${Math.round(v / 1024)}KB` : /Size$/.test(k) ? `${Math.round(v / 1048576)}MB` : String(v);
+  const i = d.info, L = d.limits || {}, F = d.feats || {}, W = d.want;
+  const name = [i.vendor, i.architecture, i.device, i.description].map(x => String(x || '').trim()).filter(Boolean).join(' / ') || '(이름 없음)';
+  const lim = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxComputeWorkgroupStorageSize', 'maxComputeInvocationsPerWorkgroup'].map(k => `${k} ${fmt(k, L[k])}`).join(' · ');
+  const feats = Object.keys(F).map(k => `${k} ${F[k] ? '있음' : '없음'}`).join(' · ');
+  const want = W && Object.keys(W).length ? ` | WebLLM이 부탁한 한도: ${Object.keys(W).map(k => `${k} ${fmt(k, W[k])}`).join(' · ')}` : '';
+  return `AI 일꾼의 그래픽 칩: ${name}${d.fallback ? ' (대체 어댑터)' : ''} | 한도: ${lim}${feats ? ` | 기능: ${feats}` : ''}${want}`;
 }
 
 /* ---------- AI 문장에서 단어 뜻 찾기 ----------
@@ -353,8 +412,8 @@ function aiParse(text, n) {
   return cand;
 }
 
-// 앱이 만든 이야기(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요
-async function aiRewrite(eng, res, rows, n, signal) {
+// 요청 준비: 앱이 만든 이야기(res)에서 단어 줄을 찾아 번호를 붙여요 (AI 진단도 같은 방법으로 실제 크기의 요청 글을 만들어요)
+function aiReq(res, rows, n) {
   const f = SF[((n % SF.length) + SF.length) % SF.length];
   const lines = res.lines.slice(), plainOf = l => l.replace(/\{[^|}]+\|([^}]+)\}/g, '$1');
   const idx = [], items = [];
@@ -366,8 +425,13 @@ async function aiRewrite(eng, res, rows, n, signal) {
     const mean = w.slot != null ? `~${w.slot} ${w.m}` : w.m;
     idx.push(i); items.push({ id, w, ko: r.ko, mean });
   });
-  if (!items.length) return 0;
   const story = lines.map((l, i) => { const k = idx.indexOf(i); return k >= 0 ? { n: k + 1, mean: items[k].mean, text: plainOf(l) } : { n: 0, text: plainOf(l) }; });
+  return { f, lines, plainOf, idx, items, story, prompt: items.length ? aiPrompt(story) : '' };
+}
+// 앱이 만든 이야기(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요
+async function aiRewrite(eng, res, rows, n, signal) {
+  const { f, lines, plainOf, idx, items, story, prompt } = aiReq(res, rows, n);
+  if (!items.length) return 0;
   const stop = () => { try { eng.interruptGenerate(); } catch (e) { } };
   if (signal) { if (signal.aborted) throw { code: 'cancelled' }; signal.addEventListener('abort', stop, { once: true }); }
   let text = '';
@@ -375,7 +439,7 @@ async function aiRewrite(eng, res, rows, n, signal) {
   // (stream이 아닌 답이 와도 읽어요: 시험용 가짜 AI)
   const work = AI.work = { step: 'read', t0: Date.now(), first: 0, tokens: 0, hidden: 0, stream: false, usage: null };
   try {
-    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: aiPrompt(story) }], temperature: 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * items.length + 60), stream: true, stream_options: { include_usage: true } });
+    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: prompt }], temperature: 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * items.length + 60), stream: true, stream_options: { include_usage: true } });
     if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
       work.stream = true;
       for await (const ch of reply) {
@@ -389,9 +453,11 @@ async function aiRewrite(eng, res, rows, n, signal) {
     }
   } catch (e) {
     // 문제 찾기용 기록: 어느 단계에서 몇 초 만에 몇 토큰을 쓰고 멈췄는지 (그만두기는 빼요)
+    // 그래픽 칩을 잃었으면 그래픽 칩이 알려 준 까닭(끊김·오류)도 붙여요
     if (!(e && e.code === 'cancelled') && !(signal && signal.aborted)) {
-      const msg = aiMsgOf(e) || '알 수 없는 오류';
-      AI.diag = (AI.diag || []).concat([{ title: f.title, raw: String(text).slice(0, 1600), why: [`AI가 문장을 쓰다가 오류가 났어요: ${msg.slice(0, 300)}`], info: aiWorkText(work, true) }]).slice(-8);
+      const msg = aiMsgOf(e) || '알 수 없는 오류', info = aiWorkText(work, true);
+      if (aiLost(e)) await aiGpuWait(work.t0);
+      AI.diag = (AI.diag || []).concat([{ title: f.title, raw: String(text).slice(0, 1600), why: [`AI가 문장을 쓰다가 오류가 났어요: ${msg.slice(0, 300)}`], info, gpu: aiGpuLines(work.t0) }]).slice(-8);
     }
     throw e;
   } finally { if (AI.work === work) AI.work = null; if (signal) signal.removeEventListener('abort', stop); }
@@ -404,7 +470,7 @@ async function aiRewrite(eng, res, rows, n, signal) {
   const same = (a, b) => a.replace(/[.!?]$/, '').trim() === b.replace(/[.!?]$/, '').trim();
   let changed = 0;
   // 문제 찾기용 기록: AI가 쓴 글과 줄마다 쓰지 못한 까닭 (완성 화면에서 펼쳐 볼 수 있어요)
-  const diag = { title: f.title, raw: String(text).slice(0, 1600), why: [], info: aiWorkText(work, false) };
+  const diag = { title: f.title, raw: String(text).slice(0, 1600), why: [], info: aiWorkText(work, false), gpu: aiGpuLines(work.t0) };
   items.forEach((x, k) => {
     let marked = null, why = cand[k].length ? '' : '답에서 이 번호를 못 찾음';
     for (const t0 of cand[k]) {
@@ -428,4 +494,176 @@ async function aiRewrite(eng, res, rows, n, signal) {
   res.lines = lines;
   AI.diag = (AI.diag || []).concat([diag]).slice(-8);
   return changed;
+}
+
+/* ---------- AI 진단 (문제 찾기용) ----------
+   만들기 화면 AI 상자의 'AI 진단' 단추: 진짜 AI로 다섯 단계를 차례로 해 보고, 처음 실패한 단계에서 멈춰요.
+   단계마다 성공·실패, 걸린 시간, 읽은·쓴 토큰 수, 초당 토큰 수(WebLLM이 알려 준 값), 그동안 그래픽 칩이 알려 준 일(끊김 까닭·오류)을 남겨요.
+   결과는 이 휴대폰(localStorage)에만 남고 어디에도 보내지 않아요. 진단 중에 탭이 꺼지면, 다음에 열 때 하던 단계를 '탭 꺼짐'으로 보여 줘요 */
+const AI_BENCH_KEY = 'wg-ai-bench';
+const AI_BENCH = [
+  { k: 'load', label: '1 저장소에서 불러오기' },
+  { k: 'tiny', label: '2 짧은 글 읽기', out: 16 },
+  { k: 'chunk', label: '3 중간 글 읽기(한 조각)', out: 16 },
+  { k: 'long', label: '4 긴 글 읽기(실제 크기)', out: 16 },
+  { k: 'write', label: '5 길게 쓰기', out: 300 }
+];
+// 진단에 쓰는 단어 (일반 사전 낱말과 직접 쓴 뜻). 실제 에피소드처럼 6개
+const AI_BENCH_WORDS = [['borrow', '빌리다'], ['encourage', '격려하다'], ['whisper', '속삭이다'], ['brave', '용감한'], ['harvest', '수확'], ['compare', '비교하다']];
+const AI_BENCH_TINY = '너는 어린이 그림책 작가야. 읽는 사람은 어린이와 청소년이야. 용감한 고양이가 나오는 이야기의 첫 문장을 한 문장으로 써 줘.';
+// 이 모델은 글을 512토큰씩 나눠 읽어요 (모델 파일 이름의 cs512). 3단계는 한 조각 안, 4단계는 여러 조각
+const AI_CHUNK = 512;
+// 실제 에피소드 요청 글: 단어장 만들기와 똑같이 앱 이야기(mkStory)를 만들고 aiRewrite와 같은 방법(aiReq)으로
+function aiBenchLong() {
+  const rows = Object.create(null);
+  for (const [en, ko] of AI_BENCH_WORDS) rows[en] = { en, ko, pos: 'x' };
+  return aiReq(mkStory(AI_BENCH_WORDS.map(w => w[0]), rows, 0), rows, 0).prompt;
+}
+// 한 조각 안의 글: 실제 요청 글의 앞부분. 2단계에서 잰 '글자당 토큰'으로 약 450토큰이 되게 잘라요 (실제 글보다는 늘 짧게)
+function aiBenchChunk(long, perChar) {
+  const r = perChar > 0.1 && perChar < 3 ? perChar : 0.7, n = Math.min(Math.floor(420 / r), Math.floor(long.length * 0.75));
+  let t = long.slice(0, n);
+  const nl = t.lastIndexOf('\n');
+  if (n < long.length && nl > n * 0.6) t = t.slice(0, nl);
+  return t + '\n\n위 이야기의 첫 줄을 한 문장으로 다시 써 줘.';
+}
+const aiUaText = () => {
+  try {
+    const ua = navigator.userAgent || '', a = ua.match(/Android ([\d.]+)/), c = ua.match(/Chrome\/([\d.]+)/);
+    let app = false; try { app = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); } catch (e) { }
+    return [a && `Android ${a[1]}`, c && `Chrome ${c[1]}`, app && '설치한 앱'].filter(Boolean).join(' · ');
+  } catch (e) { return ''; }
+};
+function aiBenchSave(b) { b.seen = Date.now(); try { localStorage.setItem(AI_BENCH_KEY, JSON.stringify(b)); } catch (e) { } }
+// 저장해 둔 진단 결과. 진단하는 중으로 남아 있으면 그때 탭이 꺼진 거예요: 하던 단계를 '탭 꺼짐'으로 바꿔요 (crashNew: 이번에 처음 찾음)
+function aiBenchLoad() {
+  if (AI.bench !== undefined) return AI.bench;
+  let b = null;
+  try { b = JSON.parse(localStorage.getItem(AI_BENCH_KEY) || 'null'); } catch (e) { b = null; }
+  if (!b || b.v !== 1 || !Array.isArray(b.stages)) b = null;
+  if (b && b.state === 'run') {
+    b.state = 'crash';
+    for (const st of b.stages) if (st.state === 'run') { st.state = 'crash'; st.s = Math.max(0, ((b.seen || st.t0) - st.t0) / 1000); }
+    aiBenchSave(b);
+    b.crashNew = true;
+  }
+  AI.bench = b;
+  return b;
+}
+// 한 단계 묻기: 실제 이야기 쓰기와 같은 설정, 정해 둔 토큰 수만큼 끝까지 쓰게(ignore_eos). 조금씩 받아서 첫 글자까지 걸린 시간도 재요
+async function aiBenchAsk(eng, prompt, out, st) {
+  const t0 = Date.now();
+  st.tin = 0; st.tout = 0; st.first = null;
+  const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: prompt }], temperature: 0.7, top_p: 0.9, max_tokens: out, ignore_eos: true, stream: true, stream_options: { include_usage: true } });
+  let usage = null;
+  if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
+    for await (const ch of reply) {
+      const c0 = ch && ch.choices && ch.choices[0], d = c0 && c0.delta && c0.delta.content;
+      if (d) { if (st.first == null) st.first = (Date.now() - t0) / 1000; st.tout++; }
+      if (ch && ch.usage) usage = ch.usage;
+    }
+  } else usage = reply && reply.usage;
+  if (usage) {
+    const x = usage.extra || {};
+    st.tin = +usage.prompt_tokens || 0; st.tout = +usage.completion_tokens || st.tout;
+    st.pre = +x.prefill_tokens_per_s || 0; st.dec = +x.decode_tokens_per_s || 0;
+  }
+}
+// 진단하기: 다섯 단계를 차례로. 실패하면 거기서 멈춰요. onChange(b): 단계가 바뀌거나 그래픽 칩 소식이 올 때마다
+async function aiBenchRun(signal, onChange) {
+  const b = AI.bench = { v: 1, t0: Date.now(), state: 'run', env: aiEnvText(), dev: '', ua: aiUaText(), stages: AI_BENCH.map(s => ({ k: s.k, label: s.label, state: '' })) };
+  if (aiNeedsDownload()) b.stages[0].label = '1 받기·저장소에서 불러오기';
+  let cur = null, eng = null, perChar = 0, long = '';
+  const put = () => { aiBenchSave(b); if (onChange) try { onChange(b); } catch (e) { } };
+  AI.onGpu = ev => {
+    if (AI.bench !== b) return;
+    if (ev.kind === 'adapter' || ev.kind === 'device') { b.dev = aiDevText(); put(); return; }
+    // 끝난 뒤 10초 안에 온 소식은 마지막 단계에 붙여요 (끊김 소식이 오류보다 늦게 올 수 있어요)
+    const st = cur || (b.end && Date.now() - b.end < 10000 ? b.stages.filter(s => s.state).pop() : null);
+    if (!st) return;
+    st.gpu = (st.gpu || []).concat([aiGpuLine(ev)]).slice(0, 16);
+    put();
+  };
+  const stopped = new Promise((_, no) => {
+    const f = () => no({ code: 'cancelled' });
+    if (signal) { if (signal.aborted) f(); else signal.addEventListener('abort', f, { once: true }); }
+  });
+  stopped.catch(() => { });
+  const PH = { init: '준비 시작', fetch: '받는 중', load: '그래픽 칩에 올리는 중', shader: '마무리하는 중' };
+  put();
+  try {
+    for (let i = 0; i < AI_BENCH.length; i++) {
+      const def = AI_BENCH[i], st = cur = b.stages[i];
+      st.state = 'run'; st.t0 = Date.now(); put();
+      try {
+        if (def.k === 'load') {
+          // 늘 새로 불러와서 재요 (올라와 있던 AI는 내려놓아요)
+          if (AI.engine || AI.worker || AI.loading) aiDrop();
+          // 어느 단계 몇 %까지 갔는지 (10%마다 저장해요: 탭이 꺼져도 어디까지 갔는지 남게)
+          let last = '';
+          eng = await Promise.race([aiLoad(() => { const ph = AI.phase || {}, k = `${ph.step}:${Math.floor((ph.pct || 0) / 10)}`; st.at = `${PH[ph.step] || ph.step} ${ph.pct || 0}%`; if (k !== last) { last = k; put(); } }), stopped]);
+          st.at = '';
+        } else {
+          if (!long) long = aiBenchLong();
+          const prompt = def.k === 'long' ? long : def.k === 'chunk' ? aiBenchChunk(long, perChar) : AI_BENCH_TINY;
+          if (def.k !== 'tiny' && perChar) st.est = Math.round(prompt.length * perChar + 8);
+          await Promise.race([aiBenchAsk(eng, prompt, def.out, st), stopped]);
+          if (def.k === 'tiny' && st.tin > 8) perChar = (st.tin - 8) / AI_BENCH_TINY.length;
+          if (def.k === 'chunk' && st.tin > AI_CHUNK) st.note = `한 조각(${AI_CHUNK}토큰)보다 길었어요`;
+          if (def.k === 'long' && st.tin && st.tin <= AI_CHUNK) st.note = `한 조각(${AI_CHUNK}토큰) 안이었어요`;
+        }
+        st.state = 'ok';
+      } catch (e) {
+        if (e && e.code === 'cancelled') { st.state = 'stop'; throw e; }
+        st.state = 'fail';
+        st.err = (def.k === 'load' && AI.err ? AI.err.text : aiMsgOf(e) || '알 수 없는 오류').slice(0, 300);
+        // 그래픽 칩을 잃었으면 끊김 소식을 잠깐 기다려요
+        if (def.k === 'load' || aiLost(e)) await aiGpuWait(st.t0);
+        throw e;
+      } finally { st.s = (Date.now() - st.t0) / 1000; put(); }
+    }
+    b.state = 'done';
+  } catch (e) {
+    b.state = e && e.code === 'cancelled' ? 'stop' : 'fail';
+    if (b.state === 'stop') { if (eng) try { eng.interruptGenerate(); } catch (x) { } if (!AI.engine) aiDrop(); }
+    // 실패한 엔진은 다시 쓰지 않아요 (다음 단어장은 새로 불러와요)
+    else aiDrop();
+  } finally { cur = null; b.end = Date.now(); put(); }
+  return b;
+}
+// 진단 중에 화면이 꺼지거나 다른 앱이 열리면 그 단계에 적어요
+function aiBenchOnVis() {
+  const b = AI.bench;
+  if (!b || b.state !== 'run' || typeof document === 'undefined' || !document.hidden) return;
+  const st = b.stages.find(s => s.state === 'run');
+  if (st) { st.hid = (st.hid || 0) + 1; aiBenchSave(b); }
+}
+// 진단 결과 글: 한 단계에 한 줄 + 기기 줄 + 그래픽 칩 소식 (복사해서 보낼 수 있게 글로만)
+function aiBenchText(b) {
+  if (!b) return '';
+  const d = new Date(b.t0), two = n => String(n).padStart(2, '0');
+  const out = [`AI 진단 · ${AI_MODEL} · ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}${b.ua ? ' · ' + b.ua : ''}`];
+  if (b.env) out.push(b.env);
+  if (b.dev) out.push(b.dev);
+  const ST = { ok: 'ok (성공)', fail: 'fail (실패)', crash: 'crashed (탭 꺼짐)', stop: '그만둠', run: '하는 중', '': '안 함' };
+  for (const st of b.stages) {
+    const p = [`${st.label}: ${ST[st.state] != null ? ST[st.state] : st.state}`];
+    if (st.state === 'run') p.push(`${aiSec(Date.now() - st.t0)}째`);
+    else if (st.state && st.s != null) p.push(`${(+st.s).toFixed(1)}초${st.state === 'crash' ? ' 뒤 꺼짐' : ''}`);
+    if (st.at) p.push(st.at);
+    if (st.tin) p.push(`읽은 토큰 ${st.tin}`); else if (st.est && st.state) p.push(`읽을 토큰 약 ${st.est}(어림)`);
+    if (st.k !== 'load' && st.state) p.push(`쓴 토큰 ${st.tout || 0}`);
+    if (st.first != null) p.push(`첫 글자까지 ${(+st.first).toFixed(1)}초`);
+    if (st.pre) p.push(`읽기 ${(+st.pre).toFixed(1)}토큰/초`);
+    if (st.dec) p.push(`쓰기 ${(+st.dec).toFixed(1)}토큰/초`);
+    if (st.note) p.push(st.note);
+    if (st.hid) p.push(`화면 꺼짐·다른 앱 ${st.hid}번`);
+    if (st.err) p.push(`오류: ${st.err}`);
+    out.push(p.join(' · '));
+    for (const g of st.gpu || []) out.push(`   - ${g}`);
+  }
+  const bad = b.stages.find(s => s.state === 'fail' || s.state === 'crash');
+  out.push(b.state === 'run' ? '결과: 진단하는 중이에요. 화면을 켜 둔 채 기다려 주세요.' : b.state === 'done' ? '결과: 다섯 단계를 모두 마쳤어요.' : b.state === 'stop' ? '결과: 중간에 그만뒀어요.'
+    : bad ? `결과: ${bad.label.split(' ')[0]}단계에서 멈췄어요${bad.state === 'crash' ? ' (진단 중에 탭이 꺼졌어요)' : ''}.` : '결과: 멈췄어요.');
+  return out.join('\n');
 }

@@ -109,8 +109,10 @@ async function mkAiReady(ctl, label) {
   } catch (e) {
     if (e && e.code === 'cancelled') throw e;
     mkLogSet(li, 'warn', `이야기 AI를 준비하지 못했어요: ${(AI.err && AI.err.where) || ''} 멈췄어요`);
-    // 문제 찾기용 기록: 준비(받기·그래픽 칩에 올리기)의 어느 단계에서 몇 초 만에 멈췄는지
-    AI.diag = (AI.diag || []).concat([{ title: label ? '이야기 AI 다시 준비' : '이야기 AI 준비', raw: '', why: [(AI.err && AI.err.text) || `이야기 AI를 준비하지 못했어요: ${aiMsgOf(e)}`], info: `멈춘 단계: AI 준비 · 시작하고 ${((Date.now() - t0) / 1000).toFixed(1)}초 뒤` }]).slice(-8);
+    // 문제 찾기용 기록: 준비(받기·그래픽 칩에 올리기)의 어느 단계에서 몇 초 만에 멈췄는지, 그래픽 칩이 알려 준 까닭
+    const info = `멈춘 단계: AI 준비 · 시작하고 ${((Date.now() - t0) / 1000).toFixed(1)}초 뒤`;
+    await aiGpuWait(t0);
+    AI.diag = (AI.diag || []).concat([{ title: label ? '이야기 AI 다시 준비' : '이야기 AI 준비', raw: '', why: [(AI.err && AI.err.text) || `이야기 AI를 준비하지 못했어요: ${aiMsgOf(e)}`], info, gpu: aiGpuLines(t0) }]).slice(-8);
     return null;
   } finally { off(); AI.onRetry = null; if (AI.onProgress === onProg) AI.onProgress = null; }
 }
@@ -341,7 +343,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     if (MK.aiNote && MK.bg) MK.aiNote += ' ' + MK_BG.replace('다 만들 때까지', '다음에는 다 만들 때까지');
     // 'AI가 쓴 글 보기': AI를 준비하거나 쓴 기록이 있으면 (기기 정보도 한 줄)
     MK.aiDiag = (AI.diag || []).length ? AI.diag.slice() : null;
-    MK.aiEnv = MK.aiDiag ? aiEnvText() : '';
+    MK.aiEnv = MK.aiDiag ? [aiEnvText(), aiDevText()].filter(Boolean).join('\n') : '';
     MK.saveNote = (aiOff ? `Claude를 쓸 수 없어서 일부 에피소드는 이야기 없이 간단하게 만들었어요. (${aiOff}) ` : '') +
       (saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.');
     MK.redo = null;
@@ -362,7 +364,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
 function bindMake() {
   const el = $('#make');
   // 화면으로 돌아오면: 화면 켜 두기를 다시 부탁하고, 만드는 중에 가려졌으면 무슨 일인지 알려 줘요
-  document.addEventListener('visibilitychange', () => { wakeOnVis(); mkOnVis(); });
+  document.addEventListener('visibilitychange', () => { wakeOnVis(); mkOnVis(); aiBenchOnVis(); });
   // 직접 입력한 단어 목록은 화면이 다시 그려져도 남게
   el.addEventListener('input', e => {
     if (e.target.id === 'mkpaste') MK.paste = e.target.value;
@@ -401,7 +403,15 @@ function bindMake() {
     }
     else if (a === 'rmrow') { MK.rows.splice(+b.dataset.i, 1); renderMake(); }
     else if (a === 'addrow') { MK.rows.push({ en: '', ko: '', pos: 'x' }); renderMake(); const ins = document.querySelectorAll('#make .mken'); if (ins.length) ins[ins.length - 1].focus(); }
+    else if ((a === 'make' || a === 'makeai' || a === 'aidl' || a === 'bench') && MK.benchCtl) toast('AI 진단 중이에요. 끝난 뒤에 해 주세요');
     else if (a === 'make' || a === 'makeai') { const nm = $('#mkname'); if (nm) MK.name = nm.value; MK.useAI = a === 'makeai'; mkMake(); }
+    else if (a === 'bench') {
+      // 아직 AI를 안 받았으면 진단하면서 받아요: 모바일 데이터면 한 번 더 물어요
+      if (aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 진단하려면 이야기 AI(${AI_SIZE})를 먼저 받아요.</small><br>그래도 하려면 한 번 더 눌러요`)) return;
+      mkBench();
+    }
+    else if (a === 'benchstop') { if (MK.benchCtl) MK.benchCtl.abort(); }
+    else if (a === 'benchcopy') mkBenchCopy();
     else if (a === 'aidl') {
       // 모바일 데이터면 한 번 더 눌러야 받아요 (이야기 AI 약 3GB)
       if (!MK.aiWhy && aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 이야기 AI는 ${AI_SIZE}라서 와이파이에서 받는 게 좋아요.</small><br>그래도 받으려면 한 번 더 눌러요`)) return;
@@ -411,6 +421,34 @@ function bindMake() {
     else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.note = ''; MK.redo = null; renderMake(); }
     else if (a === 'play') { const d = MK.deck; MK.step = 'pick'; MK.deck = null; if (d) switchDeck(d.id); goHome(); }
   });
+}
+
+// AI 진단 하기 (화면을 켜 둔 채로). 1초마다 결과 글을 고쳐 쓰고 저장해요 (탭이 꺼져도 어디까지 했는지 남게)
+async function mkBench() {
+  if (MK.benchCtl || MK.step === 'making' || (MK.aiDl && MK.aiDl.state === 'run')) return;
+  const ctl = MK.benchCtl = new AbortController();
+  wakeHold('bench');
+  const tick = setInterval(() => {
+    const b = AI.bench;
+    if (!b || b.state !== 'run') return;
+    aiBenchSave(b);
+    const el = document.getElementById('mkbenchout');
+    if (el) el.textContent = aiBenchText(b);
+  }, 1000);
+  let b = null;
+  try { b = await aiBenchRun(ctl.signal, () => mkAiPut()); } catch (e) { }
+  finally { clearInterval(tick); if (MK.benchCtl === ctl) MK.benchCtl = null; wakeFree('bench'); mkAiPut(); }
+  if (b && b.state !== 'stop') toast(b.state === 'done' ? 'AI 진단을 마쳤어요' : 'AI 진단이 멈췄어요. 결과를 복사해서 알려 주세요');
+}
+// 결과 복사: 클립보드에 넣고, 안 되면 글을 골라 둬요 (길게 눌러 복사)
+function mkBenchCopy() {
+  const pre = document.getElementById('mkbenchout'), t = pre ? pre.textContent : '';
+  const pick = () => {
+    try { const r = document.createRange(), s = window.getSelection(); r.selectNodeContents(pre); s.removeAllRanges(); s.addRange(r); } catch (e) { }
+    toast('복사하지 못했어요. 골라 둔 글을 길게 눌러 복사해 주세요');
+  };
+  if (!pre) return;
+  try { navigator.clipboard.writeText(t).then(() => toast('진단 결과를 복사했어요'), pick); } catch (e) { pick(); }
 }
 
 // 이미 만든 단어장의 이야기·그림만 지금 판(줄거리 엔진 + 이야기 AI)으로 새로 만들어요. 단어·뜻·에피소드 묶음·진행 기록은 그대로
