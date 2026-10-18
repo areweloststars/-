@@ -1,5 +1,15 @@
 web-llm.js: WebLLM 0.2.86 (@mlc-ai/web-llm), Apache License 2.0 — see LICENSE.txt. https://github.com/mlc-ai/web-llm
 
+Changes made to web-llm.js for this game (each spot is marked with a "// word-game patch:" comment):
+- Prefill chunk size can be set lower than the size the model library was compiled with (512 tokens for the
+  Gemma 4 model): config.wg_prefill_chunk when the model loads (from the model record's overrides), and the new
+  method LLMChatPipeline.wgSetPrefillChunk(n) between requests. Only 0 < n < compiled size is used.
+  Prompts are then cut into chunks of that size (getChunkedPrefillInputData and the model-manifest prompt path).
+  Reason: on some phone GPUs (Adreno) one long prefill chunk is one long GPU job, and the driver resets the GPU.
+- The KV cache is still created with the compiled prefill chunk size, so any smaller chunk fits.
+- If globalThis.wgPrefillChunkDone is a function (set by gpu-watch.js), the chat prefill waits for the GPU to
+  finish each chunk (device.sync) and calls it with the chunk's time in ms, its token count and the chunk size.
+
 The story AI model is not stored in this repository. When a player gets the game ready for offline use
 (or makes a deck with the story AI for the first time), the phone downloads, once,
 Gemma 4 E2B (instruction tuned, 4-bit, MLC build: https://huggingface.co/mlc-ai/gemma-4-E2B-it-q4f16_1-MLC)

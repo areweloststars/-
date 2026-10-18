@@ -401,7 +401,8 @@ test('AI story: the lost-graphics-chip error (mapAsync, unmapped) is classed as 
     assert.ok(a.log.some(t => /완성 \(AI 문장 6줄\)/.test(t)), a.log.join('\n'));
     // 'AI가 쓴 글 보기': 어느 단계에서 몇 초 만에 토큰 몇 개를 쓰고 멈췄는지, 그때까지 쓴 글
     assert.match(a.diag[0].why[0], /AI가 문장을 쓰다가 오류가 났어요: AbortError: .*mapAsync.*unmapped/);
-    assert.match(a.diag[0].info, /^멈춘 단계: 글을 쓰는 중 · 시작하고 \d+\.\d초 뒤 · 이야기 읽기 \d+\.\d초 · 쓴 토큰 3개$/);
+    // 컴퓨터(안드로이드가 아니고 휴대폰 그래픽 칩도 아님)는 모델이 만들어진 조각 크기(512토큰) 그대로 읽어요
+    assert.match(a.diag[0].info, /^멈춘 단계: 글을 쓰는 중 · 시작하고 \d+\.\d초 뒤 · 이야기 읽기 \d+\.\d초 · 쓴 토큰 3개 · 읽기 조각 512토큰$/);
     assert.equal(a.diag[0].raw, '1. 그러자 모두');
     assert.match(p.document.querySelector('#make .mkdiag').textContent, /멈춘 단계: 글을 쓰는 중.*쓴 토큰 3개.*mapAsync/);
     assert.deepEqual(p.errors, []);
@@ -422,7 +423,7 @@ test('AI story: losing the graphics chip again after the reload does not loop; t
     assert.ok(!a.lines.some(l => /깜짝 놀라/.test(l)), '앱의 기본 문장으로');
     assert.match(a.note, /문장을 쓰다가 오류가 났어요 \(오류: AbortError: Failed to execute 'mapAsync'.*AI를 다시 준비해서 한 번 더 써 봤지만 또 끊겨서, 남은 이야기는 기본 문장으로 만들었어요\. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 두세요\./);
     assert.equal(a.diag.length, 2);
-    for (const d of a.diag) assert.match(d.info, /^멈춘 단계: 이야기를 읽고 쓰는 중 · 시작하고 \d+\.\d초 뒤$/);
+    for (const d of a.diag) assert.match(d.info, /^멈춘 단계: 이야기를 읽고 쓰는 중 · 시작하고 \d+\.\d초 뒤 · 읽기 조각 512토큰$/);
     // 다음 단어장: 새 엔진을 준비해서 써요
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
@@ -462,7 +463,7 @@ test('making a deck keeps the screen awake, asks again after the page comes back
     assert.ok(a.log.slice(a.wl.hiddenLog).some(t => t === '만드는 중에 화면이 꺼지거나 다른 앱이 열렸어요. 이러면 크롬이 AI의 그래픽 작업을 멈출 수 있어요. 다 만들 때까지 이 화면을 켜 두세요.'), a.log.join('\n'));
     assert.match(a.note, /다듬었어요\. 만드는 중에 화면이 꺼지거나 다른 앱이 열렸어요\. 이러면 크롬이 AI의 그래픽 작업을 멈출 수 있어요\. 다음에는 다 만들 때까지 이 화면을 켜 두세요\.$/);
     // 끝까지 쓴 글의 기록: 걸린 시간, 읽은·쓴 토큰 수, 가려진 횟수
-    assert.match(a.diag[0].info, /^걸린 시간 \d+\.\d초 · 이야기 읽기 \d+\.\d초 · 읽은 토큰 321개 · 쓴 토큰 42개 · 그동안 화면 꺼짐·다른 앱 1번$/);
+    assert.match(a.diag[0].info, /^걸린 시간 \d+\.\d초 · 이야기 읽기 \d+\.\d초 · 읽은 토큰 321개 · 쓴 토큰 42개 · 읽기 조각 512토큰 · 그동안 화면 꺼짐·다른 앱 1번$/);
     assert.match(a.diag[0].why.join(' '), /: 씀/);
     // 거절돼도 그냥 만들어요 (오류 없음)
     p.run(`__wl.fail = true; __onCall = null; MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
@@ -635,63 +636,114 @@ const CHAN = `(() => {
     __gpuSend({ kind: 'device', n: 1, want: { maxBufferSize: 1073741824, maxStorageBufferBindingSize: 1073741824, maxComputeWorkgroupStorageSize: 32768, maxComputeInvocationsPerWorkgroup: 1024 }, feats: ['shader-f16', 'subgroups'] });
   };
 })()`;
-// 가짜 WebLLM (진단용): 엔진을 만들면 그래픽 칩 정보를 보내요. 요청마다 max_tokens만큼 조금씩 쓰고 사용량(읽은 토큰 = 글자 수 × 2 + 8, 초당 토큰)을 알려요
+// 가짜 WebLLM (진단용): 엔진을 만들면 그래픽 칩 정보를 보내요. 요청마다 읽은 토큰(글자 수 × 2 + 8)을 지금 조각 크기로 나눠 읽는 것처럼
+// 조각마다 걸린 시간(조각 크기 × __msPerTok ms)을 일꾼처럼 보내고, max_tokens만큼 조금씩 쓰고 사용량(초당 토큰)을 알려요.
+// 조각 크기: 엔진을 만들 때의 모델 설정(overrides.wg_prefill_chunk, 없으면 512), 그 뒤로는 일꾼에게 보낸 { wgPrefillChunk } (진짜 worker.js처럼 512보다 작을 때만)
 //  'ok' 늘 성공, 'lost-long' 긴 글(600자 넘음)을 읽다가 그래픽 칩을 잃음(오류 소식은 바로, 끊김 소식은 오류보다 늦게), 'hang-long' 긴 글에서 멈춘 채 답이 없음
+//  'lost-64' 64토큰 조각으로 중간 글을 읽다가 조각 하나 뒤에 그래픽 칩을 잃음, 'hang-64' 64토큰 조각으로 조각 2개를 읽고 멈춤 (그 사이 탭이 꺼지는 것처럼)
 const BENCH_LIB = kind => `(() => {
-  window.__workers = []; window.__reqs = []; window.__wake = [];
-  window.Worker = class { constructor(u, o) { this.name = o && o.name; this.l = {}; this.dead = false; __workers.push(this); } addEventListener(k, f) { (this.l[k] = this.l[k] || []).push(f); } terminate() { this.dead = true; } };
+  window.__workers = []; window.__reqs = []; window.__wake = []; window.__cfgs = []; window.__size = 512; window.__msPerTok = 6;
+  window.Worker = class { constructor(u, o) { this.name = o && o.name; this.l = {}; this.dead = false; __workers.push(this); } addEventListener(k, f) { (this.l[k] = this.l[k] || []).push(f); } terminate() { this.dead = true; }
+    postMessage(m) { if (m && 'wgPrefillChunk' in m) { const n = Math.floor(+m.wgPrefillChunk); __size = n > 0 && n < 512 ? n : 512; } } };
+  const chunks = (tokens, upto) => { const n = Math.ceil(tokens / __size); for (let i = 0; i < Math.min(n, upto == null ? n : upto); i++) __gpuSend({ kind: 'chunk', took: __size * __msPerTok, tokens: Math.min(__size, tokens - i * __size), size: __size, i, of: n }); };
+  const K = ${JSON.stringify(kind)};
   const eng = { interruptGenerate() {}, chat: { completions: { create: async req => {
-    const text = req.messages[0].content, len = text.length;
-    __reqs.push({ text, len, max: req.max_tokens, ignore: req.ignore_eos, stream: req.stream, t: req.temperature }); __wake.push(WAKE.tags.has('bench'));
-    if (${JSON.stringify(kind)} === 'hang-long' && len > 600) { __gpuSend({ kind: 'console', level: 'warn', msg: 'slow shader compile' }); return new Promise(() => {}); }
-    if (${JSON.stringify(kind)} === 'lost-long' && len > 600) {
+    const text = req.messages[0].content, len = text.length, tokens = Math.round(len * 2 + 8);
+    __reqs.push({ text, len, max: req.max_tokens, ignore: req.ignore_eos, stream: req.stream, t: req.temperature, size: __size }); __wake.push(WAKE.tags.has('bench'));
+    if (K === 'hang-long' && len > 600) { __gpuSend({ kind: 'console', level: 'warn', msg: 'slow shader compile' }); return new Promise(() => {}); }
+    if (K === 'hang-64' && __size === 64 && len > 100) { chunks(tokens, 2); return new Promise(() => {}); }
+    if ((K === 'lost-long' && len > 600) || (K === 'lost-64' && __size === 64 && len > 100)) {
+      if (K === 'lost-64') chunks(tokens, 1);
       __gpuSend({ kind: 'error', n: 1, type: 'GPUOutOfMemoryError', msg: 'Not enough memory left.' });
       __gpuSend({ kind: 'destroy', n: 1, by: 'tryCreateBuffer web-llm.js:4880 < alloc web-llm.js:9000' });
       setTimeout(() => __gpuSend({ kind: 'lost', n: 1, reason: 'unknown', msg: 'Device lost: the GPU process was killed.' }), 60);
       throw new DOMException("Failed to execute 'mapAsync' on 'GPUBuffer': Buffer was unmapped before mapping was resolved.", 'AbortError');
     }
+    chunks(tokens);
     return (async function* () {
       for (let i = 0; i < req.max_tokens; i++) yield { choices: [{ delta: { content: '가' } }] };
-      yield { choices: [], usage: { prompt_tokens: Math.round(len * 2 + 8), completion_tokens: req.max_tokens, extra: { prefill_tokens_per_s: 150.5, decode_tokens_per_s: 12.4 } } };
+      yield { choices: [], usage: { prompt_tokens: tokens, completion_tokens: req.max_tokens, extra: { prefill_tokens_per_s: 150.5, decode_tokens_per_s: 12.4 } } };
     })();
   } } } };
   AI.lib = { prebuiltAppConfig: { model_list: [{ model_id: AI_MODEL }] }, CreateWebWorkerMLCEngine: (w, id, cfg) => new Promise(ok => setTimeout(() => {
+    __cfgs.push(cfg);
+    const o = (cfg.appConfig && cfg.appConfig.model_list[0].overrides) || {};
+    __size = o.wg_prefill_chunk > 0 && o.wg_prefill_chunk < 512 ? o.wg_prefill_chunk : 512;
     __gpuDev(); cfg.initProgressCallback({ progress: 1, text: 'Loading model from cache[20/20]' }); ok(eng);
   }, 5)) };
   AI.gpu = true; AI.retryMs = 0;
 })()`;
 const benchOpen = p => { p.run(`MK.step = 'pick'; MK.aiWhy = ''; MK.offline = 'no'; showScreen('make'); renderMake();`); return p.document.getElementById('mkai'); };
 const benchOut = p => (p.document.getElementById('mkbenchout') || {}).textContent || '';
+// 휴대폰처럼: 안드로이드 크롬, 그래픽 칩 이름 (bootPage의 before 코드로 게임보다 먼저)
+const ANDROID = `Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => 'Mozilla/5.0 (Linux; Android 15; SM-S931N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36' });`;
+const GPU_INFO = info => `Object.defineProperty(navigator, 'gpu', { configurable: true, value: { requestAdapter: async () => ({ info: ${JSON.stringify(info)}, features: new Set(['shader-f16']), limits: { maxStorageBufferBindingSize: 1073741824 } }) } });`;
+const ADRENO = { vendor: 'qualcomm', architecture: 'adreno-8xx', device: '', description: 'Adreno (TM) 830' };
+const ADRENO_KEY = 'gemma-4-E2B-it-q4f16_1-MLC · qualcomm / adreno-8xx / Adreno (TM) 830';
+const READY = { 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' };
+const chunkRec = p => JSON.parse(p.window.localStorage.getItem('wg-ai-chunk') || '{}');
+const SWEEP = [16, 32, 64, 128].map((n, i) => `${i + 4} 중간 글 ${n}토큰씩 읽기`);
+const benchRun = async (p, done = /결과: / ) => { benchOpen(p).querySelector('[data-mk="bench"]').click(); await until(() => done.test(benchOut(p)) && !/하는 중이에요/.test(benchOut(p)), 5000); return benchOut(p); };
 
-test('AI diagnosis: the bench runs the five stages on the engine and prints each with time, tokens and speed', async () => {
-  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
+test('AI chunk size: phones read prompts in 32-token chunks through the model config, computers keep the compiled 512', async () => {
+  // 안드로이드 크롬: 모델 설정에 32토큰 조각이 들어가요
+  for (const [name, before] of [['android', ANDROID], ['adreno', GPU_INFO(ADRENO)], ['mali', GPU_INFO({ vendor: 'arm', architecture: 'valhall', device: '', description: 'Mali-G715' })]]) {
+    const p = bootPage(READY, before);
+    try {
+      p.run(CHAN); p.run(BENCH_LIB('ok'));
+      await p.run('aiLoad()');
+      assert.equal(p.json('__cfgs[0].appConfig.model_list[0].overrides.wg_prefill_chunk'), 32, name);
+      assert.equal(p.json('__cfgs[0].appConfig.model_list[0].overrides.context_window_size'), 4096);
+      assert.deepEqual([p.json('AI.chunk'), p.json('aiChunkPick()'), p.json('__size')], [32, 32, 32], name);
+    } finally { p.close(); }
+  }
+  // 컴퓨터(엔비디아 그래픽 칩): 설정에 넣지 않고 모델이 만들어진 512토큰 그대로
+  const q = bootPage(READY, GPU_INFO({ vendor: 'nvidia', architecture: 'ampere', device: '', description: '' }));
+  try {
+    q.run(CHAN); q.run(BENCH_LIB('ok'));
+    await q.run('aiLoad()');
+    assert.equal(q.json('"wg_prefill_chunk" in __cfgs[0].appConfig.model_list[0].overrides'), false);
+    assert.deepEqual([q.json('AI.chunk'), q.json('aiChunkPick()'), q.json('__size'), q.json('aiIsPhone()')], [512, 512, 512, false]);
+  } finally { q.close(); }
+});
+
+test('AI diagnosis: warm-up, short prompt, the same middle prompt in 16/32/64/128-token chunks, then the real request and the long write with the safe size', async () => {
+  const p = bootPage(READY, ANDROID + GPU_INFO(ADRENO));
   try {
     p.run(CHAN); p.run(BENCH_LIB('ok'));
     // 다른 탭의 일꾼 소식은 받지 않아요
     p.run('aiGpuListen(); __gpuSend({ kind: "lost", reason: "unknown", msg: "other tab" }, "wg-ai-someone-else")');
     const box = benchOpen(p);
     const btn = box.querySelector('[data-mk="bench"]');
-    assert.equal(btn.textContent, 'AI 진단 (2~4분)');
-    assert.match(box.textContent, /그래픽 칩이 어느 단계에서 멈추는지.*이 휴대폰에만 남고 어디로도 보내지 않아요/);
-    btn.click();
-    await until(() => /결과: /.test(benchOut(p)) && !/하는 중이에요/.test(benchOut(p)));
-    const out = benchOut(p), L = out.split('\n');
-    assert.match(L[0], /^AI 진단 · gemma-4-E2B-it-q4f16_1-MLC · \d{4}-\d\d-\d\d \d\d:\d\d/);
+    assert.equal(btn.textContent, 'AI 진단 (3~6분)');
+    assert.match(box.textContent, /그래픽 칩이 어느 단계에서 멈추는지.*안전한 조각 크기를 찾아요.*이 휴대폰에만 남고 어디로도 보내지 않아요/);
+    const out = await benchRun(p), L = out.split('\n');
+    assert.match(L[0], /^AI 진단 · gemma-4-E2B-it-q4f16_1-MLC · \d{4}-\d\d-\d\d \d\d:\d\d · Android 15 · Chrome 155\.0\.0\.0/);
     assert.ok(L.includes('AI 일꾼의 그래픽 칩: qualcomm / adreno-8xx / Adreno (TM) 830 | 한도: maxBufferSize 1024MB · maxStorageBufferBindingSize 1024MB · maxComputeWorkgroupStorageSize 32KB · maxComputeInvocationsPerWorkgroup 1024 | 기능: shader-f16 있음 · subgroups 있음 · timestamp-query 없음 | WebLLM이 부탁한 한도: maxBufferSize 1024MB · maxStorageBufferBindingSize 1024MB · maxComputeWorkgroupStorageSize 32KB · maxComputeInvocationsPerWorkgroup 1024'), out);
     assert.match(out, /^1 저장소에서 불러오기: ok \(성공\) · \d+\.\d초$/m);
-    for (const [lab, n] of [['2 짧은 글 읽기', 16], ['3 중간 글 읽기\\(한 조각\\)', 16], ['4 긴 글 읽기\\(실제 크기\\)', 16], ['5 길게 쓰기', 300]])
-      assert.match(out, new RegExp(`^${lab}: ok \\(성공\\) · \\d+\\.\\d초 · 읽은 토큰 \\d+ · 쓴 토큰 ${n} · 첫 글자까지 \\d+\\.\\d초 · 읽기 150\\.5토큰/초 · 쓰기 12\\.4토큰/초$`, 'm'), out);
-    assert.match(L[L.length - 1], /^결과: 다섯 단계를 모두 마쳤어요\.$/);
+    // 휴대폰은 처음부터 32토큰씩 읽어요. 조각 크기 재기는 조각 수와 가장 오래 걸린 조각(크기 × 6ms)을 적어요
+    const line = (lab, size, n, tail = '') => new RegExp(`^${lab.replace(/[()]/g, '\\$&')}: ok \\(성공\\) · \\d+\\.\\d초${size ? ` · 조각 ${size}토큰` : ''} · 조각 \\d+개 · 조각 최대 ${n}ms · 읽은 토큰 \\d+ · 쓴 토큰 \\d+ · 첫 글자까지 \\d+\\.\\d초 · 읽기 150\\.5토큰/초 · 쓰기 12\\.4토큰/초${tail}$`, 'm');
+    assert.match(out, line('2 그래픽 준비(처음 한 번)', 32, 192));
+    assert.match(out, line('3 짧은 글 읽기', 32, 192));
+    [16, 32, 64, 128].forEach((n, i) => assert.match(out, line(SWEEP[i], 0, n * 6), out));
+    assert.match(out, line('8 긴 글 읽기(실제 크기)', 128, 768));
+    assert.match(out, line('9 길게 쓰기', 128, 768));
+    assert.equal(L[L.length - 2], '이 기기의 안전한 조각 크기: 128토큰 (이야기를 만들 때 이 크기로 나눠 읽어요)');
+    assert.equal(L[L.length - 1], '결과: 모든 단계를 마쳤어요.');
     assert.doesNotMatch(out, /other tab/);
-    // 요청: 짧은 글 → 한 조각(512토큰 안) → 실제 에피소드 요청 글(단어장 만들기와 같은 글) → 짧은 글로 길게, 정해 둔 토큰 수만큼 끝까지
+    // 요청: 짧은 인사 → 짧은 글 → 같은 중간 글을 16·32·64·128토큰씩 → 실제 에피소드 요청 글 → 짧은 글로 길게, 정해 둔 토큰 수만큼 끝까지
     const reqs = p.json('__reqs');
-    assert.deepEqual(reqs.map(r => [r.max, r.ignore, r.stream, r.t]), [[16, true, true, 0.7], [16, true, true, 0.7], [16, true, true, 0.7], [300, true, true, 0.7]]);
-    assert.ok(reqs[0].len < reqs[1].len && reqs[1].len < reqs[2].len, reqs.map(r => r.len).join());
-    assert.ok(reqs[1].len * 2 + 8 < 512 && reqs[2].len * 2 + 8 > 1024, '3단계는 한 조각 안, 4단계는 여러 조각');
-    assert.equal(reqs[2].text, p.json(`(() => { const rows = Object.create(null); for (const [en, ko] of AI_BENCH_WORDS) rows[en] = { en, ko, pos: 'x' }; return aiPrompt(aiReq(mkStory(AI_BENCH_WORDS.map(w => w[0]), rows, 0), rows, 0).story); })()`));
-    assert.equal(reqs[3].text, reqs[0].text);
+    assert.deepEqual(reqs.map(r => [r.max, r.ignore, r.stream, r.t, r.size]), [[4, true, true, 0.7, 32], [16, true, true, 0.7, 32], [4, true, true, 0.7, 16], [4, true, true, 0.7, 32], [4, true, true, 0.7, 64], [4, true, true, 0.7, 128], [16, true, true, 0.7, 128], [300, true, true, 0.7, 128]]);
+    assert.ok(reqs[0].len < reqs[1].len && reqs[1].len < reqs[2].len && reqs[2].len < reqs[6].len, reqs.map(r => r.len).join());
+    assert.ok([3, 4, 5].every(i => reqs[i].text === reqs[2].text), '조각 크기만 바꿔 같은 글을 읽어요');
+    assert.ok(reqs[2].len * 2 + 8 < 512 && reqs[6].len * 2 + 8 > 1024, '중간 글은 한 조각(512) 안, 실제 요청은 여러 조각');
+    assert.equal(reqs[6].text, p.json(`(() => { const rows = Object.create(null); for (const [en, ko] of AI_BENCH_WORDS) rows[en] = { en, ko, pos: 'x' }; return aiPrompt(aiReq(mkStory(AI_BENCH_WORDS.map(w => w[0]), rows, 0), rows, 0).story); })()`));
+    assert.equal(reqs[7].text, reqs[1].text);
+    // 이 기기(모델 + 그래픽 칩)의 안전한 크기로 남아요
+    assert.deepEqual(chunkRec(p)[ADRENO_KEY].safe, 128);
+    assert.deepEqual(chunkRec(p)[ADRENO_KEY].bad, []);
     // 진단하는 동안 화면을 켜 두고, 끝나면 풀어요. 결과는 이 기기에 남아요
-    assert.deepEqual(p.json('__wake'), [true, true, true, true]);
+    assert.deepEqual(p.json('__wake'), [true, true, true, true, true, true, true, true]);
     assert.equal(p.json('WAKE.tags.size'), 0);
     assert.equal(JSON.parse(p.window.localStorage.getItem('wg-ai-bench')).state, 'done');
     assert.equal(p.json('!!AI.engine'), true, '다 되면 엔진은 그대로 써요');
@@ -708,40 +760,88 @@ test('AI diagnosis: the bench runs the five stages on the engine and prints each
   } finally { p.close(); }
 });
 
+test('AI diagnosis: a chunk slower than 1.2 seconds stops the sweep from going larger; the largest size under 1 second is saved', async () => {
+  const p = bootPage(READY, ANDROID + GPU_INFO(ADRENO));
+  try {
+    // 조각 크기 × 10ms: 64토큰 640ms(안전), 128토큰 1280ms(한계에 가까움)
+    p.run(CHAN); p.run(BENCH_LIB('ok')); p.run('__msPerTok = 10');
+    const out = await benchRun(p);
+    assert.match(out, /^6 중간 글 64토큰씩 읽기: ok \(성공\) · .*조각 최대 640ms/m);
+    assert.match(out, /^7 중간 글 128토큰씩 읽기: ok \(성공\) · .*조각 최대 1280ms · .* · 조각 하나가 1\.2초를 넘어서 그래픽 칩 한계에 가까워요$/m);
+    assert.match(out, /^8 긴 글 읽기\(실제 크기\): ok \(성공\) · \d+\.\d초 · 조각 64토큰 · /m);
+    assert.match(out, /^이 기기의 안전한 조각 크기: 64토큰/m);
+    assert.deepEqual([chunkRec(p)[ADRENO_KEY].safe, chunkRec(p)[ADRENO_KEY].bad], [64, [128]]);
+    assert.deepEqual(p.json('__reqs.map(r => r.size)'), [32, 32, 16, 32, 64, 128, 64, 64]);
+    // 다시 진단하면 한계에 가까웠던 크기는 건너뛰어요
+    p.run('__reqs.length = 0');
+    const again = await benchRun(p, /결과: 모든 단계를 마쳤어요/);
+    assert.match(again, /^7 중간 글 128토큰씩 읽기: 건너뜀 · 전에 이 크기가 안 돼서 건너뛰었어요$/m);
+    assert.deepEqual(p.json('__reqs.map(r => r.size)'), [64, 64, 16, 32, 64, 64, 64], '불러올 때부터 찾아 둔 64토큰으로 읽어요');
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI diagnosis: the sweep stops at the first size that loses the GPU, does not reuse that engine, and the next deck reads with the largest safe size', async () => {
+  const p = bootPage(READY, ANDROID + GPU_INFO(ADRENO));
+  try {
+    p.run(CHAN); p.run(BENCH_LIB('lost-64'));
+    const out = await benchRun(p, /결과: 6단계에서 멈췄어요/);
+    assert.match(out, /^5 중간 글 32토큰씩 읽기: ok \(성공\)/m);
+    assert.match(out, /^6 중간 글 64토큰씩 읽기: fail \(실패\) · \d+\.\d초 · 조각 1개 · 조각 최대 384ms · 읽을 토큰 약 \d+\(어림\) · 쓴 토큰 0 · 64토큰 조각은 이제 쓰지 않아요 · 오류: AbortError: Failed to execute 'mapAsync'/m);
+    assert.match(out, /^ {3}- GPU 끊김 까닭: unknown \/ Device lost: the GPU process was killed\. \(일꾼 1\.2초\)$/m);
+    for (const lab of ['7 중간 글 128토큰씩 읽기', '8 긴 글 읽기(실제 크기)', '9 길게 쓰기']) assert.ok(out.split('\n').includes(`${lab}: 안 함`), out);
+    assert.match(out, /^이 기기의 안전한 조각 크기: 32토큰/m);
+    assert.equal(p.json('__reqs.length'), 5, '실패한 뒤에는 더 묻지 않아요');
+    assert.equal(p.json('!!AI.engine'), false, '잃은 엔진은 버려요');
+    assert.deepEqual(p.json('__workers.map(w => w.dead)'), [true]);
+    assert.deepEqual([chunkRec(p)[ADRENO_KEY].safe, chunkRec(p)[ADRENO_KEY].bad], [32, [64]]);
+    // 다음 단어장: 새 엔진을 안전한 크기(32토큰)로 불러와 쓰고, 'AI가 쓴 글 보기'에 조각 크기와 가장 오래 걸린 조각이 나와요
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
+    await p.run('mkMake()');
+    assert.equal(p.json('__cfgs[1].appConfig.model_list[0].overrides.wg_prefill_chunk'), 32);
+    assert.equal(p.json('__reqs[5].size'), 32);
+    const a = p.json('({ step: MK.step, diag: MK.aiDiag })');
+    assert.equal(a.step, 'done');
+    assert.match(a.diag[0].info, /^걸린 시간 \d+\.\d초 · 이야기 읽기 \d+\.\d초 · 읽은 토큰 \d+개 · 쓴 토큰 \d+개 · 읽기 조각 32토큰 · 조각 \d+개 · 조각 최대 192ms$/);
+    assert.match(p.document.querySelector('#make .mkdiag').textContent, /읽기 조각 32토큰 · 조각 \d+개 · 조각 최대 192ms/);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
 test('AI diagnosis: a GPU lost event sent over the channel during the long prompt is recorded with its reason and message, and the bench stops there', async () => {
-  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
+  const p = bootPage(READY);
   try {
     p.run(CHAN); p.run(BENCH_LIB('lost-long'));
-    benchOpen(p).querySelector('[data-mk="bench"]').click();
-    await until(() => /결과: 4단계에서 멈췄어요/.test(benchOut(p)));
-    const out = benchOut(p);
-    assert.match(out, /^3 중간 글 읽기\(한 조각\): ok \(성공\)/m);
-    assert.match(out, /^4 긴 글 읽기\(실제 크기\): fail \(실패\) · \d+\.\d초 · 읽을 토큰 약 \d+\(어림\) · 쓴 토큰 0 · 오류: AbortError: Failed to execute 'mapAsync' on 'GPUBuffer': Buffer was unmapped before mapping was resolved\.$/m);
+    const out = await benchRun(p, /결과: 8단계에서 멈췄어요/);
+    assert.match(out, /^7 중간 글 128토큰씩 읽기: ok \(성공\)/m);
+    assert.match(out, /^8 긴 글 읽기\(실제 크기\): fail \(실패\) · \d+\.\d초 · 조각 128토큰 · 읽을 토큰 약 \d+\(어림\) · 쓴 토큰 0 · 128토큰 조각은 이제 쓰지 않아요 · 오류: AbortError: Failed to execute 'mapAsync' on 'GPUBuffer': Buffer was unmapped before mapping was resolved\.$/m);
     // 그래픽 칩이 알려 준 까닭: 끊김 소식이 오류보다 늦게 와도 그 단계에 붙어요
     assert.match(out, /^ {3}- GPU 오류: GPUOutOfMemoryError \/ Not enough memory left\. \(일꾼 1\.2초\)$/m);
     assert.match(out, /^ {3}- GPU 장치를 닫음\(device\.destroy\): tryCreateBuffer web-llm\.js:4880 < alloc web-llm\.js:9000/m);
     assert.match(out, /^ {3}- GPU 끊김 까닭: unknown \/ Device lost: the GPU process was killed\. \(일꾼 1\.2초\)$/m);
-    assert.match(out, /^5 길게 쓰기: 안 함$/m);
-    assert.equal(p.json('__reqs.length'), 3, '실패한 뒤에는 더 묻지 않아요');
+    assert.match(out, /^9 길게 쓰기: 안 함$/m);
+    assert.equal(p.json('__reqs.length'), 7, '실패한 뒤에는 더 묻지 않아요');
     assert.equal(p.json('!!AI.engine'), false, '잃은 엔진은 버려요');
     assert.deepEqual(p.json('__workers.map(w => w.dead)'), [true]);
     const saved = JSON.parse(p.window.localStorage.getItem('wg-ai-bench'));
     assert.equal(saved.state, 'fail');
-    assert.equal(saved.stages[3].gpu.length, 3);
+    assert.equal(saved.stages[7].gpu.length, 3);
+    // 그래픽 칩을 잃은 크기는 쓰지 않아요: 다음에는 64토큰
+    assert.equal(p.json('aiChunkPick()'), 64);
     assert.equal(p.json('WAKE.tags.size'), 0);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
 
 test('AI diagnosis: if the tab dies during a stage, the next load shows the partial result with that stage as crashed', async () => {
-  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
+  const p = bootPage(READY);
   let store;
   try {
     p.run(CHAN); p.run(BENCH_LIB('hang-long'));
     benchOpen(p).querySelector('[data-mk="bench"]').click();
     const saved = () => JSON.parse(p.window.localStorage.getItem('wg-ai-bench') || 'null');
-    await until(() => { const b = saved(); return b && b.stages[3].state === 'run' && (b.stages[3].gpu || []).length === 1; });
-    assert.match(benchOut(p), /^4 긴 글 읽기\(실제 크기\): 하는 중 · \d+\.\d초째/m);
+    await until(() => { const b = saved(); return b && b.stages[7].state === 'run' && (b.stages[7].gpu || []).length === 1; });
+    assert.match(benchOut(p), /^8 긴 글 읽기\(실제 크기\): 하는 중 · \d+\.\d초째/m);
     assert.ok(p.document.querySelector('#mkai [data-mk="benchstop"]'), '진단 그만두기 단추');
     // 진단 중에는 단어장 만들기를 미뤄요
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.step = 'review'; renderMake();`);
@@ -752,7 +852,7 @@ test('AI diagnosis: if the tab dies during a stage, the next load shows the part
     // (이 시험 화면은 그만두기로 끝내요)
     p.document.querySelector('#mkai [data-mk="benchstop"]').click();
     await until(() => saved().state === 'stop');
-    assert.match(benchOut(p), /^4 긴 글 읽기\(실제 크기\): 그만둠/m);
+    assert.match(benchOut(p), /^8 긴 글 읽기\(실제 크기\): 그만둠/m);
     assert.match(benchOut(p), /결과: 중간에 그만뒀어요\.$/);
   } finally { p.close(); }
   // 탭이 꺼진 뒤 다시 열어요
@@ -763,11 +863,11 @@ test('AI diagnosis: if the tab dies during a stage, the next load shows the part
     benchOpen(q);
     const out = benchOut(q);
     assert.match(out, /^1 저장소에서 불러오기: ok \(성공\)/m);
-    assert.match(out, /^3 중간 글 읽기\(한 조각\): ok \(성공\)/m);
-    assert.match(out, /^4 긴 글 읽기\(실제 크기\): crashed \(탭 꺼짐\) · \d+\.\d초 뒤 꺼짐/m);
+    assert.match(out, /^7 중간 글 128토큰씩 읽기: ok \(성공\)/m);
+    assert.match(out, /^8 긴 글 읽기\(실제 크기\): crashed \(탭 꺼짐\) · \d+\.\d초 뒤 꺼짐 · 조각 128토큰/m);
     assert.match(out, /^ {3}- 일꾼 경고 글: slow shader compile/m);
-    assert.match(out, /^5 길게 쓰기: 안 함$/m);
-    assert.match(out, /결과: 4단계에서 멈췄어요 \(진단 중에 탭이 꺼졌어요\)\.$/);
+    assert.match(out, /^9 길게 쓰기: 안 함$/m);
+    assert.match(out, /결과: 8단계에서 멈췄어요 \(진단 중에 탭이 꺼졌어요\)\.$/);
     assert.equal(q.document.querySelector('#mkai [data-mk="bench"]').disabled, false, '다시 진단할 수 있어요');
     assert.equal(JSON.parse(q.window.localStorage.getItem('wg-ai-bench')).state, 'crash');
     store = q.storage();
@@ -779,6 +879,62 @@ test('AI diagnosis: if the tab dies during a stage, the next load shows the part
     assert.ok(!/AI 진단 중에 탭이 꺼졌어요/.test((r.document.querySelector('.toast') || {}).textContent || ''));
     assert.match(benchOut(benchOpen(r) && r), /crashed \(탭 꺼짐\)/);
   } finally { r.close(); }
+});
+
+test('AI diagnosis: a tab that dies while reading in 64-token chunks keeps that size as running in the saved result; the next run and the next deck do not use it', async () => {
+  const p = bootPage(READY, ANDROID + GPU_INFO(ADRENO));
+  let store;
+  try {
+    p.run(CHAN); p.run(BENCH_LIB('hang-64'));
+    benchOpen(p).querySelector('[data-mk="bench"]').click();
+    const saved = () => JSON.parse(p.window.localStorage.getItem('wg-ai-bench') || 'null');
+    await until(() => { const b = saved(); return b && b.stages[5].state === 'run' && b.stages[5].cn === 2; });
+    assert.match(benchOut(p), /^6 중간 글 64토큰씩 읽기: 하는 중 · \d+\.\d초째 · 조각 2개 · 조각 최대 384ms/m);
+    store = p.storage(); // 이때 탭이 꺼졌다고 쳐요
+    assert.equal(JSON.parse(store['wg-ai-chunk'])[ADRENO_KEY].safe, 32, '32토큰까지는 이미 안전한 크기로 남아 있어요');
+    p.document.querySelector('#mkai [data-mk="benchstop"]').click();
+    await until(() => saved().state === 'stop');
+  } finally { p.close(); }
+  const q = bootPage(store, ANDROID + GPU_INFO(ADRENO));
+  try {
+    benchOpen(q);
+    const out = benchOut(q);
+    assert.match(out, /^6 중간 글 64토큰씩 읽기: crashed \(탭 꺼짐\) · \d+\.\d초 뒤 꺼짐 · 조각 2개 · 조각 최대 384ms · 읽을 토큰 약 \d+\(어림\) · 쓴 토큰 0 · 64토큰 조각은 이제 쓰지 않아요$/m);
+    assert.match(out, /^이 기기의 안전한 조각 크기: 32토큰/m);
+    assert.match(out, /결과: 6단계에서 멈췄어요 \(진단 중에 탭이 꺼졌어요\)\.$/);
+    assert.deepEqual([chunkRec(q)[ADRENO_KEY].safe, chunkRec(q)[ADRENO_KEY].bad], [32, [64]]);
+    await q.run('aiGpuInfo()');
+    assert.equal(q.json('aiChunkPick()'), 32);
+    // 다시 진단: 64토큰과 그보다 큰 크기는 건너뛰고, 실제 요청과 길게 쓰기는 32토큰으로
+    q.run(CHAN); q.run(BENCH_LIB('hang-64'));
+    const again = await benchRun(q, /결과: 모든 단계를 마쳤어요/);
+    assert.match(again, /^6 중간 글 64토큰씩 읽기: 건너뜀 · 전에 이 크기가 안 돼서 건너뛰었어요$/m);
+    assert.match(again, /^7 중간 글 128토큰씩 읽기: 건너뜀 · 전에 64토큰 조각이 안 돼서 건너뛰었어요$/m);
+    assert.match(again, /^8 긴 글 읽기\(실제 크기\): ok \(성공\) · \d+\.\d초 · 조각 32토큰 · /m);
+    assert.deepEqual(q.json('__reqs.map(r => r.size)'), [32, 32, 16, 32, 32, 32]);
+    assert.deepEqual(q.errors, []);
+  } finally { q.close(); }
+});
+
+test('AI story: the make flow reads with the saved safe size, and an engine already loaded with another size is switched before writing', async () => {
+  const store = Object.assign({ 'wg-ai-chunk': { [ADRENO_KEY]: { safe: 64, bad: [128], at: 1 } } }, READY);
+  const p = bootPage(store, ANDROID + GPU_INFO(ADRENO));
+  try {
+    p.run(CHAN); p.run(BENCH_LIB('ok'));
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
+    await p.run('mkMake()');
+    assert.equal(p.json('__cfgs[0].appConfig.model_list[0].overrides.wg_prefill_chunk'), 64);
+    assert.deepEqual(p.json('__reqs.map(r => r.size)'), [64]);
+    assert.match(p.json('MK.aiDiag[0].info'), /· 읽기 조각 64토큰 · 조각 \d+개 · 조각 최대 384ms$/);
+    // 진단이 다른 크기(32토큰)를 찾았어요: 올라와 있는 AI도 다음 글부터 그 크기로
+    p.run(`localStorage.setItem('wg-ai-chunk', JSON.stringify({ ${JSON.stringify(ADRENO_KEY)}: { safe: 32, bad: [64], at: 2 } }))`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; MK.step = 'review';`);
+    await p.run('mkMake()');
+    assert.equal(p.json('__cfgs.length'), 1, '엔진은 다시 불러오지 않아요');
+    assert.deepEqual(p.json('__reqs.map(r => r.size)'), [64, 32]);
+    assert.match(p.json('MK.aiDiag[0].info'), /· 읽기 조각 32토큰 · 조각 \d+개 · 조각 최대 192ms$/);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
 });
 
 test('AI story: GPU events sent by the AI worker show in the make diagnostics (reason and message of the loss, error type and message)', async () => {
@@ -858,4 +1014,8 @@ test('AI worker GPU watch (llm/gpu-watch.js): adapter, device limits, lost reaso
   assert.deepEqual(by('console').map(m => [m.level, m.msg.slice(0, 80)]), [['error', 'GPUValidationError: Buffer size exceeds the limit. while creating a buffer'], ['warn', 'A'.repeat(80)]]);
   assert.equal(by('console')[1].msg.length, 400, '긴 글은 잘라요');
   assert.deepEqual([by('lost')[0].reason, by('lost')[0].msg, by('lost')[0].n], ['unknown', 'GPU process gone', 1]);
+  // 글 읽기 조각 하나가 끝남 (web-llm.js의 'word-game patch'가 불러요): 걸린 ms(반올림)·토큰 수·조각 크기·몇 번째
+  ctx.self.wgPrefillChunkDone({ ms: 123.6, tokens: 32, size: 32, index: 2, count: 9 });
+  const c = by('chunk')[0];
+  assert.deepEqual([c.took, c.tokens, c.size, c.i, c.of, c.w], [124, 32, 32, 2, 9, 'wg-ai-test']);
 });
