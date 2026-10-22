@@ -33,12 +33,14 @@ function mkAnsFrom(raw, ko) {
   return out;
 }
 const MK_EMOJI = { n: '📦', v: '🏃', a: '✨', d: '⏩', p: '💬', x: '📘' };
+// 이야기 한 줄의 가장 긴 길이 (단어 표시 {영어|뜻}까지 넣어서). 더 긴 줄은 단어장에 넣지 않아요 (이야기 AI도 이 길이 안에서 써요: aiFit)
+const MK_LINE_MAX = 140;
 // 에피소드 하나를 앱이 쓰는 모양으로 (자막의 {단어|뜻} 표시 확인·보정 포함)
 function mkEpisode(key, title, epWords, rows, res) {
   const byLow = Object.create(null); for (const id of epWords) byLow[id.toLowerCase()] = id;
   const words = {}, order = [], used = new Set();
   // 글줄만, 너무 긴 줄은 뺌
-  let lines = Array.isArray(res && res.lines) ? res.lines.filter(l => typeof l === 'string').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l && l.length <= 140).slice(0, 14) : [];
+  let lines = Array.isArray(res && res.lines) ? res.lines.filter(l => typeof l === 'string').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l && l.length <= MK_LINE_MAX).slice(0, 14) : [];
   // 한 줄에 단어 표시는 하나만, 이 에피소드 단어만. 표시 밖에 남은 { } | 글자는 지움
   lines = lines.map(line => {
     let got = false, out = '', last = 0;

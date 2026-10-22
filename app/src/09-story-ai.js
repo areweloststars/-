@@ -411,15 +411,25 @@ function aiMark(line, id, w, ko) {
   }
   return null;
 }
-// AI가 쓴 한 줄 다듬기: 마크다운·번호·'[뜻] 인물 →' 꼴·앞뒤의 [꼬리표]·(설명)·'(★ = 뜻)' 메모·줄 전체를 감싼 따옴표를 떼요
+// AI가 쓴 한 줄 다듬기: 마크다운·번호·'[뜻] 인물 →' 꼴·'앱 줄 → 고친 줄' 꼴·앞뒤의 [꼬리표]·(설명)·'(★ = 뜻)' 메모·
+// '답:'·'고친 문장:' 같은 꼬리표·줄 전체를 감싼 따옴표를 떼요. 메모만 있는 줄('★ = 뜻')은 빈 글이 돼요 (문장은 다음 줄에 있어요)
+const AI_LABEL = /^(?:줄|답|문장|고친\s*(?:줄|문장)|새\s*(?:줄|문장)|바꾼\s*(?:줄|문장)|원래\s*(?:줄|문장))\s*[:：]\s*/;
+// '답:' 꼬리표 (낱말 첫머리에서만: '정답:'·'대답:'은 아니에요)
+const AI_ANS = /(?:^|[\s.!?)\]）])답\s*[:：]\s*/g;
 function aiClean(s) {
   let t = String(s || '').replace(/\*\*|__|`/g, '').replace(/^\s*(?:\d+\s*[.)]|[-•*])\s*/, '').trim();
   // 요청 글의 '(★ = 뜻)' 메모를 따라 쓴 것은 어디에 있든 떼요
   t = t.replace(/\s*[(\[（]\s*[★☆]\s*[=:：][^)\]）]*[)\]）]/g, '').trim();
+  if (/^[★☆]\s*[=:：]\s*[^★☆.!?]*[.!?]?$/.test(t)) return '';
   t = t.replace(/\s*[\[(][^\])]*[\])]\s*$/, '').trim();
-  if (t.includes('→')) t = t.slice(t.indexOf('→') + 1).trim();
-  else { const e = t.match(/^\[[^\]]*\][^.!?]*?\s*(?:->|=>|⇒|➜|:|：|\s[-–—]\s)\s*(.+)$/); if (e) t = e[1]; }
-  t = t.replace(/^\[[^\]]*\]\s*/, '').replace(/^[(（][^)）]*[)）]\s*/, '').trim();
+  // 예시처럼 '앱 줄 → 고친 줄'로 썼으면 마지막 화살표 뒤만
+  const arrow = t.match(/^.*(?:→|->|=>|⇒|➜)\s*(.*)$/);
+  if (arrow) t = arrow[1].trim();
+  else { const e = t.match(/^\[[^\]]*\][^.!?]*?\s*(?::|：|\s[-–—]\s)\s*(.+)$/); if (e) t = e[1]; }
+  // '줄: 앱 줄 답: 고친 줄'처럼 한 줄에 둘 다 썼으면 마지막 '답:' 뒤만
+  const ans = [...t.matchAll(AI_ANS)].pop();
+  if (ans) t = t.slice(ans.index + ans[0].length);
+  t = t.replace(/^\[[^\]]*\]\s*/, '').replace(/^[(（][^)）]*[)）]\s*/, '').replace(AI_LABEL, '').trim();
   t = t.replace(/\*+([^*\s][^*]*)\*+/g, '$1').replace(/\[([^\]\s]+)\](?=[가-힣.!?,]|$)/g, '$1');
   t = aiUnquote(t);
   t = t.replace(/([.!?])\1{2,}/g, '…');
@@ -433,10 +443,12 @@ const AI_BLOCK = /씨발|시발(?!점)|씨바|ㅅㅂ|ㅆㅂ|개새끼|병신|존
 // AI 문장이 쓸 만한지: 못 쓰면 까닭(짧게), 쓸 만하면 ''
 // 한두 문장(세 문장부터는 다음 줄 이야기까지 앞질러 써요), 한글, 표시·괄호·영어·한자/가나 없음, 같은 말 되풀이 없음, 끝맺음, 따옴표 짝, 어린이에게 맞는 말
 // (AI가 앞뒤 이유를 붙여 쓰면 길어져요: 한 줄 140자까지). keep: 어린이 낱말 검사에서 뺄 말 (앱이 넣은 단어 뜻)
-function aiLineWhy(t, keep) {
+// o: { max 글자 수(단어 표시를 넣을 자리를 뺀 길이), sent 문장 수 } (aiFit이 줄마다 정해요)
+function aiLineWhy(t, keep, o) {
+  const max = (o && +o.max) || 140, sent = (o && +o.sent) || 2;
   if (AI_BLOCK.test(keep ? String(t).split(keep).join(' ') : t)) return '어린이에게 맞지 않는 말';
   if (t.length < 6) return '너무 짧음';
-  if (t.length > 140) return '너무 김';
+  if (t.length > max) return '너무 김';
   if (!/[가-힣]{2}/.test(t)) return '한글 없음';
   if (/[{}|<>\[\]()*~★]/.test(t)) return '기호 섞임';
   if (/[A-Za-z]{3,}/.test(t)) return '영어 섞임';
@@ -446,37 +458,41 @@ function aiLineWhy(t, keep) {
   if (!(/[.!?…”"’]$/.test(t) || /(요|다)$/.test(t))) return '끝맺음 없음';
   if ((t.match(/[“”"]/g) || []).length % 2) return '따옴표 짝 안 맞음';
   if (/(?:^|[\s.!?])\d{1,2}\s*[.)]\s/.test(t)) return '번호 섞임';
-  // 문장 수: 대사(따옴표 속)는 빼고, 문장 끝 뒤에 새 문장이 두 번 넘게 이어지면
-  if ((t.replace(/[“"][^”"]*[”"]/g, '말').match(/[.!?…](?=\s+[가-힣‘“"])/g) || []).length >= 2) return '문장이 너무 많음';
+  if (aiSentN(t) > sent) return '문장이 너무 많음';
   return '';
 }
 const aiLineOk = t => !aiLineWhy(t);
+// 문장 수: 대사(따옴표 속)는 한 낱말로 보고, 문장 끝 뒤에 새 문장이 이어진 수 + 1
+const aiSentN = t => (String(t).replace(/[“"][^”"]*[”"]/g, '말').match(/[.!?…](?=\s+[가-힣‘“"])/g) || []).length + 1;
 
 // 요청 글: 앱이 쓴 이야기 전체. 단어 줄만 번호를 붙이고 단어 뜻 자리는 ★로, 줄 끝에 '(★ = 뜻)'.
 // AI는 번호 붙은 줄만 고쳐 쓰고 ★는 그대로 둬요 (앱이 ★ 자리에 뜻을 되돌려 넣어요).
 // 작은 모델(약 2B)도 따라 하게 짧게, 예시 하나(일반 낱말)와 함께. 어린이 안전 규칙은 이야기 속으로 새어 들지 않게
 // '다정한·깨끗한' 같은 꾸밈말 대신 빼야 할 것만 적어요 (휴대폰에서 이런 꾸밈말이 이야기 속에 들어가 단어 뜻을 바꿔 버렸어요)
-// story: [{ n: 0(그대로 둘 줄) | 1.., core: ★ 자리의 말, text }]
-// 예시는 앱 문장에 가장 많은 꼴(문장 끝 '-었어요')로: ★가 끝말까지 품고 있어서 ★ 뒤에 '했어요'를 또 붙이지 않는 것을 보여 줘요
-const AI_EXAMPLE = '줄: 아기 곰은 높은 다리 위에서도 ★. (★ = 용감했어요)\n답: 강 건너에서 엄마가 손을 흔들자, 아기 곰은 높은 다리 위에서도 ★.';
+// '싸움·무서운 내용' 같은 분위기 말도 빼요: 단어 뜻에 따라 조금 긴장되는 장면(불안한·위험한·버리다)이 필요해요. 나쁜 말은 AI_BLOCK이 걸러요
+// story: [{ n: 0(그대로 둘 줄) | 1.., core: ★ 자리의 말, hint: 다른 뜻(한 글자 뜻일 때), text }]
+// 예시는 앱 문장에 가장 많은 꼴(문장 끝 '-었어요')로: ★가 끝말까지 품고 있어서 ★ 뒤에 '했어요'를 또 붙이지 않는 것을 보여 줘요.
+// '줄:'·'답:' 같은 꼬리표 없이 '앱 줄 → 고친 줄' 한 줄로 보여 줘요: 작은 모델이 꼴을 따라 해도 꼬리표가 이야기에 들어가지 않고, 앱은 화살표 뒤만 읽어요
+const AI_EXAMPLE = '아기 곰은 높은 다리 위에서도 ★. (★ = 용감했어요) → 강 건너에서 엄마가 손을 흔들자, 아기 곰은 높은 다리 위에서도 ★.';
+// 예시에만 나오는 말: 앱 이야기에 없는데 AI 답에 나오면 예시를 따라 쓴 거예요 (엉뚱한 아기 곰·엄마가 이야기와 그림에 들어가요). 예시를 바꾸면 함께 바꿔요
+const AI_EXAMPLE_ONLY = [/아기\s*곰/, /높은\s*다리/, /강\s*건너/, /엄마가\s*손/];
 function aiPrompt(story) {
-  const body = story.map(s => s.n ? `${s.n}. ${s.text} (★ = ${s.core})` : s.text).join('\n');
+  const body = story.map(s => s.n ? `${s.n}. ${s.text} (★ = ${s.core}${s.hint ? `, ${s.hint}` : ''})` : s.text).join('\n');
   return `아래 어린이 그림책 이야기에서 번호 붙은 줄만 더 재미있게 고쳐 써 주세요.
 
 규칙:
 - 번호 줄마다 한두 문장으로 써요. 앞 줄과 이어지게, 왜 그랬는지나 그래서 어떻게 됐는지를 넣어요.
 - 그 줄에 나오는 인물은 그대로 둬요.
-- ★ 표시는 지우거나 바꾸지 말고 딱 한 번 그대로 써요. ★ 자리에는 괄호 속 말이 그대로 들어가요. 그 말에 맞게 ★ 앞뒤를 써요.
-- 어린이가 읽어도 괜찮게 써요: 욕설·싸움·무서운 내용 없이.
+- ★ 표시는 지우거나 바꾸지 말고 딱 한 번 그대로 써요. ★ 자리에는 괄호 속 말이 그대로 들어가요. 그 말과 뜻이 어울리게 ★ 앞뒤를 써요.
+- 어린이가 읽어요. 욕설이나 다치는 장면은 쓰지 않아요.
 - 문장 끝은 '~요'로 해요. 영어와 괄호는 쓰지 않아요.
 
-예시
-${AI_EXAMPLE}
+예시: ${AI_EXAMPLE}
 
 이야기:
 ${body}
 
-답은 번호 줄만 1번부터 차례로 '1. 문장' 꼴로 써요. 다른 말은 쓰지 않아요.`;
+답은 번호 줄만 1번부터 차례로 '1. 고친 문장' 꼴로 써요. 다른 말은 쓰지 않아요.`;
 }
 // AI 답에서 생각하는 글(생각 블록)을 떼요. Gemma 4는 생각 모드를 켤 때만(<|think|>) 생각을 쓰고, 이 앱은 켜지 않지만
 // 혹시 나오면 그 속의 '1. …' 줄을 답으로 읽지 않게: <think>…</think>, <thought>…</thought>, <|channel>thought…<channel|>,
@@ -493,25 +509,33 @@ function aiNoThink(s) {
   if (open >= 0) t = t.slice(0, open);
   return t.replace(/<\|[^|<>]{0,30}\|>|<\|[a-z_]{1,20}>|<[a-z_]{1,20}\|>|<(?:eos|bos|end_of_turn|start_of_turn)>/gi, '').trim();
 }
-// AI 답에서 번호별 문장 후보들 (번호 꼴이 여러 가지여도: **1.**, 1번., (1), ①, ### 1., 예시처럼 '답: 1.')
-// 번호 없는 줄(앞에 붙인 인사말 등)은 읽지 않아요. 번호 줄에 꼬리표만 있으면 다음 줄을,
-// 두 문장을 두 줄로 나눠 써서 ★가 다음 줄에 있으면 두 줄을 이어 붙인 것도 후보로 넣어요
+// AI 답에서 번호별 문장 후보들 (번호 꼴이 여러 가지여도: **1.**, 1번., (1), ①, ### 1., '답: 1.', '1번 답:', '답 2.')
+// 번호 없는 줄(앞에 붙인 인사말 등)은 읽지 않아요. 번호 줄에 꼬리표·메모만 있으면 다음 줄을,
+// 두 문장을 두 줄로 나눠 써서 ★가 다음 줄에 있으면 두 줄을 이어 붙인 것도 후보로 넣어요.
+// 요청 줄을 되풀이한 줄('줄: 앱 문장')은 고친 문장이 아니라서 읽지 않고 그다음 줄을 봐요.
+// 번호 줄에 ★가 있으면 다음 줄도 뒤 후보로 넣어요: 번호 줄에 앱 문장을 되풀이하고 고친 문장은 다음 줄('→ …')에 쓴 경우
+// (aiFit은 후보를 차례로 보고, 앱 문장을 그대로 쓴 줄은 버려요. 다른 번호 줄의 답이면 줄 짝 맞추기가 걸러요)
+const AI_ECHO = /^\s*(?:줄|원래\s*(?:줄|문장)|원문|고치기\s*전)\s*[:：]/;
 function aiParse(text, n) {
   const cand = Array.from({ length: n }, () => []);
   const src = String(text || '').replace(/\*\*|__/g, '').replace(/([.!?”"])\s+(?=\d{1,2}\s*[.)]\s)/g, '$1\n');
   const L = src.split(/\n+/);
-  const NUM = /^\s*(?:[-#>*]+\s*)?(?:답\s*[:：]\s*)?\(?(?:(\d{1,2})\s*(?:번)?\s*[.):：]|([①-⑳]))\s*(.*)$/;
+  const NUM = /^\s*(?:[-#>*]+\s*)?(?:답\s*[:：]?\s*)?\(?(?:(\d{1,2})\s*(?:번)?\s*(?:답)?\s*[.):：]|([①-⑳]))\s*(.*)$/;
+  const echo = s => AI_ECHO.test(s) && ![...String(s).matchAll(AI_ANS)].length;
   for (let i = 0; i < L.length; i++) {
     const m = L[i].match(NUM);
     if (!m) continue;
     const k = m[1] ? +m[1] - 1 : m[2].charCodeAt(0) - 0x2460;
     if (k < 0 || k >= n) continue;
-    let t = aiClean(m[3]);
-    const nx = L[i + 1] && !NUM.test(L[i + 1]) ? aiClean(L[i + 1]) : '';
-    // '1. [뜻] 인물'·'1. (★ = 뜻)'만 쓰고 문장은 다음 줄에 쓴 경우
+    let j = i + 1;
+    while (j < L.length && !NUM.test(L[j]) && echo(L[j])) j++;
+    const nx = j < L.length && !NUM.test(L[j]) ? aiClean(L[j]) : '';
+    let t = echo(m[3]) ? '' : aiClean(m[3]);
+    // '1. [뜻] 인물'·'1. (★ = 뜻)'·'1. 줄: 앱 문장'만 쓰고 문장은 다음 줄에 쓴 경우
     if ((!t || (!/[.!?”"…]$/.test(t) && /^[\[(（]/.test(m[3].trim()))) && nx) t = nx;
     else if (t && nx && !t.includes('★') && nx.includes('★') && /[.!?…]$/.test(t)) cand[k].push(t + ' ' + nx);
     if (t) cand[k].push(t);
+    if (t && nx && t !== nx && t.includes('★')) cand[k].push(nx);
   }
   return cand;
 }
@@ -526,6 +550,8 @@ function aiStarTidy(t, x) {
   const c = aiEsc(x.core).replace(/\\? +/g, '\\s*');
   let s = String(t || '').replace(/[☆⭐🌟✩✪✫✬✭✮✯✰]\uFE0F?/gu, '★');
   s = s.replace(new RegExp(`[(\\[（]?\\s*★\\s*[=:：]\\s*[‘“"']?${c}[’”"']?\\s*[)\\]）]?`, 'g'), ' ');
+  // 뜻을 꼬리표처럼 앞에 붙였으면('빌렸어요: 레오는 …') 떼요
+  s = s.replace(new RegExp(`^\\s*[‘“"']?${c}[’”"']?\\s*[:：]\\s*`), '');
   s = s.replace(/★\s*[(\[（][^)\]）★]{1,30}[)\]）]/g, '★').replace(new RegExp(`${c}\\s*[(\\[（]\\s*★\\s*[)\\]）]`, 'g'), '★').replace(/[(\[（]\s*★\s*[)\]）]/g, '★');
   s = s.replace(new RegExp(`★\\s*${c}(?![가-힣])|(?<![가-힣])${c}\\s*★`, 'g'), '★');
   if (!x.wrap) s = s.replace(/[‘“"'「]\s*★\s*[’”"'」]/g, '★');
@@ -537,9 +563,42 @@ const aiCast = (s, f) => ['H', 'F', 'V'].filter(k => [f[k], f.S && f.S[k]].some(
 // 이름씨 뒤 조사: 받침에 맞게 고쳐요 (AI는 ★의 받침을 몰라요). 바꿀 조사 → koP에 넣을 꼴
 const AI_JOSA = /^(이었어요|였어요|이에요|예요|이라고|라고|이라는|라는|이랑|랑|이나|나|으로|로|을|를|이|가|은|는|과|와)(?![가-힣])/;
 const AI_JOSA_BASE = { 였어요: '이었어요', 예요: '이에요', 라고: '이라고', 라는: '이라는', 랑: '이랑', 나: '이나', 으로: '로', 를: '을', 가: '이', 는: '은', 와: '과' };
+/* ---------- 줄 짝 맞추기 ----------
+   AI가 한 줄을 빼먹고 번호를 당겨 쓰면 다른 단어 줄의 답이 이 번호로 와요 (★ 자리에 엉뚱한 단어 뜻이 들어가요).
+   답에서 ★가 든 토막(쉼표·문장 끝으로 나눈 것)의 낱말을 번호 줄(★ 줄)마다 견줘 봐요. 낱말: 두 글자 이상인 한글 덩어리
+   (인물 이름·이음말·흔한 끝말은 빼요), 앞 두 글자가 같으면 같은 낱말로 ('지도책을' = '지도책', '두드리며' = '두드렸어요').
+   다른 줄 답으로 보는 때: 그 줄 낱말의 절반 이상이 답에 있고, 이 줄과는 하나도 안 겹치면서 그 줄과 두 낱말 이상 겹치거나
+   ★ 바로 앞뒤 낱말이 그 줄의 ★ 앞뒤 낱말과 같을 때('레오는 누구보다 ★'), 또는 이 줄보다 뒤의 줄과 두 낱말 이상 더 겹칠 때.
+   (앞 줄과 이어 쓰라고 해서 다른 줄 낱말을 조금 되풀이하거나, 이야기 곳곳에 나오는 장소 낱말 하나가 겹치는 것은 괜찮아요)
+   ★ 토막에 겹치는 낱말이 하나도 없으면 답 전체를 뒤의 줄들과만 견줘요 (앞 줄 일을 까닭으로 되풀이해 쓰는 것은 괜찮게) */
+const AI_STOP = new Set(Object.values(ST_LINK).flat().join(' ').split(' ').concat(['했어요', '했죠', '해요', '있었어요', '없었어요', '됐어요', '이었어요', '였어요', '했답니다', '됐답니다', '그래서', '그러자', '그때', '정말', '아주', '너무', '모두', '다시', '이제', '함께', '같이', '갑자기', '오늘', '오늘도']));
+const AI_PRT = /(?:에게서|에서|에게|으로|이랑|처럼|까지|부터|보다|을|를|이|가|은|는|의|도|만|로|과|와|랑)$/;
+function aiWords(s, f) {
+  const nm = new Set([f.H, f.F, f.V, ...Object.values(f.S || {})].filter(Boolean).join(' ').split(' '));
+  return [...new Set((String(s).match(/[가-힣]{2,}/g) || []).filter(w => { const b = w.replace(AI_PRT, ''); return !AI_STOP.has(w) && !AI_STOP.has(b) && !nm.has(w) && !nm.has(b); }))];
+}
+// 답 s가 단어 줄 x보다 다른 번호 줄에 맞으면 그 줄의 차례(0부터), 아니면 -1. req: aiReq 결과
+function aiOtherLine(s, x, req, f) {
+  const k = req.items.indexOf(x);
+  if (k < 0 || req.items.length < 2) return -1;
+  const anchors = req.items.map(y => aiWords(y.star, f)), hit = (ws, a) => a.filter(w => ws.some(v => v.slice(0, 2) === w.slice(0, 2))).length;
+  const score = ws => anchors.map(a => hit(ws, a));
+  // ★ 바로 앞뒤 낱말
+  const nb = t => { const i = t.indexOf('★'); return aiWords(((t.slice(0, i).match(/[가-힣]+\s*$/) || [''])[0]) + ' ' + ((t.slice(i + 1).match(/^\s*[가-힣]+/) || [''])[0]), f); };
+  const part = String(s).split(/[,.!?…;]+/).find(p => p.includes('★')) || s;
+  let sc = score(aiWords(part, f)), from = 0;
+  if (sc.every(v => !v)) { sc = score(aiWords(s, f)); from = k + 1; }
+  const best = lo => { let j = -1; sc.forEach((v, i) => { if (i !== k && i >= lo && v && (j < 0 || v > sc[j])) j = i; }); return j; };
+  const ok = j => j >= 0 && sc[j] * 2 >= anchors[j].length && sc[j] > sc[k];
+  if (!sc[k]) { const j = best(from); return ok(j) && (sc[j] >= 2 || hit(nb(s), nb(req.items[j].star)) > 0) ? j : -1; }
+  // 이 줄과도 겹치면 뒤의 줄과만 견줘요 (앞 줄 일을 길게 되풀이해 이어 쓴 것은 괜찮게)
+  const j = best(Math.max(from, k + 1));
+  return ok(j) && sc[j] >= sc[k] + 2 ? j : -1;
+}
 // AI가 쓴 한 줄(t)을 단어 줄(x)에 맞춰 봐요. 쓸 수 있으면 { line: ★ 자리에 {영어|뜻}을 넣은 줄 }, 못 쓰면 { why: 까닭 }
-// ★가 없어도 단어 뜻을 그대로(활용꼴 포함) 쓴 줄은 예전처럼 뜻 자리를 찾아 써요 (how: '뜻 낱말로')
-function aiFit(t0, x, f) {
+// (다른 번호 줄의 답 같으면 to: 그 줄의 차례). ★가 없어도 단어 뜻을 그대로(활용꼴 포함) 쓴 줄은 예전처럼 뜻 자리를 찾아 써요 (how: '뜻 낱말로')
+// req(aiReq 결과)를 주면 이야기 전체와 견줘요: 예시만 따라 쓴 말, 다른 번호 줄의 답
+function aiFit(t0, x, f, req) {
   const names = [f.H, f.F, f.V, ...Object.values(f.S || {})].filter(Boolean).sort((a, b) => b.length - a.length);
   // 앞에 붙은 '인물 이름:' 꼬리표는 떼요
   const t = t0.replace(new RegExp('^(?:' + names.map(aiEsc).join('|') + ')\\s*[:：\\-–—]\\s*'), '');
@@ -547,10 +606,16 @@ function aiFit(t0, x, f) {
   const want = aiCast(x.star, f), castOk = s => !want.length || aiCast(s, f).some(k => want.includes(k));
   const s = aiStarTidy(t, x), stars = (s.match(/★/g) || []).length;
   if (stars > 1) return { why: stars === 2 ? '★가 두 번' : `★가 ${stars}번` };
+  // 예시에만 나오는 말(아기 곰·높은 다리 …)을 앱 이야기에 없는데 썼으면 예시를 따라 쓴 거예요
+  const story = req ? req.text : x.plain;
+  if (AI_EXAMPLE_ONLY.some(re => re.test(s) && !re.test(story))) return { why: '예시를 따라 씀' };
+  // 문장 수: 앱 줄이 두 문장이면 까닭·결과 한 문장을 더해 세 문장까지. 길이: 단어 표시({영어|뜻})와 끝 마침표까지 넣어 MK_LINE_MAX 안
+  // (더 긴 줄은 단어장에 들어가지 않아요: mkEpisode)
+  const sent = Math.max(2, aiSentN(x.plain) + 1), room = (line, plain) => MK_LINE_MAX - (line.length - plain.length) - (/[.!?”"…]$/.test(line) ? 0 : 1);
   if (!stars) {
     // 앱 문장을 그대로 베낀 줄은 고쳐 쓴 게 아니에요 (앱 문장이 그대로 남아요)
     if (same(s, x.plain)) return { why: '앱 문장을 그대로 씀' };
-    const mk = aiMark(s, x.id, x.w, x.ko), bad = aiLineWhy(s, mk ? mk.match(/\{[^|}]+\|([^}]+)\}/)[1] : '');
+    const mk = aiMark(s, x.id, x.w, x.ko), bad = aiLineWhy(s, mk ? mk.match(/\{[^|}]+\|([^}]+)\}/)[1] : '', { sent, max: mk ? room(mk, s) : MK_LINE_MAX });
     if (bad) return { why: bad };
     if (!mk) return { why: '★가 없음' };
     // '루나는 에 {…|의존했어요}'처럼 조사만 덩그러니 남은 줄은 버려요
@@ -559,20 +624,26 @@ function aiFit(t0, x, f) {
     return { line: mk, how: '뜻 낱말로' };
   }
   if (same(s, x.star)) return { why: '앱 문장을 그대로 씀' };
+  if (req) { const j = aiOtherLine(s, x, req, f); if (j >= 0) return { why: '다른 줄 답 같음', to: j }; }
   const at = s.indexOf('★'), before = s.slice(0, at);
   let after = s.slice(at + 1);
   // ★ 자리가 문장에 맞는지: 문장 끝 꼴('빌렸어요')은 뒤에 문장부호나 닫는 따옴표만, '용감한'처럼 뒤에 낱말이 오는 꼴은 띄어 쓴 낱말이 와야 해요.
-  // 이름씨는 조사를 받침에 맞게 고쳐요
+  // 이름씨는 조사를 받침에 맞게 고쳐요. 이름씨 ★ 뒤에는 조사·'이에요' 같은 말이나 띄어 쓴 낱말이 와야 해요
+  // ('드디어 ★.'처럼 이름씨로 끝난 토막 글, '★처럼 반짝였어요'처럼 ★를 별 그림으로 읽은 줄은 버려요)
   if (x.cls === 'stick') {
     const q = (after.match(/^[’”"']/) || [''])[0], pm = after.slice(q.length).match(AI_JOSA);
     if (pm) after = q + koP(x.core, AI_JOSA_BASE[pm[1]] || pm[1]).slice(x.core.length) + after.slice(q.length + pm[1].length);
+    const rest = after.slice(q.length);
+    if (!/^(?:[가-힣]|\s+[^\s.!?…,])/.test(rest) || (/^(?:처럼|같이|모양)/.test(rest) && /반짝|빛나|빛났|빛이/.test(s))) return { why: '★ 자리가 문장과 안 맞음' };
   } else {
     // ★를 줄기처럼 보고 끝말을 또 붙였으면('★했어요', '★요', '★한 얼굴') 그 끝말이 ★ 말의 끝과 같을 때만 떼요
     const tail = (after.match(/^[가-힣]+/) || [''])[0];
     if (tail && x.core.endsWith(tail)) after = after.slice(tail.length);
-    if (!(x.cls === 'end' ? /^(?:[.!?…"”’'」』]|$)/ : /^[’”"']?,?\s+[^\s.!?…]/).test(after)) return { why: '★ 자리가 문장과 안 맞음' };
+    // '-의' 뜻('고대의')은 ★ 자리에 '의' 없이 들어가요: AI가 '★의 지도'처럼 '의'를 붙였으면 표시 밖에 그대로 둬요 ({ancient|고대}의 지도)
+    const rest = x.cls === 'mid' && x.w && x.w.sub === 'pert' ? after.replace(/^의(?=\s)/, '') : after;
+    if (!(x.cls === 'end' ? /^(?:[.!?…"”’'」』]|$)/ : /^[’”"']?,?\s+[^\s.!?…]/).test(rest)) return { why: '★ 자리가 문장과 안 맞음' };
   }
-  const plain = before + x.core + after, bad = aiLineWhy(plain, x.core);
+  const line = before + `{${x.id}|${x.core}}` + after, plain = before + x.core + after, bad = aiLineWhy(plain, x.core, { sent, max: room(line, plain) });
   if (bad) return { why: bad };
   // ★ 바로 옆에 같은 뜻 낱말을 또 썼거나('불안해서 ★'), 앱 문장에 없던 '안·못'이 ★ 뜻을 뒤집으면 버려요
   const head = x.core.replace(/\s/g, '').slice(0, 2);
@@ -581,9 +652,16 @@ function aiFit(t0, x, f) {
   const negB = /(?:^|\s)(?:안|못)\s*$/, negA = /^\s*(?:않|못하|못\s)/;
   if (x.cls !== 'stick' && ((negB.test(before) && !negB.test(x.before)) || (negA.test(after) && !negA.test(x.after)))) return { why: '안·못이 ★ 뜻을 뒤집음' };
   if (!castOk(plain)) return { why: '인물이 바뀜' };
-  return { line: before + `{${x.id}|${x.core}}` + after };
+  return { line };
 }
 
+// 한 글자 뜻('양', '배', '눈')은 다른 뜻으로 읽히기 쉬워요('양, 액수'의 '양'을 '하얀 양 떼'로): 단어의 다른 뜻을 덧붙여 알려 줘요 ('액수와 같은 뜻').
+// 두 글자 이상인 뜻이나 다른 뜻이 없는 단어는 '' (요청 글을 짧게)
+function aiHint(core, ko) {
+  if (String(core).replace(/\s/g, '').length !== 1) return '';
+  const o = String(ko || '').replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').split(/\s*[,;/]\s*/).map(s => s.replace(/~/g, '').replace(/\s+/g, ' ').trim()).filter(s => /[가-힣]{2}/.test(s) && s !== core).slice(0, 2);
+  return o.length ? `${o.slice(0, -1).concat(koP(o[o.length - 1], '과')).join(', ')} 같은 뜻` : '';
+}
 // 요청 준비: 앱이 만든 이야기(res)에서 단어 줄을 찾아 번호를 붙이고 단어 뜻 자리를 ★로 (AI 진단도 같은 방법으로 실제 크기의 요청 글을 만들어요)
 function aiReq(res, rows, n) {
   const f = SF[((n % SF.length) + SF.length) % SF.length];
@@ -596,14 +674,15 @@ function aiReq(res, rows, n) {
     const before = plainOf(l.slice(0, m.index)), after = plainOf(l.slice(end)), wrap = l[m.index - 1] === '‘' && l[end] === '’';
     const tail = wrap ? after.slice(1) : after;
     const cls = w.kind === 'n' || /^[가-힣]/.test(tail) ? 'stick' : /^(?:[.!?…"”’'」』]|\s*$)/.test(tail) ? 'end' : 'mid';
-    idx.push(i); items.push({ id, w, ko: r.ko, core: m[2], before, after, wrap, cls, star: before + '★' + after, plain: plainOf(l) });
+    idx.push(i); items.push({ id, w, ko: r.ko, core: m[2], hint: aiHint(m[2], r.ko), before, after, wrap, cls, star: before + '★' + after, plain: plainOf(l) });
   });
-  const story = lines.map((l, i) => { const k = idx.indexOf(i); return k >= 0 ? { n: k + 1, core: items[k].core, text: items[k].star } : { n: 0, text: plainOf(l) }; });
-  return { f, lines, plainOf, idx, items, story, prompt: items.length ? aiPrompt(story) : '' };
+  const story = lines.map((l, i) => { const k = idx.indexOf(i); return k >= 0 ? { n: k + 1, core: items[k].core, hint: items[k].hint, text: items[k].star } : { n: 0, text: plainOf(l) }; });
+  // text: 앱 이야기 전체 (AI 답에 예시만 따라 쓴 말이 있는지 견줘요)
+  return { f, lines, plainOf, idx, items, story, text: lines.map(plainOf).join('\n'), prompt: items.length ? aiPrompt(story) : '' };
 }
 // 앱이 만든 이야기(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요
 async function aiRewrite(eng, res, rows, n, signal) {
-  const { f, lines, plainOf, idx, items, prompt } = aiReq(res, rows, n);
+  const req = aiReq(res, rows, n), { f, lines, plainOf, idx, items, prompt } = req;
   if (!items.length) return 0;
   const stop = () => { try { eng.interruptGenerate(); } catch (e) { } };
   if (signal) { if (signal.aborted) throw { code: 'cancelled' }; signal.addEventListener('abort', stop, { once: true }); }
@@ -641,14 +720,26 @@ async function aiRewrite(eng, res, rows, n, signal) {
   let changed = 0;
   // 문제 찾기용 기록: AI가 쓴 글과 줄마다 쓰지 못한 까닭 (완성 화면에서 펼쳐 볼 수 있어요)
   const diag = { title: f.title, raw: String(text).slice(0, 1600), why: [], info: aiWorkText(work, false), gpu: aiGpuLines(work.t0) };
+  const fits = items.map(() => null), whys = [], moved = [];
   items.forEach((x, k) => {
-    let fit = null, why = cand[k].length ? '' : '답에서 이 번호를 못 찾음';
+    let why = cand[k].length ? '' : '답에서 이 번호를 못 찾음';
     for (const t of cand[k]) {
-      const r = aiFit(t, x, f);
-      if (r.line) { fit = r; break; }
+      const r = aiFit(t, x, f, req);
+      if (r.line) { fits[k] = r; break; }
+      if (r.to != null) moved.push({ t, from: k, to: r.to });
       why = why || r.why;
     }
-    diag.why.push(`${k + 1}. ${x.id}: ${fit ? (fit.how ? `씀 (★ 없이 ${fit.how})` : '씀') : why}`);
+    whys[k] = why;
+  });
+  // 줄을 빼먹고 번호를 당겨 쓴 답: 그 답이 맞는 줄이 아직 비어 있으면 그 줄로 옮겨 봐요
+  for (const mv of moved) {
+    if (fits[mv.to]) continue;
+    const r = aiFit(mv.t, items[mv.to], f, req);
+    if (r.line) fits[mv.to] = Object.assign(r, { from: mv.from });
+  }
+  items.forEach((x, k) => {
+    const fit = fits[k];
+    diag.why.push(`${k + 1}. ${x.id}: ${!fit ? whys[k] : fit.how ? `씀 (★ 없이 ${fit.how})` : fit.from != null ? `씀 (${fit.from + 1}번 답을 옮겨 씀)` : '씀'}`);
     if (!fit) return;
     const marked = fit.line;
     lines[idx[k]] = /[.!?”"…]$/.test(marked) ? marked : marked + '.';
