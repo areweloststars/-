@@ -3,7 +3,7 @@
 // - 그래픽 칩 정보·한도·기능 (한 번), WebLLM이 부탁한 한도
 // - 장치를 잃음(device.lost: reason·message), 잡히지 않은 오류(uncapturederror: 오류 종류·글), 누가 device.destroy()를 불렀는지
 // - 일꾼의 console.error·console.warn 글 (TVM이 자세한 오류를 여기에 써요. 길이·개수는 잘라요)
-// - 글 읽기 조각마다 걸린 시간 (그래픽 칩이 멈추지 않는 조각 크기를 고르는 데 써요)
+// - 글 읽기 조각마다 걸린 시간 (그래픽 칩이 멈추지 않는 조각 크기를 고르는 데 써요), 첫 토큰 고르기의 시작·끝
 // WebLLM의 메시지와 섞이지 않게 BroadcastChannel('wg-ai-gpu')로 보내요. 이 휴대폰 안에서만 오가요 (어디에도 보내지 않아요)
 'use strict';
 (() => {
@@ -92,6 +92,12 @@
   G.wgPrefillChunkDone = d => {
     if (!d) return;
     send({ kind: 'chunk', took: Math.round(+d.ms || 0), tokens: +d.tokens || 0, size: +d.size || 0, i: +d.index || 0, of: +d.count || 0 });
+  };
+  // 글을 다 읽은 뒤 첫 토큰 고르기의 시작·끝 (web-llm.js의 'word-game patch'가 불러요). at: 'start' | 'end', tokens: 읽은 토큰 수.
+  // 그래픽 칩을 잃었을 때 글을 읽던 중인지, 다 읽은 바로 뒤인지, 쓰는 중인지 가려요
+  G.wgSampleStep = d => {
+    if (!d) return;
+    send({ kind: 'sample', at: d.at === 'end' ? 'end' : 'start', tokens: +d.tokens || 0 });
   };
   const gpu = G.navigator && G.navigator.gpu;
   if (gpu && typeof gpu.requestAdapter === 'function') {

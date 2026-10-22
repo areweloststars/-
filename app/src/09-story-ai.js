@@ -12,8 +12,9 @@ const AI_SIZE = '약 3GB';
 // work: 지금 쓰는 중인 글 하나의 기록 (단계·시작 시각·쓴 토큰 수). 쓰지 않을 때는 null
 // gpuLog: AI 일꾼이 보낸 그래픽 칩 소식 (끊김·오류·콘솔 오류 글), gpuDev: 일꾼이 쓰는 그래픽 칩 정보, wnames: 이 화면이 띄운 일꾼 이름들
 // bench: 'AI 진단' 기록 (아직 안 읽었으면 undefined)
-// chunk: 지금 일꾼이 글을 나눠 읽는 조각 크기(토큰, 일꾼이 없으면 0), chunkLog: 일꾼이 보낸 조각마다 걸린 시간, onChunk: 조각 시간이 올 때마다
-const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null, gpuLog: [], gpuDev: null, wnames: new Set(), gpuCh: null, onGpu: null, chunk: 0, chunkLog: [], onChunk: null };
+// chunk: 지금 일꾼이 글을 나눠 읽는 조각 크기(토큰, 일꾼이 없으면 0), chunkLog: 일꾼이 보낸 조각마다 걸린 시간(i/of: 몇 번째 조각/모두 몇 개), onChunk: 조각 시간이 올 때마다
+// gap: 조각마다 그래픽 칩을 쉬게 하는 시간(ms), sampleLog: 글을 다 읽은 뒤 첫 토큰 고르기의 시작·끝 소식, onSample: 그 소식이 올 때마다
+const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null, gpuLog: [], gpuDev: null, wnames: new Set(), gpuCh: null, onGpu: null, chunk: 0, chunkLog: [], onChunk: null, gap: 0, sampleLog: [], onSample: null };
 const aiURL = p => new URL(p, location.href).href;
 // WebLLM의 모델 기록 (가짜 AI.lib 또는 받아 둔 AI.web). 아직 안 받았으면 null
 const aiRec = () => { const L = AI.lib || AI.web, list = L && L.prebuiltAppConfig && L.prebuiltAppConfig.model_list; return (list && list.find(m => m.model_id === AI_MODEL)) || null; };
@@ -65,7 +66,7 @@ const aiNeedsDownload = () => !AI.engine && !aiReadyBefore();
 // AI 일꾼을 멈추고 처음 상태로 (준비 실패·그만두기·GPU를 잃었을 때)
 function aiDrop() {
   const w = AI.worker;
-  AI.gen++; AI.worker = null; AI.engine = null; AI.loading = null; AI.onProgress = null; AI.chunk = 0;
+  AI.gen++; AI.worker = null; AI.engine = null; AI.loading = null; AI.onProgress = null; AI.chunk = 0; AI.gap = 0;
   if (w) try { w.terminate(); } catch (e) { }
 }
 // 이야기 AI를 내려놓아요: 단어장 만들기를 마쳤을 때(다른 화면에 가 있으면)와 만들기 화면을 나갈 때, 그래도 남아 있으면 게임을 열 때.
@@ -91,6 +92,9 @@ const AI_CHUNK_PHONE = 32;
 const AI_CHUNK_KEY = 'wg-ai-chunk';
 // 조각 하나가 AI_CHUNK_OK_MS보다 짧게 끝나야 안전한 크기로 남겨요. AI_CHUNK_SLOW_MS보다 길면 그래픽 칩 한계에 가까워서 더 큰 조각은 재지 않아요
 const AI_CHUNK_OK_MS = 1000, AI_CHUNK_SLOW_MS = 1200;
+// 휴대폰은 조각 하나를 다 읽을 때마다 그래픽 칩을 잠깐(ms) 쉬게 해요 (모델 설정 wg_prefill_gap: web-llm.js의 'word-game patch').
+// 쉬지 않고 오래 읽다가 크롬의 그래픽 칩 프로세스가 꺼진 적이 있어요(갤럭시 S25, 약 490토큰). 컴퓨터는 쉬지 않아요(0)
+const AI_GAP_PHONE = 25;
 const aiInfoOf = inf => { const s = k => String((inf && inf[k]) || '').trim().slice(0, 80); return { vendor: s('vendor'), architecture: s('architecture'), device: s('device'), description: s('description') }; };
 // 이 화면이 본 그래픽 칩 이름 (aiGpuOk가 먼저 읽어 뒀으면 그대로)
 async function aiGpuInfo() {
@@ -182,12 +186,12 @@ async function aiStart(lib, gen) {
   // 일꾼마다 이름을 붙여요: 일꾼이 그래픽 칩 소식을 보낼 때 이 이름을 붙여서, 이 화면이 띄운 일꾼 소식만 받아요
   aiGpuListen();
   // 글을 나눠 읽을 조각 크기 (휴대폰은 작게, 진단으로 찾은 크기가 있으면 그 크기). 512보다 작을 때만 모델 설정에 넣어요
-  const chunk = aiChunkPick(await aiGpuInfo());
+  const info = await aiGpuInfo(), chunk = aiChunkPick(info), gap = aiIsPhone(info) ? AI_GAP_PHONE : 0;
   if (gen !== AI.gen) throw { code: 'cancelled' };
   const name = 'wg-ai-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   AI.wnames.add(name);
   const worker = AI.worker = new Worker(aiURL('llm/worker.js'), { type: 'module', name });
-  AI.chunk = chunk;
+  AI.chunk = chunk; AI.gap = gap;
   // 일꾼이 아예 못 뜨면(파일을 못 받음 등) 답이 영영 안 오니, 오류가 나면 바로 끝내요
   const dead = new Promise((_, no) => worker.addEventListener('error', e => no(new Error('ai worker: ' + ((e && e.message) || 'failed to start'))), { once: true }));
   dead.catch(() => { });
@@ -196,8 +200,8 @@ async function aiStart(lib, gen) {
   // WebLLM의 sliding_window_size는 모델 속 '부분 주의'가 아니라 기억(KV 캐시) 전체를 고리처럼 돌려 쓰는 설정이에요.
   // 모델 설정이 '전체 창'과 '미끄럼 창'을 둘 다 켜 두면 켜다가 멈춰요 (WindowSizeConfigurationError).
   // 전체 창만 쓰게 맞춰요(-1 = 끔): 이야기 한 편(지시 + 이야기 + 답)은 4천 토큰 안에 들어가요
-  // wg_prefill_chunk: 글을 이 크기 조각으로 나눠 읽어요 (web-llm.js의 'word-game patch')
-  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'], overrides: { ...(rec.overrides || {}), context_window_size: AI_CTX, sliding_window_size: -1, attention_sink_size: -1, ...(chunk < AI_CHUNK ? { wg_prefill_chunk: chunk } : {}) } }] } : undefined;
+  // wg_prefill_chunk: 글을 이 크기 조각으로 나눠 읽어요, wg_prefill_gap: 조각마다 쉬는 시간(ms) (web-llm.js의 'word-game patch')
+  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'], overrides: { ...(rec.overrides || {}), context_window_size: AI_CTX, sliding_window_size: -1, attention_sink_size: -1, ...(chunk < AI_CHUNK ? { wg_prefill_chunk: chunk } : {}), ...(gap ? { wg_prefill_gap: gap } : {}) } }] } : undefined;
   try {
     const eng = await Promise.race([lib.CreateWebWorkerMLCEngine(worker, AI_MODEL, {
       appConfig,
@@ -279,6 +283,43 @@ function aiWorkText(w, failed) {
   if (w.hidden) out.push(`그동안 화면 꺼짐·다른 앱 ${w.hidden}번`);
   return out.join(' · ');
 }
+// 'AI가 쓴 글 보기'·'AI 진단'의 자세한 줄 (그래픽 칩을 잃었을 때 어디서 멈췄는지 가리려고). o: est 요청 글 토큰(어림), tin 실제로 읽은 토큰,
+// workers 요청 전 일꾼, last 마지막 조각 12개의 시간(ms), ci/cof 몇 번째 조각까지/모두 몇 개, gap 조각마다 쉰 시간,
+// samp 첫 토큰 고르기('' 안 함 · start 시작 · end 끝), lostGap 마지막 조각 소식에서 GPU 끊김 소식까지(ms), failed 오류로 멈춤
+function aiMoreText(o) {
+  const out = [];
+  if (o.est || o.tin) out.push(`요청 글 토큰: ${[o.est ? `어림 ${o.est}` : '', o.tin ? `실제 ${o.tin}` : ''].filter(Boolean).join(' · ')}`);
+  if (o.workers) out.push(`요청 전 일꾼: ${o.workers}`);
+  if (o.last && o.last.length) out.push(`마지막 조각 ${o.last.length}개(ms): ${o.last.join(' ')}${o.cof ? ` · 조각 ${o.ci}/${o.cof}까지 읽음` : ''}${o.gap ? ` · 조각마다 ${o.gap}ms 쉼` : ''}`);
+  if (o.failed) out.push(`첫 토큰 고르기: ${o.samp === 'end' ? '끝남 (글을 다 읽고 쓰는 중에 멈췄어요)' : o.samp === 'start' ? '시작했지만 안 끝남 (글을 다 읽은 바로 뒤에 멈췄어요)' : '시작 안 함 (글을 읽는 중에 멈췄어요)'}`);
+  if (o.lostGap != null) out.push(`마지막 조각 소식 뒤 ${aiSec(o.lostGap)} 만에 GPU 끊김 소식`);
+  return out;
+}
+// 같은 일꾼 시계(ms)가 있으면 그것으로, 없으면 받은 시각으로 두 소식 사이 시간
+const aiGapMs = (a, b) => Math.max(0, a.ms > 0 && b.ms > 0 ? b.ms - a.ms : b.at - a.at);
+// 글 하나(w: aiRewrite의 기록)의 자세한 줄: t0 뒤에 온 조각·첫 토큰·끊김 소식으로
+function aiWorkMore(w, failed) {
+  const L = AI.chunkLog.filter(e => e.at >= w.t0), c = L[L.length - 1], u = w.usage || {};
+  const lost = AI.gpuLog.find(e => e.at >= w.t0 && e.kind === 'lost'), S = AI.sampleLog.filter(e => e.at >= w.t0 && (!lost || e.at <= lost.at));
+  const before = lost ? L.filter(e => e.at <= lost.at) : L, lc = before[before.length - 1];
+  return aiMoreText({ est: w.est, tin: +u.prompt_tokens || 0, workers: w.workers, last: L.slice(-12).map(e => e.took), ci: c ? c.i + 1 : 0, cof: c ? c.of : 0, gap: w.gap, samp: S.length ? S[S.length - 1].step : '', lostGap: lost && lc ? aiGapMs(lc, lost) : null, failed });
+}
+// AI가 글을 읽기 직전: 다른 무거운 일꾼을 멈추고, 돌고 있는 일꾼을 적어요 (문제 찾기용).
+// 글자 읽기(OCR) 일꾼이 남아 있으면 닫아요 (사진을 읽는 중이 아닐 때만). 영어 목소리는 준비 중이면 적기만 해요
+function aiCalm() {
+  const out = [`AI ${AI.worker ? 1 : 0}개`];
+  try {
+    if (typeof OCR !== 'undefined' && (OCR.worker || OCR.eng || OCR.loading)) {
+      if (MK.step !== 'reading') { ocrStop(); out.push('글자 읽기(OCR) 닫음'); } else out.push('글자 읽기(OCR) 도는 중');
+    }
+  } catch (e) { }
+  try { if (typeof Voice !== 'undefined' && Voice.loading) out.push('영어 목소리 준비 중'); } catch (e) { }
+  return out.join(' · ');
+}
+// 이야기 AI를 곧 쓸 기기인지 (쓸 수 있다고 확인했거나, 받아 두었거나, 올라와 있음): 단어를 확인하는 동안 영어 목소리(약 37MB)를 미리 받지 않아요
+const aiSoon = () => AI.gpu === true || !!AI.engine || aiReadyBefore();
+// 이야기 AI가 일하는 중(단어장 만들기·AI 진단·AI 준비·글쓰기)인지: 이때는 영어 목소리를 받거나 준비하지 않아요 (그래픽 칩·메모리를 나눠 쓰지 않게)
+const aiQuiet = () => aiBusy() || (typeof MK !== 'undefined' && MK.step === 'making') || !!(AI.bench && AI.bench.state === 'run');
 // 'AI가 쓴 글 보기' 맨 위 한 줄: 이 기기 (크롬이 알려 준 메모리, 그래픽 칩 이름, 버퍼 한도)
 function aiEnvText() {
   const out = [];
@@ -301,10 +342,18 @@ function aiGpuGot(d) {
   if (!d || typeof d !== 'object' || !AI.wnames.has(d.w)) return;
   // 글 읽기 조각 하나가 끝남 (took: 걸린 ms, tokens: 토큰 수, size: 조각 크기). 그래픽 칩 소식과 따로 남겨요
   if (d.kind === 'chunk') {
-    const ev = { kind: 'chunk', at: Date.now(), took: Math.max(0, Math.round(+d.took || 0)), tokens: +d.tokens || 0, size: +d.size || 0 };
+    const ev = { kind: 'chunk', at: Date.now(), ms: +d.ms || 0, took: Math.max(0, Math.round(+d.took || 0)), tokens: +d.tokens || 0, size: +d.size || 0, i: Math.max(0, Math.floor(+d.i || 0)), of: Math.max(0, Math.floor(+d.of || 0)) };
     AI.chunkLog.push(ev);
     if (AI.chunkLog.length > 400) AI.chunkLog.splice(0, AI.chunkLog.length - 400);
     if (AI.onChunk) try { AI.onChunk(ev); } catch (e) { }
+    return;
+  }
+  // 글을 다 읽은 뒤 첫 토큰 고르기의 시작·끝: 그래픽 칩을 잃은 때가 글을 읽는 중인지, 다 읽은 바로 뒤인지, 쓰는 중인지 가려요
+  if (d.kind === 'sample') {
+    const ev = { kind: 'sample', at: Date.now(), ms: +d.ms || 0, step: d.at === 'end' ? 'end' : 'start', tokens: +d.tokens || 0 };
+    AI.sampleLog.push(ev);
+    if (AI.sampleLog.length > 40) AI.sampleLog.splice(0, AI.sampleLog.length - 40);
+    if (AI.onSample) try { AI.onSample(ev); } catch (e) { }
     return;
   }
   const s = (v, n) => String(v == null ? '' : v).slice(0, n || 500);
@@ -475,26 +524,46 @@ const aiSentN = t => (String(t).replace(/[“"][^”"]*[”"]/g, '말').match(/[
 // story: [{ n: 0(그대로 둘 줄) | 1.., core: ★ 자리의 말, hint: 다른 뜻(한 글자 뜻일 때), text }]
 // 예시는 앱 문장에 가장 많은 꼴(문장 끝 '-었어요')로: ★가 끝말까지 품고 있어서 ★ 뒤에 '했어요'를 또 붙이지 않는 것을 보여 줘요.
 // '줄:'·'답:' 같은 꼬리표 없이 '앱 줄 → 고친 줄' 한 줄로 보여 줘요: 작은 모델이 꼴을 따라 해도 꼬리표가 이야기에 들어가지 않고, 앱은 화살표 뒤만 읽어요
-const AI_EXAMPLE = '아기 곰은 높은 다리 위에서도 ★. (★ = 용감했어요) → 강 건너에서 엄마가 손을 흔들자, 아기 곰은 높은 다리 위에서도 ★.';
+// 휴대폰이 한 번에 짧게 읽도록 규칙·예시를 짧게 써요 (요청 글 토큰은 AI_BUDGET 안: aiParts)
+const AI_EXAMPLE = '아기 곰은 ★. (★ = 용감했어요) → 엄마가 손을 흔들자, 아기 곰은 ★.';
 // 예시에만 나오는 말: 앱 이야기에 없는데 AI 답에 나오면 예시를 따라 쓴 거예요 (엉뚱한 아기 곰·엄마가 이야기와 그림에 들어가요). 예시를 바꾸면 함께 바꿔요
-const AI_EXAMPLE_ONLY = [/아기\s*곰/, /높은\s*다리/, /강\s*건너/, /엄마가\s*손/];
+const AI_EXAMPLE_ONLY = [/아기\s*곰/, /엄마가\s*손/];
 function aiPrompt(story) {
   const body = story.map(s => s.n ? `${s.n}. ${s.text} (★ = ${s.core}${s.hint ? `, ${s.hint}` : ''})` : s.text).join('\n');
-  return `아래 어린이 그림책 이야기에서 번호 붙은 줄만 더 재미있게 고쳐 써 주세요.
-
-규칙:
-- 번호 줄마다 한두 문장으로 써요. 앞 줄과 이어지게, 왜 그랬는지나 그래서 어떻게 됐는지를 넣어요.
-- 그 줄에 나오는 인물은 그대로 둬요.
-- ★ 표시는 지우거나 바꾸지 말고 딱 한 번 그대로 써요. ★ 자리에는 괄호 속 말이 그대로 들어가요. 그 말과 뜻이 어울리게 ★ 앞뒤를 써요.
-- 어린이가 읽어요. 욕설이나 다치는 장면은 쓰지 않아요.
-- 문장 끝은 '~요'로 해요. 영어와 괄호는 쓰지 않아요.
-
+  return `어린이 그림책 이야기예요. 번호 줄만 더 재미있게 고쳐 써요.
+- 줄마다 한두 문장으로, 앞 줄과 이어지게 까닭이나 결과를 넣어요.
+- 인물은 그대로 둬요.
+- ★는 지우거나 바꾸지 말고 딱 한 번 써요. ★ 자리에 괄호 속 말이 들어가요. 뜻이 어울리게 ★ 앞뒤를 써요.
+- 욕설, 다치는 장면, 영어, 괄호는 쓰지 않아요. 문장 끝은 '~요'로 해요.
 예시: ${AI_EXAMPLE}
 
 이야기:
 ${body}
 
-답은 번호 줄만 1번부터 차례로 '1. 고친 문장' 꼴로 써요. 다른 말은 쓰지 않아요.`;
+답은 '1. 고친 문장' 꼴로 번호 줄만 써요.`;
+}
+/* ---------- 요청 글 길이 ----------
+   휴대폰(갤럭시 S25)에서 약 440토큰까지 읽은 요청은 됐고, 약 490토큰을 읽다가 크롬의 그래픽 칩 프로세스가 꺼졌어요.
+   그래서 요청 글은 AI_BUDGET 토큰(어림) 안으로: 마지막 번호 줄 뒤의 줄은 빼고, 그래도 길면 번호 줄을 차례대로 둘(셋…)로 나눠
+   따로 물어요. 나눈 요청마다 이야기 첫 줄을 앞에 둬요. 어림 = 글자 수 × AI_TOK_PER_CHAR + 대화 틀 AI_TOK_TMPL
+   (Gemma 토큰 나누기로 잰 앱 요청 글에서 글자당 토큰이 가장 큰 값보다 조금 크게) */
+const AI_BUDGET = 440, AI_TOK_PER_CHAR = 0.68, AI_TOK_TMPL = 9;
+const aiTokEst = t => Math.ceil(String(t).length * AI_TOK_PER_CHAR) + AI_TOK_TMPL;
+// story(aiReq의 이야기 줄)를 요청 글로: [{ items: 이 요청의 번호 줄 차례들(0부터), prompt, est: 토큰 어림 }]
+// 번호 줄을 차례대로 k묶음(가능한 한 고르게)으로 나눠요. k = 1부터, 모든 묶음이 AI_BUDGET 안이 될 때까지 (한 줄씩이 되면 그대로)
+function aiParts(story, first) {
+  const at = story.map((s, i) => (s.n ? i : -1)).filter(i => i >= 0);
+  for (let k = 1; ; k++) {
+    const parts = [];
+    for (let j = 0; j < k; j++) {
+      const a = Math.round(j * at.length / k), b = Math.round((j + 1) * at.length / k), from = a ? at[a - 1] + 1 : 0;
+      // 번호는 요청마다 1부터. 앞 묶음 뒤의 줄부터 이 묶음 마지막 번호 줄까지 (나눈 요청은 이야기 첫 줄을 앞에)
+      const st = (from ? [{ n: 0, text: first }] : []).concat(story.slice(from, at[b - 1] + 1).map(s => (s.n ? Object.assign({}, s, { n: s.n - a }) : s)));
+      const prompt = aiPrompt(st);
+      parts.push({ items: Array.from({ length: b - a }, (_, i) => a + i), prompt, est: aiTokEst(prompt) });
+    }
+    if (k >= at.length || parts.every(q => q.est <= AI_BUDGET)) return parts;
+  }
 }
 // AI 답에서 생각하는 글(생각 블록)을 떼요. Gemma 4는 생각 모드를 켤 때만(<|think|>) 생각을 쓰고, 이 앱은 켜지 않지만
 // 혹시 나오면 그 속의 '1. …' 줄을 답으로 읽지 않게: <think>…</think>, <thought>…</thought>, <|channel>thought…<channel|>,
@@ -679,23 +748,49 @@ function aiReq(res, rows, n) {
     idx.push(i); items.push({ id, w, ko: r.ko, core: m[2], hint: aiHint(m[2], r.ko), before, after, wrap, cls, star: before + '★' + after, plain: plainOf(l) });
   });
   const story = lines.map((l, i) => { const k = idx.indexOf(i); return k >= 0 ? { n: k + 1, core: items[k].core, hint: items[k].hint, text: items[k].star } : { n: 0, text: plainOf(l) }; });
-  // text: 앱 이야기 전체 (AI 답에 예시만 따라 쓴 말이 있는지 견줘요)
-  return { f, lines, plainOf, idx, items, story, text: lines.map(plainOf).join('\n'), prompt: items.length ? aiPrompt(story) : '' };
+  // text: 앱 이야기 전체 (AI 답에 예시만 따라 쓴 말이 있는지 견줘요), parts: 보낼 요청들 (aiParts), prompt: 첫 요청 글
+  const parts = items.length ? aiParts(story, plainOf(lines[0] || '')) : [];
+  return { f, lines, plainOf, idx, items, story, text: lines.map(plainOf).join('\n'), parts, prompt: parts.length ? parts[0].prompt : '' };
 }
-// 앱이 만든 이야기(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요
+// 앱이 만든 이야기(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요.
+// 요청이 여럿으로 나뉘면(aiParts) 차례로 묻고, 다 끝난 뒤에 한꺼번에 바꿔요 (중간에 오류가 나면 이 에피소드는 앱 문장 그대로)
+const AI_DIAG_N = 12;
 async function aiRewrite(eng, res, rows, n, signal) {
-  const req = aiReq(res, rows, n), { f, lines, plainOf, idx, items, prompt } = req;
+  const req = aiReq(res, rows, n), { lines, plainOf, idx, items, parts } = req;
   if (!items.length) return 0;
   const stop = () => { try { eng.interruptGenerate(); } catch (e) { } };
   if (signal) { if (signal.aborted) throw { code: 'cancelled' }; signal.addEventListener('abort', stop, { once: true }); }
-  let text = '';
   // 진단이 이 기기의 안전한 조각 크기를 새로 찾았으면 올라와 있는 AI도 그 크기로 읽어요
   if (AI.chunk) { const want = aiChunkPick(AI.gpuInfo); if (want !== AI.chunk) aiChunkSet(want); }
-  // 글을 조금씩 받아요(stream): 이야기를 다 읽었는지(첫 토큰), 토큰을 몇 개 썼는지 알 수 있어요. 멈추면 그 기록을 남겨요
-  // (stream이 아닌 답이 와도 읽어요: 시험용 가짜 AI)
-  const work = AI.work = { step: 'read', t0: Date.now(), first: 0, tokens: 0, hidden: 0, stream: false, usage: null, size: AI.chunk };
+  const fits = items.map(() => null);
   try {
-    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: prompt }], temperature: 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * items.length + 60), stream: true, stream_options: { include_usage: true } });
+    for (let j = 0; j < parts.length; j++) await aiAsk(eng, req, parts[j], j, parts.length, fits, signal);
+  } finally { if (signal) signal.removeEventListener('abort', stop); }
+  let changed = 0;
+  items.forEach((x, k) => {
+    const fit = fits[k];
+    if (!fit) return;
+    const marked = fit.line;
+    lines[idx[k]] = /[.!?”"…]$/.test(marked) ? marked : marked + '.';
+    const wd = res.words && res.words[x.id];
+    if (wd) wd.pic = plainOf(marked).slice(0, 120);
+    changed++;
+  });
+  res.lines = lines;
+  return changed;
+}
+// 요청 하나(part: aiParts의 묶음, j번째/모두 of개)를 묻고, 답을 번호 줄마다 맞춰 fits(이야기 전체의 번호 줄 차례)에 넣어요.
+// 답의 번호는 요청마다 1부터예요. 'AI가 쓴 글 보기' 기록도 요청마다 남겨요
+async function aiAsk(eng, req, part, j, of, fits, signal) {
+  const f = req.f, mine = part.items.map(k => req.items[k]), sub = Object.assign({}, req, { items: mine });
+  const title = of > 1 ? `${f.title} · 요청 ${j + 1}/${of}` : f.title;
+  let text = '';
+  // 글을 조금씩 받아요(stream): 이야기를 다 읽었는지(첫 토큰), 토큰을 몇 개 썼는지 알 수 있어요. 멈추면 그 기록을 남겨요
+  // (stream이 아닌 답이 와도 읽어요: 시험용 가짜 AI). 묻기 전에 다른 무거운 일꾼을 멈추고 돌던 일꾼을 적어요
+  const workers = aiCalm();
+  const work = AI.work = { step: 'read', t0: Date.now(), first: 0, tokens: 0, hidden: 0, stream: false, usage: null, size: AI.chunk, gap: AI.gap, est: part.est, workers };
+  try {
+    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: part.prompt }], temperature: 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * mine.length + 60), stream: true, stream_options: { include_usage: true } });
     if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
       work.stream = true;
       for await (const ch of reply) {
@@ -709,49 +804,43 @@ async function aiRewrite(eng, res, rows, n, signal) {
     }
   } catch (e) {
     // 문제 찾기용 기록: 어느 단계에서 몇 초 만에 몇 토큰을 쓰고 멈췄는지 (그만두기는 빼요)
-    // 그래픽 칩을 잃었으면 그래픽 칩이 알려 준 까닭(끊김·오류)도 붙여요
+    // 그래픽 칩을 잃었으면 그래픽 칩이 알려 준 까닭(끊김·오류)과, 글을 읽던 중인지 다 읽은 뒤인지도 붙여요
     if (!(e && e.code === 'cancelled') && !(signal && signal.aborted)) {
       const msg = aiMsgOf(e) || '알 수 없는 오류', info = aiWorkText(work, true);
       if (aiLost(e)) await aiGpuWait(work.t0);
-      AI.diag = (AI.diag || []).concat([{ title: f.title, raw: String(text).slice(0, 1600), why: [`AI가 문장을 쓰다가 오류가 났어요: ${msg.slice(0, 300)}`], info, gpu: aiGpuLines(work.t0) }]).slice(-8);
+      AI.diag = (AI.diag || []).concat([{ title, raw: String(text).slice(0, 1600), why: [`AI가 문장을 쓰다가 오류가 났어요: ${msg.slice(0, 300)}`], info, more: aiWorkMore(work, true), gpu: aiGpuLines(work.t0) }]).slice(-AI_DIAG_N);
     }
     throw e;
-  } finally { if (AI.work === work) AI.work = null; if (signal) signal.removeEventListener('abort', stop); }
+  } finally { if (AI.work === work) AI.work = null; }
   if (signal && signal.aborted) throw { code: 'cancelled' };
-  const cand = aiParse(aiNoThink(text), items.length);
-  let changed = 0;
+  const cand = aiParse(aiNoThink(text), mine.length);
   // 문제 찾기용 기록: AI가 쓴 글과 줄마다 쓰지 못한 까닭 (완성 화면에서 펼쳐 볼 수 있어요)
-  const diag = { title: f.title, raw: String(text).slice(0, 1600), why: [], info: aiWorkText(work, false), gpu: aiGpuLines(work.t0) };
-  const fits = items.map(() => null), whys = [], moved = [];
-  items.forEach((x, k) => {
+  const diag = { title, raw: String(text).slice(0, 1600), why: [], info: aiWorkText(work, false), more: aiWorkMore(work, false), gpu: aiGpuLines(work.t0) };
+  const got = mine.map(() => null), whys = [], moved = [];
+  mine.forEach((x, k) => {
     let why = cand[k].length ? '' : '답에서 이 번호를 못 찾음';
     for (const t of cand[k]) {
-      const r = aiFit(t, x, f, req);
-      if (r.line) { fits[k] = r; break; }
+      const r = aiFit(t, x, f, sub);
+      if (r.line) { got[k] = r; break; }
       if (r.to != null) moved.push({ t, from: k, to: r.to });
       why = why || r.why;
     }
     whys[k] = why;
   });
-  // 줄을 빼먹고 번호를 당겨 쓴 답: 그 답이 맞는 줄이 아직 비어 있으면 그 줄로 옮겨 봐요
+  // 줄을 빼먹고 번호를 당겨 쓴 답: 그 답이 맞는 줄(이 요청 안)이 아직 비어 있으면 그 줄로 옮겨 봐요
   for (const mv of moved) {
-    if (fits[mv.to]) continue;
-    const r = aiFit(mv.t, items[mv.to], f, req);
-    if (r.line) fits[mv.to] = Object.assign(r, { from: mv.from });
+    if (got[mv.to]) continue;
+    const r = aiFit(mv.t, mine[mv.to], f, sub);
+    if (r.line) got[mv.to] = Object.assign(r, { from: mv.from });
   }
-  items.forEach((x, k) => {
-    const fit = fits[k];
-    diag.why.push(`${k + 1}. ${x.id}: ${!fit ? whys[k] : fit.how ? `씀 (★ 없이 ${fit.how})` : fit.from != null ? `씀 (${fit.from + 1}번 답을 옮겨 씀)` : '씀'}`);
-    if (!fit) return;
-    const marked = fit.line;
-    lines[idx[k]] = /[.!?”"…]$/.test(marked) ? marked : marked + '.';
-    const wd = res.words && res.words[x.id];
-    if (wd) wd.pic = plainOf(marked).slice(0, 120);
-    changed++;
+  // 기록의 번호는 이야기 전체의 번호 줄 차례 (요청을 나눴어도 단어 줄 순서대로)
+  const num = k => part.items[k] + 1;
+  mine.forEach((x, k) => {
+    const fit = got[k];
+    diag.why.push(`${num(k)}. ${x.id}: ${!fit ? whys[k] : fit.how ? `씀 (★ 없이 ${fit.how})` : fit.from != null ? `씀 (${num(fit.from)}번 답을 옮겨 씀)` : '씀'}`);
+    if (fit) fits[part.items[k]] = fit;
   });
-  res.lines = lines;
-  AI.diag = (AI.diag || []).concat([diag]).slice(-8);
-  return changed;
+  AI.diag = (AI.diag || []).concat([diag]).slice(-AI_DIAG_N);
 }
 
 /* ---------- AI 진단 (문제 찾기용) ----------
@@ -774,13 +863,18 @@ const AI_BENCH = [
   { k: 'sweep', size: 64, label: '6 중간 글 64토큰씩 읽기', out: 4 },
   { k: 'sweep', size: 128, label: '7 중간 글 128토큰씩 읽기', out: 4 },
   { k: 'long', label: '8 긴 글 읽기(실제 크기)', out: 16 },
-  { k: 'write', label: '9 길게 쓰기', out: 300 }
+  { k: 'len', len: 448, label: '9 글 길이 448토큰 읽기', out: 4 },
+  { k: 'len', len: 512, label: '10 글 길이 512토큰 읽기', out: 4 },
+  { k: 'len', len: 576, label: '11 글 길이 576토큰 읽기', out: 4 },
+  { k: 'write', label: '12 길게 쓰기(600토큰)', out: 600 }
 ];
+// 진단이 너무 길어지지 않게: 불러오기가 끝나고 이만큼(8분) 지나면 남은 단계는 건너뛰어요
+const AI_BENCH_MAX_MS = 8 * 60 * 1000;
 // 진단에 쓰는 단어 (일반 사전 낱말과 직접 쓴 뜻). 실제 에피소드처럼 6개
 const AI_BENCH_WORDS = [['borrow', '빌리다'], ['encourage', '격려하다'], ['whisper', '속삭이다'], ['brave', '용감한'], ['harvest', '수확'], ['compare', '비교하다']];
 const AI_BENCH_WARM = '안녕! 한 낱말로 인사해 줘.';
 const AI_BENCH_TINY = '너는 어린이 그림책 작가야. 읽는 사람은 어린이와 청소년이야. 용감한 고양이가 나오는 이야기의 첫 문장을 한 문장으로 써 줘.';
-// 실제 에피소드 요청 글: 단어장 만들기와 똑같이 앱 이야기(mkStory)를 만들고 aiRewrite와 같은 방법(aiReq)으로
+// 실제 에피소드 요청 글: 단어장 만들기와 똑같이 앱 이야기(mkStory)를 만들고 aiRewrite와 같은 방법(aiReq)으로 (요청을 나누면 첫 요청)
 function aiBenchLong() {
   const rows = Object.create(null);
   for (const [en, ko] of AI_BENCH_WORDS) rows[en] = { en, ko, pos: 'x' };
@@ -794,6 +888,17 @@ function aiBenchChunk(long, perChar) {
   const nl = t.lastIndexOf('\n');
   if (n < long.length && nl > n * 0.6) t = t.slice(0, nl);
   return t + '\n\n위 이야기의 첫 줄을 한 문장으로 다시 써 줘.';
+}
+// 글 길이 재기(9~11단계): 실제 요청 글(base)의 이야기 줄을 되풀이해 붙여서 target 토큰쯤 되는 글을 만들어요.
+// ratio: 글자당 토큰 (앞 단계에서 실제로 읽은 토큰으로 맞춘 값). 목표에 가장 가까운 줄 수로
+function aiBenchLen(base, target, ratio) {
+  const r = ratio > 0.1 && ratio < 3 ? ratio : AI_TOK_PER_CHAR, est = t => t.length * r + AI_TOK_TMPL;
+  const L = base.split('\n'), s0 = L.indexOf('이야기:') + 1, s1 = L.lastIndexOf('');
+  const ok = s0 > 0 && s1 > s0, head = ok ? L.slice(0, s0) : [], story = ok ? L.slice(s0, s1) : L, tail = ok ? L.slice(s1) : [], body = [];
+  const text = () => head.concat(body, tail).join('\n');
+  for (let i = 0; i < 400 && est(text()) < target; i++) body.push(story[i % story.length]);
+  if (body.length > 1) { const over = est(text()) - target, last = body.pop(); if (over < target - est(text())) body.push(last); }
+  return text();
 }
 const aiUaText = () => {
   try {
@@ -826,7 +931,7 @@ function aiBenchLoad() {
 // 한 단계 묻기: 실제 이야기 쓰기와 같은 설정, 정해 둔 토큰 수만큼 끝까지 쓰게(ignore_eos). 조금씩 받아서 첫 글자까지 걸린 시간도 재요
 async function aiBenchAsk(eng, prompt, out, st) {
   const t0 = Date.now();
-  st.tin = 0; st.tout = 0; st.first = null;
+  st.tin = 0; st.tout = 0; st.first = null; st.workers = aiCalm();
   const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: prompt }], temperature: 0.7, top_p: 0.9, max_tokens: out, ignore_eos: true, stream: true, stream_options: { include_usage: true } });
   let usage = null;
   if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
@@ -847,7 +952,8 @@ async function aiBenchRun(signal, onChange) {
   const b = AI.bench = { v: 1, t0: Date.now(), state: 'run', env: aiEnvText(), dev: '', ua: aiUaText(), ckey: '', safe: 0, stages: AI_BENCH.map(s => Object.assign({ k: s.k, label: s.label, state: '' }, s.size ? { size: s.size } : {})) };
   if (aiNeedsDownload()) b.stages[0].label = '1 받기·저장소에서 불러오기';
   // top: 이 크기부터는 재지 않아요 (한계에 가까웠던 크기)
-  let cur = null, eng = null, perChar = 0, long = '', mid = '', top = Infinity;
+  // lenRatio: 글 길이 재기 글을 만들 때 쓸 글자당 토큰 (실제 요청·길이 재기에서 읽은 토큰으로 맞춰요)
+  let cur = null, eng = null, perChar = 0, lenRatio = 0, long = '', mid = '', top = Infinity;
   const put = () => { aiBenchSave(b); if (onChange) try { onChange(b); } catch (e) { } };
   AI.onGpu = ev => {
     if (AI.bench !== b) return;
@@ -856,6 +962,8 @@ async function aiBenchRun(signal, onChange) {
     const st = cur || (b.end && Date.now() - b.end < 10000 ? b.stages.filter(s => s.state && s.state !== 'skip').pop() : null);
     if (!st) return;
     st.gpu = (st.gpu || []).concat([aiGpuLine(ev)]).slice(0, 16);
+    // 마지막 조각 소식에서 끊김 소식까지 걸린 시간
+    if (ev.kind === 'lost' && st.lastAt && st.lostGap == null) st.lostGap = aiGapMs({ at: st.lastAt, ms: st.lastMs || 0 }, ev);
     put();
   };
   // 조각 하나가 끝날 때마다 그 단계에 적고 저장해요 (탭이 꺼져도 어디까지 읽었는지 남게)
@@ -863,8 +971,12 @@ async function aiBenchRun(signal, onChange) {
     if (AI.bench !== b || !cur || cur.k === 'load') return;
     cur.cn = (cur.cn || 0) + 1; cur.cmax = Math.max(cur.cmax || 0, ev.took);
     if (ev.size) cur.size = ev.size;
+    // 마지막 조각 12개의 시간, 몇 번째 조각/모두 몇 개, 받은 시각 (끊겼을 때 어디까지 읽었는지)
+    cur.last = (cur.last || []).concat([ev.took]).slice(-12); cur.ci = ev.i + 1; cur.cof = ev.of; cur.lastAt = ev.at; cur.lastMs = ev.ms;
     put();
   };
+  // 글을 다 읽고 첫 토큰을 고르기 시작함·끝남
+  AI.onSample = ev => { if (AI.bench !== b || !cur || cur.k === 'load') return; cur.samp = ev.step; put(); };
   const stopped = new Promise((_, no) => {
     const f = () => no({ code: 'cancelled' });
     if (signal) { if (signal.aborted) f(); else signal.addEventListener('abort', f, { once: true }); }
@@ -877,6 +989,7 @@ async function aiBenchRun(signal, onChange) {
     b.ckey = aiChunkKey(info);
     for (let i = 0; i < AI_BENCH.length; i++) {
       const def = AI_BENCH[i], st = b.stages[i];
+      if (i > 0 && b.t1 && Date.now() - b.t1 > AI_BENCH_MAX_MS) { st.state = 'skip'; st.note = `진단이 ${AI_BENCH_MAX_MS / 60000}분을 넘어서 건너뛰었어요`; put(); continue; }
       if (def.k === 'sweep') {
         // 처음 재기 전에 전에 찾은 안전한 크기를 지워요 (이번에 다시 찾아요). 전에 안 된 크기와 그보다 큰 크기, 한계에 가까웠던 크기부터는 건너뛰어요
         if (def === AI_BENCH.find(d => d.k === 'sweep')) aiChunkPut(b.ckey, r => { r.safe = 0; });
@@ -896,17 +1009,21 @@ async function aiBenchRun(signal, onChange) {
           // 어느 단계 몇 %까지 갔는지 (10%마다 저장해요: 탭이 꺼져도 어디까지 갔는지 남게)
           let last = '';
           eng = await Promise.race([aiLoad(() => { const ph = AI.phase || {}, k = `${ph.step}:${Math.floor((ph.pct || 0) / 10)}`; st.at = `${PH[ph.step] || ph.step} ${ph.pct || 0}%`; if (k !== last) { last = k; put(); } }), stopped]);
-          st.at = '';
+          st.at = ''; b.t1 = Date.now();
         } else {
           if (!long) long = aiBenchLong();
           if (def.k === 'sweep') { if (!mid) mid = aiBenchChunk(long, perChar); aiChunkSet(def.size); }
-          // 실제 크기 요청과 길게 쓰기는 이 기기에 쓸 조각 크기로 (방금 찾은 안전한 크기)
-          if (def.k === 'long' || def.k === 'write') aiChunkSet(aiChunkPick(info));
-          st.size = AI.chunk;
-          const prompt = def.k === 'long' ? long : def.k === 'sweep' ? mid : def.k === 'warm' ? AI_BENCH_WARM : AI_BENCH_TINY;
+          // 실제 크기 요청·글 길이 재기·길게 쓰기는 이 기기에 쓸 조각 크기로 (방금 찾은 안전한 크기)
+          if (def.k === 'long' || def.k === 'len' || def.k === 'write') aiChunkSet(aiChunkPick(info));
+          st.size = AI.chunk; st.gap = AI.gap;
+          const prompt = def.k === 'long' ? long : def.k === 'len' ? aiBenchLen(long, def.len, lenRatio || perChar) : def.k === 'sweep' ? mid : def.k === 'warm' ? AI_BENCH_WARM : AI_BENCH_TINY;
           if ((def.k === 'sweep' || def.k === 'long') && perChar) st.est = Math.round(prompt.length * perChar + 8);
+          if (def.k === 'len') st.est = Math.round(prompt.length * (lenRatio || perChar || AI_TOK_PER_CHAR)) + AI_TOK_TMPL;
           await Promise.race([aiBenchAsk(eng, prompt, def.out, st), stopped]);
           if (def.k === 'tiny' && st.tin > 8) perChar = (st.tin - 8) / AI_BENCH_TINY.length;
+          // 글자당 토큰을 실제로 읽은 토큰(usage.prompt_tokens)으로 맞춰요: 다음 길이 재기 글이 목표에 가깝게
+          if ((def.k === 'long' || def.k === 'len') && st.tin > AI_TOK_TMPL) lenRatio = (st.tin - AI_TOK_TMPL) / prompt.length;
+          if (def.k === 'len' && st.tin && Math.abs(st.tin - def.len) > 40) st.note = `목표와 ${st.tin - def.len}토큰 차이`;
           if (def.k === 'sweep') {
             if (!st.cn) st.note = '조각 시간을 받지 못해서 안전한 크기로 남기지 않았어요';
             else if (st.cmax > AI_CHUNK_SLOW_MS) { top = def.size; aiChunkBad(b.ckey, def.size); st.note = `조각 하나가 ${(AI_CHUNK_SLOW_MS / 1000).toFixed(1)}초를 넘어서 그래픽 칩 한계에 가까워요`; }
@@ -931,7 +1048,7 @@ async function aiBenchRun(signal, onChange) {
     if (b.state === 'stop') { if (eng) try { eng.interruptGenerate(); } catch (x) { } if (!AI.engine) aiDrop(); }
     // 실패한 엔진은 다시 쓰지 않아요 (다음 단어장은 새로 불러와요)
     else aiDrop();
-  } finally { cur = null; b.end = Date.now(); if (AI.onChunk && AI.bench === b) AI.onChunk = null; put(); }
+  } finally { cur = null; b.end = Date.now(); if (AI.bench === b) { AI.onChunk = null; AI.onSample = null; } put(); }
   return b;
 }
 // 진단 중에 화면이 꺼지거나 다른 앱이 열리면 그 단계에 적어요
@@ -966,6 +1083,8 @@ function aiBenchText(b) {
     if (st.err) p.push(`오류: ${st.err}`);
     out.push(p.join(' · '));
     for (const g of st.gpu || []) out.push(`   - ${g}`);
+    // 멈춘 단계: 요청 전 일꾼, 마지막 조각 12개의 시간, 첫 토큰 고르기, 마지막 조각에서 끊김까지
+    if (st.k !== 'load' && (st.state === 'fail' || st.state === 'crash' || st.state === 'run')) for (const m of aiMoreText({ workers: st.workers, last: st.last, ci: st.ci, cof: st.cof, gap: st.gap, samp: st.samp || '', lostGap: st.lostGap, failed: st.state !== 'run' })) out.push(`   · ${m}`);
   }
   // 조각 크기를 재기 시작했으면: 이번에 찾은 안전한 크기 (이야기를 만들 때 이 크기로 읽어요)
   if (b.stages.some(s => s.k === 'sweep' && s.state && s.state !== 'skip')) out.push(b.safe ? `이 기기의 안전한 조각 크기: ${b.safe}토큰 (이야기를 만들 때 이 크기로 나눠 읽어요)` : '이 기기의 안전한 조각 크기: 아직 못 찾았어요');

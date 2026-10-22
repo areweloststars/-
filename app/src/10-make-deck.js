@@ -352,7 +352,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     if (redo && DECK.id === deck.id) switchDeck(deck.id); // 지금 쓰는 단어장이면 새 이야기로 다시 열어요
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');
-    voiceWarm(); // 게임을 열기 전에 목소리를 미리 준비
+    voiceWarm(); // 게임을 열기 전에 목소리를 미리 준비 (이야기 AI가 일을 다 마친 뒤)
     // 만드는 동안 다른 화면에 가 있었으면 다 됐다고 알려 줌
     if ($('#make').hidden) toast(`‘${deck.name}’ 단어장이 완성됐어요! 홈 위 단어장 단추에서 골라요`);
   } catch (e) {
@@ -405,7 +405,7 @@ function bindMake() {
       const parsed = mkParse(MK.paste), rows = mkDedupe(parsed);
       if (!rows.length) { MK.err = '‘영어 - 뜻’ 모양의 줄을 찾지 못했어요.'; renderMake(); return; }
       MK.note = [parsed.skipped ? `읽지 못한 줄 ${parsed.skipped}개는 뺐어요.` : '', rows.length > MK_MAX ? `단어가 많아서 앞의 ${MK_MAX}개만 가져왔어요.` : ''].filter(Boolean).join(' ');
-      MK.rows = rows.slice(0, MK_MAX); MK.err = ''; MK.step = 'review'; voiceWarm(); renderMake();
+      MK.rows = rows.slice(0, MK_MAX); MK.err = ''; MK.step = 'review'; if (!aiSoon()) voiceWarm(); renderMake(); // 이야기 AI를 쓸 기기는 다 만든 뒤에 받아요
     }
     else if (a === 'rmrow') { MK.rows.splice(+b.dataset.i, 1); renderMake(); }
     else if (a === 'addrow') { MK.rows.push({ en: '', ko: '', pos: 'x' }); renderMake(); const ins = document.querySelectorAll('#make .mken'); if (ins.length) ins[ins.length - 1].focus(); }
