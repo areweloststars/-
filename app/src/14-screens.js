@@ -3,9 +3,13 @@ const M = { kind: null, key: null, ids: [], queue: [], active: false, over: true
 let SP = null, PP = null;
 const SV = { on: false, busy: false, i: 0, tok: 0, t: 0, stop: null, lines: [], ended: false };
 function showScreen(id) {
+  // 만들기 화면을 나갈 때 이야기 AI를 내려놓아요 (만드는 중·받는 중·진단 중이면 그대로). 이야기를 열 때 내려놓으면
+  // 첫 문장을 읽는 사이 휴대폰이 메모리를 정리하느라 목소리가 늦게 시작하거나 끊겼어요
+  if (id !== 'make' && !$('#make').hidden) aiRelease();
   for (const s of ['home', 'story', 'play', 'make']) $('#' + s).hidden = s !== id;
   window.scrollTo(0, 0);
   navSync();
+  voiceGate();
 }
 function goHome() { if (typeof settlePending === 'function') settlePending(); leaveStory(); closeOverlay(); M.active = false; M.over = true; renderHome(); showScreen('home'); }
 /* 휴대폰 '뒤로'(안드로이드 뒤로 제스처): 앱을 떠나지 않고 한 단계씩 돌아가게 방문 기록을 맞춰 둠
@@ -138,7 +142,9 @@ function openMission(kind, key) {
   if (kind === 'scene' && !isUnlocked(key)) { toast(`에피소드 ${eul(sceneIdx(key))} 먼저 깨야 열려요`); return; }
   if (kind === 'boss' && !bossOpen()) { toast(`에피소드 ${epN()}개를 모두 깨야 보스 미션이 열려요`); return; }
   settlePending(); closeOverlay(); leaveStory(); Narr.unlock();
-  aiRelease(); // 게임 중에는 이야기 AI가 필요 없어요: 메모리를 비워 휴대폰 목소리가 소리를 낼 수 있게
+  // 게임 중에는 이야기 AI가 필요 없어요. 보통은 만들기를 마치거나 만들기 화면을 나갈 때 내려놓았고, 아직 올라가 있으면
+  // (다른 화면에 있는 동안 받기를 마친 때 등) 여기서 내려놓아요. 그때는 첫 문장을 잠깐 뒤에 읽어요 (aiRelease → voiceCold)
+  aiRelease();
   M.active = false; M.over = true;
   M.kind = kind; M.key = key || null;
   M.ids = kind === 'scene' ? sceneOf(key).words.slice()
@@ -335,21 +341,36 @@ async function svTTS(L, ms, after) {
   catch (e) {
     if (e && e.name === 'AbortError') return;
     // 한국어 목소리가 없는 기기: 실패로 치지 않고 자막을 읽을 시간만큼 기다렸다가 영어 단어는 들려줘요
-    if (e && e.name === 'NoKoVoice') await sleep(Math.max(300, ms - (L.word ? 700 : 0) - (Date.now() - t0)));
+    // (PhoneMiss: 휴대폰 목소리가 이번 줄만 소리를 내지 못했어요. 그 줄은 자막으로 넘어가고 다음 줄에서 다시 해 봐요)
+    if (e && (e.name === 'NoKoVoice' || e.name === 'PhoneMiss')) await sleep(Math.max(300, ms - (L.word ? 700 : 0) - (Date.now() - t0)));
     else { ok = false; if (++SV.failN >= 3) { SV.narrFail = true; svCtl(); } } // 세 번 연달아 안 될 때만 자막으로 바꿈
   }
   if (!live()) return;
   // 영어 단어 발음은 따로: 안 돼도 이야기는 계속
-  if (L.word && ok) { await sleep(250); if (!live()) return; try { await sayWord(L.word, SAVE.rate); } catch (e) { } }
+  if (L.word && ok) { await sleep(250); if (!live()) return; await svWordSay(L.word, live, SAVE.rate); }
   if (!live()) return;
   if (ok) after(); else SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0)));
+}
+// 이야기 속 영어 단어는 그냥 빠뜨리지 않아요: 휴대폰 목소리가 한 번 소리를 내지 못했으면 한 번 더 해 보고,
+// 고품질 영어 목소리를 준비하는 중이면 잠깐 기다려요. 그래도 못 내면 진단 줄에 세어 두고 이야기는 계속해요 (실패를 밖으로 내지 않아요)
+async function svWordSay(id, live, rate) {
+  for (let n = 0; n < 2; n++) {
+    try { await sayWord(id, rate); return; }
+    catch (e) {
+      if (!live() || (e && e.name === 'AbortError')) return;
+      if (n === 0 && e && e.name === 'PhoneMiss') continue;
+      if (n === 0 && e && e.name === 'VoiceLoading' && !Voice.held && await Voice.whenReady(3000) && live()) continue;
+      if (live()) vDrop(e);
+      return;
+    }
+  }
 }
 // 복습 때 읽어 줄 뜻: 게임이 정답으로 받는 뜻(정리된 뜻) 그대로
 const meanSay = id => { const w = WORDS[id] || {}; const t = (w.ans || []).map(g => g.t).filter(Boolean).join(', '); return (t || String(w.m || '')).replace(/\([^)]*\)/g, '').trim(); };
 // 이야기 속 영어 단어 발음을 순서대로 미리 만들어 둠 (기기 안 영어 목소리를 쓸 때만. tts()와 같은 글·빠르기로)
 function voicePrefetch() {
   if (!Voice.ready('en') || devVoice('en-US') || !SV.lines || !SV.lines.length) return;
-  for (const L of SV.lines) if (L.word && WORDS[L.word]) { const t = sayEn(wordSay(L.word)); if (t) Voice.synth(t, 'en-US', Math.min(SAVE.rate, 1) * .85).catch(() => { }); }
+  for (const L of SV.lines) if (L.word && WORDS[L.word]) { const t = sayEn(wordSay(L.word)); if (t) Voice.synth(t, 'en-US', wordSpeed(SAVE.rate)).catch(() => { }); }
 }
 let voicePct = -1;
 Voice.onChange(() => {
@@ -362,13 +383,12 @@ function svRecap(L, ms, after) {
   const tok = SV.tok, t0 = Date.now();
   if (!narrOn() || !canSpeak) { SV.t = setTimeout(after, ms); return; }
   const live = () => tok === SV.tok;
-  sayWord(L.word, wordRate())
-    .catch(e => { if (e && e.name === 'AbortError') throw e; }) // 영어 발음이 안 나와도 뜻은 읽어요
+  svWordSay(L.word, live, wordRate()) // 영어 발음이 안 나와도 뜻은 읽어요 (못 내면 진단 줄에 세어 둬요)
     .then(() => live() && sleep(120))
     .then(() => live() && tts(meanSay(L.word), 'ko-KR', SAVE.rate))
     .then(() => live() && sleep(200))
     .then(() => { if (live()) after(); })
-    .catch(e => { if (!live()) return; if (!(e && /^(AbortError|NoKoVoice|VoiceLoading)$/.test(e.name)) && ++SV.failN >= 3) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
+    .catch(e => { if (!live()) return; if (!(e && /^(AbortError|NoKoVoice|VoiceLoading|PhoneMiss)$/.test(e.name)) && ++SV.failN >= 3) { SV.narrFail = true; svCtl(); } SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0))); });
 }
 function svShow(single) {
   if (!SP || !SV.lines.length) return;
@@ -448,6 +468,7 @@ function svWord(id) {
 }
 function leaveStory() { svHalt(); exitFS(); }
 function svCtl() {
+  voiceGate();
   if (!SP) return;
   const play = $('#vplay'), big = $('#vbig'), voice = $('#vvoice'), speed = $('#vspeed'), hint = $('#vhint'), full = $('#vfull'), go = $('#vgo');
   const speaking = SV.on || SV.busy;

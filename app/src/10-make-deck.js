@@ -358,7 +358,11 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
   } catch (e) {
     MK.step = 'review'; MK.err = mkErrText(e) || '만들기를 멈췄어요.';
     if ($('#make').hidden && e && e.code !== 'cancelled') toast('단어장을 만들지 못했어요. ‘사진 찍어 새 단어장 만들기’를 다시 눌러 확인해 주세요');
-  } finally { wakeFree('make'); }
+  } finally {
+    wakeFree('make');
+    // 다른 화면에 가 있는 동안 다 만들었으면(실패해도) 여기서 이야기 AI를 내려놓아요. 만들기 화면에 있으면 그 화면을 나갈 때 내려놓아요 (showScreen)
+    if ($('#make').hidden) aiRelease();
+  }
   if (!$('#make').hidden) renderMake();
 }
 

@@ -68,13 +68,15 @@ function aiDrop() {
   AI.gen++; AI.worker = null; AI.engine = null; AI.loading = null; AI.onProgress = null; AI.chunk = 0;
   if (w) try { w.terminate(); } catch (e) { }
 }
-// 게임(이야기·미션)을 열 때 이야기 AI를 내려놓아요. AI(약 3GB)가 그래픽 칩·메모리에 올라가 있으면 메모리가 작은
-// 휴대폰에서 휴대폰 목소리(TTS)가 소리를 못 내거나 화면이 꺼질 수 있어요. 단어장을 만들거나 받는 중이면 그대로 둬요.
-// 다음에 만들 때는 이 기기에 저장해 둔 모델을 다시 올려요 (인터넷 없이). 내려놓았으면 true
+// 이야기 AI를 내려놓아요: 단어장 만들기를 마쳤을 때(다른 화면에 가 있으면)와 만들기 화면을 나갈 때, 그래도 남아 있으면 게임을 열 때.
+// AI(약 3GB)가 그래픽 칩·메모리에 올라가 있으면 메모리가 작은 휴대폰에서 휴대폰 목소리(TTS)가 소리를 못 내거나 화면이 꺼질 수 있어요.
+// 단어장을 만들거나 받는 중, AI 진단 중이면 그대로 둬요. 내려놓은 뒤 휴대폰이 메모리를 정리하는 동안은 목소리가 늦게 시작할 수 있어서
+// 1.5초 쉬었다가 말하고 언어마다 첫 문장은 오래 기다려요(voiceCold). 다음에 만들 때는 이 기기에 저장해 둔 모델을 다시 올려요 (인터넷 없이). 내려놓았으면 true
 function aiRelease() {
   if (!AI.engine && !AI.worker) return false;
   if (MK.step === 'making' || (MK.aiDl && MK.aiDl.state === 'run') || (AI.bench && AI.bench.state === 'run')) return false;
   aiDrop();
+  if (typeof voiceCold === 'function') voiceCold(1500);
   return true;
 }
 /* ---------- 글을 나눠 읽는 조각 크기 ----------
