@@ -423,12 +423,14 @@ async function tts(text, lang, rate) {
   throw new Error('no tts');
 }
 // 기기에 영어 목소리가 없을 때만(앱 안 화면 등) 고품질 영어 목소리를 미리 받아 둠
+// 이야기 AI가 일하는 중(단어장 만들기·AI 진단)에는 받거나 준비하지 않아요 (그래픽 칩·메모리를 나눠 쓰지 않게. 다 만든 뒤에 다시 불러요)
 function voiceWarm(note) {
+  if (typeof aiQuiet === 'function' && aiQuiet()) return;
   ssWait().then(() => {
     if (Voice.failed || Voice.ready('en') || Voice.loading || devVoice('en-US')) return;
     // 받기·준비(무거운 일)는 휴대폰 목소리가 말을 마친 틈에 시작 (최대 20초 기다림)
     let n = 0;
-    const go = () => { try { if (hasSS && (speechSynthesis.speaking || speechSynthesis.pending) && n++ < 40) { setTimeout(go, 500); return; } } catch (e) { } Voice.start(); };
+    const go = () => { try { if (hasSS && (speechSynthesis.speaking || speechSynthesis.pending) && n++ < 40) { setTimeout(go, 500); return; } } catch (e) { } if (typeof aiQuiet === 'function' && aiQuiet()) return; Voice.start(); };
     go();
     if (note) toast('영어 발음용 고품질 목소리를 준비하고 있어요 · 처음 한 번만 약 37MB를 받아요');
   });

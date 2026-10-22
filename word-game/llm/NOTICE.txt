@@ -9,6 +9,14 @@ Changes made to web-llm.js for this game (each spot is marked with a "// word-ga
 - The KV cache is still created with the compiled prefill chunk size, so any smaller chunk fits.
 - If globalThis.wgPrefillChunkDone is a function (set by gpu-watch.js), the chat prefill waits for the GPU to
   finish each chunk (device.sync) and calls it with the chunk's time in ms, its token count and the chunk size.
+  Then, if config.wg_prefill_gap (or LLMChatPipeline.wgSetPrefillGap(ms)) is above 0, it waits that many ms
+  (at most 1000) before the next chunk, so a phone GPU gets a short rest. Without the hook nothing waits.
+- The Gemma 4 (model manifest) prefill keeps only the last chunk's logits: each earlier chunk's logits (1 x vocab
+  f32, 1 MB) and its text embeddings are freed right after the chunk instead of at the end of the prompt.
+  The model library has no prefill that skips the output layer (prefill_tokens always computes the logits of the
+  chunk's last token), so the output-layer work per chunk stays; only the memory is no longer kept.
+- If globalThis.wgSampleStep is a function (set by gpu-watch.js), samplePrefillStep calls it with
+  { at: "start" } when the whole prompt was read and { at: "end" } when the first token was sampled.
 
 The story AI model is not stored in this repository. When a player gets the game ready for offline use
 (or makes a deck with the story AI for the first time), the phone downloads, once,

@@ -132,7 +132,7 @@ function mkAiHTML() {
 // AI 진단 단추와 결과 (이야기 AI를 받아 두었거나 받을 수 있는 기기에서만)
 function mkBenchHTML() {
   const b = aiBenchLoad(), run = !!MK.benchCtl;
-  return `<div class="mkbench"><button type="button" class="btn" data-mk="bench"${run || (MK.aiDl && MK.aiDl.state === 'run') ? ' disabled' : ''}>${run ? 'AI 진단 중…' : 'AI 진단 (3~6분)'}</button>${run ? ' <button type="button" class="linkbtn" data-mk="benchstop">진단 그만두기</button>' : ''}
+  return `<div class="mkbench"><button type="button" class="btn" data-mk="bench"${run || (MK.aiDl && MK.aiDl.state === 'run') ? ' disabled' : ''}>${run ? 'AI 진단 중…' : 'AI 진단 (4~8분)'}</button>${run ? ' <button type="button" class="linkbtn" data-mk="benchstop">진단 그만두기</button>' : ''}
     <p class="mksmall">휴대폰 그래픽 칩이 어느 단계에서 멈추는지 알아보고, 글을 나눠 읽을 안전한 조각 크기를 찾아요. 결과는 이 휴대폰에만 남고 어디로도 보내지 않아요.</p>${b ? `<pre id="mkbenchout">${esc(aiBenchText(b))}</pre>${run ? '' : '<button type="button" class="btn" data-mk="benchcopy">결과 복사</button>'}` : ''}</div>`;
 }
 // 상자만 다시 그려요 (입력 중인 단어 칸은 그대로)
@@ -189,7 +189,7 @@ function mkDoneHTML() {
     <p><b>${esc(d.name)}</b> — ${n}단어, 에피소드 ${d.scenes.length}개</p>
     <div class="mkthumbs">${d.scenes.map(s => `<div><img src="${'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">${genScene(d.panels[s.key] || [])}</svg>`)}" alt=""><span>${esc(s.title)}</span></div>`).join('')}</div>
     ${MK.aiNote ? `<p class="mknote">${esc(MK.aiNote)}</p>` : ''}
-    ${MK.aiDiag && MK.aiDiag.length ? `<details class="mkdiag"><summary>AI가 쓴 글 보기 (문제 찾기용)</summary>${MK.aiEnv ? `<p><small>${esc(MK.aiEnv).replace(/\n/g, '<br>')}</small></p>` : ''}${MK.aiDiag.map(d => `<p><b>${esc(d.title)}</b>${d.info ? `<br><small>${esc(d.info)}</small>` : ''}<br>${d.why.map(esc).join('<br>')}${(d.gpu || []).length ? `<br><small>${d.gpu.map(esc).join('<br>')}</small>` : ''}</p><pre>${esc(d.raw || '(빈 답)')}</pre>`).join('')}</details>` : ''}
+    ${MK.aiDiag && MK.aiDiag.length ? `<details class="mkdiag"><summary>AI가 쓴 글 보기 (문제 찾기용)</summary>${MK.aiEnv ? `<p><small>${esc(MK.aiEnv).replace(/\n/g, '<br>')}</small></p>` : ''}${MK.aiDiag.map(d => `<p><b>${esc(d.title)}</b>${d.info ? `<br><small>${esc(d.info)}</small>` : ''}${(d.more || []).length ? `<br><small>${d.more.map(esc).join('<br>')}</small>` : ''}<br>${d.why.map(esc).join('<br>')}${(d.gpu || []).length ? `<br><small>${d.gpu.map(esc).join('<br>')}</small>` : ''}</p><pre>${esc(d.raw || '(빈 답)')}</pre>`).join('')}</details>` : ''}
     ${MK.saveNote ? `<p class="mksmall">${esc(MK.saveNote)}</p>` : ''}
     <p class="mksmall">교재로 만든 단어장은 개인 공부용으로만 써 주세요. 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
     <button type="button" class="startbtn" data-mk="play">${ICON.play}이 단어장으로 게임 시작</button></div>`;
