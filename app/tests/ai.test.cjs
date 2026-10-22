@@ -78,11 +78,13 @@ test('AI lines: the meaning is found in the sentence and marked, other sentences
   } finally { p.close(); }
 });
 
-// 요청 글의 번호 줄('N. [뜻] 앱 문장')을 읽어서 답하는 가짜 AI. 홀수 번째는 뜻을 넣어 고쳐 쓰고, 짝수 번째는 앱 문장을 그대로 베껴요(고친 게 아니니 앱 문장이 남아요)
+// 요청 글의 번호 줄('N. ★가 든 앱 문장 (★ = 뜻)')을 읽는 가짜 AI의 공통 부분: list는 [번호, ★ 줄, 뜻]
+const STAR_LINES = `req => req.messages[0].content.split('\\n').map(l => l.match(/^(\\d+)\\. (.+) \\(★ = ([^)]+)\\)$/)).filter(Boolean)`;
+// 홀수 번째는 ★를 두고 앞에 까닭을 붙여 고쳐 쓰고, 짝수 번째는 앱 문장을 그대로 베껴요(고친 게 아니니 앱 문장이 남아요)
 const FAKE = `{ calls: 0, prompts: [], interruptGenerate() {}, chat: { completions: { create: async req => {
   AI.engine.calls++; AI.engine.prompts.push(req.messages[0].content);
-  const list = req.messages[0].content.split('\\n').map(l => l.match(/^(\\d+)\\. \\[([^\\]]+)\\] (.+)$/)).filter(Boolean);
-  const out = list.map((m, i) => m[1] + '. ' + (i % 2 ? m[3] : '그러자 모두가 깜짝 놀라 ' + m[2].replace(/^~\\S*\\s/, '') + ' 일을 떠올렸어요.'));
+  const list = (${STAR_LINES})(req);
+  const out = list.map((m, i) => m[1] + '. ' + (i % 2 ? m[2] : '모두가 깜짝 놀라 지켜보는 가운데, ' + m[2]));
   return { choices: [{ message: { content: '**좋아요!**\\n' + out.join('\\n') } }] };
 } } } }`;
 
@@ -102,16 +104,21 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     const why = p.json('AI.diag[AI.diag.length - 1].why');
     assert.equal(why.filter(x => /: 씀$/.test(x)).length, 2, why.join('\n'));
     assert.ok(why.some(x => /앱 문장을 그대로 씀|못 찾음|없음/.test(x)), why.join('\n'));
-    // 요청 글에는 앱 이야기 전체(앞부분·다짐·끝맺음)가 들어가고, 단어 줄에만 번호
-    for (const l of r.before) assert.ok(prompt.includes(l.replace(/\{[^|}]+\|([^}]+)\}/g, '$1')), l);
-    assert.equal((prompt.match(/^\d+\. \[/gm) || []).length, 4);
-    // 읽는 사람은 어린이·청소년: 다정하고 깨끗하게
-    assert.match(prompt, /어린이와 청소년/); assert.match(prompt, /싸움·다치는 일·연애·무서운 말·거친 말은 쓰지 마/);
+    // 요청 글에는 앱 이야기 전체(앞부분·다짐·끝맺음)가 들어가고, 단어 줄에만 번호. 단어 뜻 자리는 ★로 바꾸고 줄 끝에 '(★ = 뜻)'
+    for (const l of r.before) {
+      const m = l.match(/\{[^|}]+\|([^}]+)\}/);
+      assert.ok(prompt.includes(m ? l.replace(m[0], '★') + ` (★ = ${m[1]})` : l), l);
+    }
+    assert.equal((prompt.match(/^\d+\. [^\n]*★[^\n]* \(★ = [^)]+\)$/gm) || []).length, 4);
+    // 단어 뜻은 요청 글의 번호 줄 속에 쓰지 않아요 (AI가 뜻을 다시 쓰지 않게)
+    for (const l of prompt.split('\n').filter(x => /^\d+\. /.test(x))) assert.equal((l.match(/★/g) || []).length, 2, l);
     const wordLines = res.lines.filter(l => /\{[^|}]+\|/.test(l));
     assert.equal(wordLines.length, 4);
     assert.equal(wordLines.filter(l => /깜짝 놀라/.test(l)).length, 2);
     for (const l of wordLines.filter(l => !/깜짝 놀라/.test(l))) assert.ok(r.before.includes(l), l);
     for (const l of wordLines) assert.equal((l.match(/\{[^|}]+\|/g) || []).length, 1);
+    // ★ 자리에는 앱 문장의 단어 표시가 그대로 돌아와요
+    for (const l of wordLines.filter(l => /깜짝 놀라/.test(l))) assert.ok(r.before.includes(l.replace('모두가 깜짝 놀라 지켜보는 가운데, ', '')), l);
 
     // 단어장 만들기 전체: AI 준비 → 에피소드마다 AI → 저장 안내
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; AI.engine.calls = 0;`);
@@ -365,12 +372,11 @@ const ENGINES_LIB = kinds => `(() => {
   window.__workers = []; window.__kinds = ${JSON.stringify(kinds)}; window.__calls = []; window.__onCall = null;
   window.Worker = class { constructor() { this.l = {}; this.dead = false; __workers.push(this); } addEventListener(k, f) { (this.l[k] = this.l[k] || []).push(f); } terminate() { this.dead = true; } };
   AI.retryMs = 0;
-  const rewrite = req => req.messages[0].content.split('\\n').map(l => l.match(/^(\\d+)\\. \\[([^\\]]+)\\] (.+)$/)).filter(Boolean)
-    .map(m => m[1] + '. 그러자 모두가 깜짝 놀라 ' + m[2].replace(/^~\\S*\\s/, '') + ' 일을 떠올렸어요.').join('\\n');
+  const rewrite = req => (${STAR_LINES})(req).map(m => m[1] + '. 모두가 깜짝 놀라 지켜보는 가운데, ' + m[2]).join('\\n');
   const make = (kind, n) => ({ interruptGenerate() {}, chat: { completions: { create: async req => {
     __calls.push(n); if (__onCall) __onCall(n);
     if (kind === 'lost') throw ${JSON.stringify(LOST)};
-    if (kind === 'lost-stream') return (async function* () { for (const t of ['1.', ' 그러자', ' 모두']) yield { choices: [{ delta: { content: t } }] }; throw ${JSON.stringify(LOST)}; })();
+    if (kind === 'lost-stream') return (async function* () { for (const t of ['1.', ' 모두가', ' 깜짝']) yield { choices: [{ delta: { content: t } }] }; throw ${JSON.stringify(LOST)}; })();
     if (kind === 'stream') { const text = rewrite(req); return (async function* () { for (const t of text.match(/[\\s\\S]{1,6}/g)) yield { choices: [{ delta: { content: t } }] }; yield { choices: [], usage: { prompt_tokens: 321, completion_tokens: 42 } }; })(); }
     return { choices: [{ message: { content: rewrite(req) } }] };
   } } } });
@@ -403,7 +409,7 @@ test('AI story: the lost-graphics-chip error (mapAsync, unmapped) is classed as 
     assert.match(a.diag[0].why[0], /AI가 문장을 쓰다가 오류가 났어요: AbortError: .*mapAsync.*unmapped/);
     // 컴퓨터(안드로이드가 아니고 휴대폰 그래픽 칩도 아님)는 모델이 만들어진 조각 크기(512토큰) 그대로 읽어요
     assert.match(a.diag[0].info, /^멈춘 단계: 글을 쓰는 중 · 시작하고 \d+\.\d초 뒤 · 이야기 읽기 \d+\.\d초 · 쓴 토큰 3개 · 읽기 조각 512토큰$/);
-    assert.equal(a.diag[0].raw, '1. 그러자 모두');
+    assert.equal(a.diag[0].raw, '1. 모두가 깜짝');
     assert.match(p.document.querySelector('#make .mkdiag').textContent, /멈춘 단계: 글을 쓰는 중.*쓴 토큰 3개.*mapAsync/);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
@@ -575,8 +581,8 @@ test('AI lines for children: rude, drug, gory or hateful lines fall back to the 
       ['어린이에게 맞지 않는 말', '어린이에게 맞지 않는 말', '', '', '']);
     // 가짜 AI: 첫 줄은 맞지 않는 말, 둘째 줄은 괜찮은 말
     p.run(`AI.engine = { interruptGenerate() {}, chat: { completions: { create: async req => {
-      const list = req.messages[0].content.split('\\n').map(l => l.match(/^(\\d+)\\. \\[([^\\]]+)\\] (.+)$/)).filter(Boolean);
-      return { choices: [{ message: { content: list.map((m, i) => m[1] + '. ' + (i === 0 ? '모두가 마약 이야기를 하며 ' : '그러자 모두가 깜짝 놀라 ') + m[2].replace(/^~\\S*\\s/, '') + ' 일을 떠올렸어요.').join('\\n') } }] };
+      const list = (${STAR_LINES})(req);
+      return { choices: [{ message: { content: list.map((m, i) => m[1] + '. ' + (i === 0 ? '모두가 마약 이야기를 하는 사이, ' : '모두가 깜짝 놀라 지켜보는 가운데, ') + m[2]).join('\\n') } }] };
     } } } };`);
     await p.run(`(async () => { const rows = ${rowsObj}; const res = mkStory(['borrow', 'encourage'], rows, 0); window.__before = res.lines.slice(); window.__n = await aiRewrite(AI.engine, res, rows, 0, null); window.__res = res; })()`);
     assert.equal(p.json('window.__n'), 1);
@@ -584,6 +590,277 @@ test('AI lines for children: rude, drug, gory or hateful lines fall back to the 
     assert.match(why[0], /: 어린이에게 맞지 않는 말$/);
     assert.match(why[1], /: 씀$/);
     assert.ok(!p.json('window.__res.lines.join(" ")').includes('마약'));
+  } finally { p.close(); }
+});
+
+// 손으로 만든 이야기 한 편 (이야기 틀 SF[0]: 기사 레오·꼬마 공주·배고픈 용). ★ 자리 종류가 다 들어 있어요:
+// 문장 끝('불안했어요.'), 뒤에 낱말이 오는 꼴('용감한 얼굴로'), 조사가 붙는 이름씨('설문 조사를')
+const STAR_ROWS = JSON.stringify(Object.fromEntries([['anxious', '불안한, 걱정하는'], ['borrow', '빌리다'], ['abandon', '버리다, 포기하다'], ['brave', '용감한'], ['survey', '설문 조사'], ['encourage', '격려하다']].map(([en, ko]) => [en, { en, ko, pos: 'x' }])));
+const STAR_RES = JSON.stringify({ lines: [
+  '옛날 옛적 하늘 성에 기사 레오가 살았어요.',
+  '어둠 속에서 이상한 소리가 나자 꼬마 공주는 {anxious|불안했어요}.',
+  '먼저 레오는 도서관에서 두꺼운 지도책을 {borrow|빌렸어요}.',
+  '용은 다 먹은 사탕 껍질을 아무 데나 {abandon|버렸어요}.',
+  '레오는 {brave|용감한} 얼굴로 성문 앞에 섰어요.',
+  '공주는 마을에서 {survey|설문 조사}를 했어요.',
+  '드디어 공주는 레오의 어깨를 두드리며 {encourage|격려했어요}.',
+  '레오와 용은 친구가 됐답니다.'
+], words: { borrow: { pic: '' } } });
+// 정해 둔 답을 그대로 돌려주는 가짜 AI로 STAR_RES를 고쳐 써요
+const starRun = async (p, answer) => {
+  p.run(`AI.engine = { prompts: [], interruptGenerate() {}, chat: { completions: { create: async req => { AI.engine.prompts.push(req.messages[0].content); return { choices: [{ message: { content: ${JSON.stringify(answer)} } }] }; } } } };`);
+  await p.run(`(async () => { const res = ${STAR_RES}; window.__n = await aiRewrite(AI.engine, res, ${STAR_ROWS}, 0, null); window.__res = res; })()`);
+  return p.json('({ n: window.__n, lines: window.__res.lines, words: window.__res.words, diag: AI.diag[AI.diag.length - 1], prompt: AI.engine.prompts[0] })');
+};
+
+test('AI ★ answers: the phone failure re-created with general words (copied [meaning] tags, other words for the meaning, a chatty first line, a three-sentence line) is refused line by line, keeping the app lines and the raw answer', async () => {
+  const p = bootPage();
+  try {
+    const answer = '어린이 그림책 작가로서 다정하고 깨끗한 이야기로 고쳐 드릴게요.\n\n'
+      + '1. [불안했어요] 꼬마 공주는 어둠 속에서 마음이 콩닥콩닥 뛰었어요.\n'
+      + '2. [빌렸어요] 레오는 도서관에서 두꺼운 지도책을 가져왔어요.\n'
+      + '3. [버렸어요] 용은 사탕 껍질을 깨끗하고 예쁘게 모았어요.\n'
+      + '4. [용감한] 레오는 씩씩한 얼굴로 성문 앞에 섰어요.\n'
+      + '5. [설문 조사] 공주는 마을 사람들에게 이것저것 물어보았어요.\n'
+      + '6. [격려했어요] 공주는 레오의 어깨를 두드렸어요. 용은 이제 착한 이웃이 되었어요. 성에는 달콤한 냄새가 가득했어요.';
+    const before = JSON.parse(STAR_RES).lines;
+    const r = await starRun(p, answer);
+    assert.equal(r.n, 0);
+    assert.deepEqual(r.lines, before, '모두 앱 문장 그대로');
+    assert.deepEqual(r.diag.why, ['1. anxious: ★가 없음', '2. borrow: ★가 없음', '3. abandon: ★가 없음', '4. brave: ★가 없음', '5. survey: ★가 없음', '6. encourage: 문장이 너무 많음']);
+    // 'AI가 쓴 글 보기'에는 AI가 쓴 글이 그대로 남아요
+    assert.equal(r.diag.raw, answer);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI ★ answers: the exact word mark goes back where ★ is; copied tags, (★ = meaning) notes, bold, quotes around ★ or the line are removed, the noun particle follows the word, and a line split in two is joined', async () => {
+  const p = bootPage();
+  try {
+    const answer = '네, 고쳐 볼게요!\n\n'
+      + '1. [불안했어요] 용의 그림자가 성벽에 비치자, 꼬마 공주는 ★.\n'
+      + '2. (★ = 빌렸어요) 길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 ★.\n'
+      + '3. **배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 ★.** (★ = 버렸어요)\n'
+      + '4. "공주를 지키려고 레오는 ‘★’ 얼굴로 성문 앞에 섰어요."\n'
+      + '5. 용이 좋아하는 간식을 알아보려고 공주는 마을에서 ★을 했어요.\n'
+      + '6. 레오가 지쳐 보였어요.\n그래서 공주는 레오의 어깨를 두드리며 ★.';
+    const r = await starRun(p, answer);
+    assert.equal(r.n, 6, r.diag.why.join('\n'));
+    assert.deepEqual(r.lines.slice(1, 7), [
+      '용의 그림자가 성벽에 비치자, 꼬마 공주는 {anxious|불안했어요}.',
+      '길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 {borrow|빌렸어요}.',
+      '배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 {abandon|버렸어요}.',
+      '공주를 지키려고 레오는 {brave|용감한} 얼굴로 성문 앞에 섰어요.',
+      '용이 좋아하는 간식을 알아보려고 공주는 마을에서 {survey|설문 조사}를 했어요.',
+      '레오가 지쳐 보였어요. 그래서 공주는 레오의 어깨를 두드리며 {encourage|격려했어요}.'
+    ]);
+    assert.deepEqual(r.diag.why, ['1. anxious: 씀', '2. borrow: 씀', '3. abandon: 씀', '4. brave: 씀', '5. survey: 씀', '6. encourage: 씀']);
+    // 그림 설명도 새 문장으로
+    assert.equal(r.words.borrow.pic, '길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 빌렸어요.');
+    // 앞뒤 줄은 그대로
+    assert.equal(r.lines[0], '옛날 옛적 하늘 성에 기사 레오가 살았어요.');
+    assert.equal(r.lines[7], '레오와 용은 친구가 됐답니다.');
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI ★ checks: missing or doubled ★, a ★ that does not fit the sentence, the meaning word again next to ★, 안/못 before ★ and another character are refused with a reason; the child-safety list still applies; the meaning written out in full is still used', () => {
+  const p = bootPage();
+  try {
+    const fit = (k, t) => p.json(`(() => { const q = aiReq(${STAR_RES}, ${STAR_ROWS}, 0); return aiFit(aiClean(${JSON.stringify(t)}), q.items[${k}], q.f); })()`);
+    const why = (k, t) => { const r = fit(k, t); return r.line ? '씀' : r.why; };
+    assert.equal(why(0, '용의 그림자가 비치자, 꼬마 공주는 마음이 콩닥콩닥 뛰었어요.'), '★가 없음');
+    assert.equal(why(0, '용의 그림자가 비치자, 꼬마 공주는 ★. 그래서 공주는 ★.'), '★가 두 번');
+    assert.equal(why(0, '용의 그림자가 비치자, 꼬마 공주는 ★게 됐어요.'), '★ 자리가 문장과 안 맞음', '★는 끝말까지 품고 있어요');
+    assert.equal(why(1, '길을 찾으려고 레오는 도서관에서 지도책을 ★ 그래서 기뻤어요.'), '★ 자리가 문장과 안 맞음');
+    assert.equal(why(3, '공주를 지키려고 레오는 ★.'), '★ 자리가 문장과 안 맞음', '‘용감한’ 뒤에는 낱말이 와야 해요');
+    assert.equal(why(3, '공주를 지키려고 레오는 ★게 섰어요.'), '★ 자리가 문장과 안 맞음');
+    assert.equal(why(3, '공주를 지키려고 레오는 용감하고 ★ 얼굴로 섰어요.'), '★ 옆에 같은 말');
+    assert.equal(why(1, '길을 찾으려고 레오는 도서관에서 지도책을 못 ★.'), '안·못이 ★ 뜻을 뒤집음');
+    assert.equal(why(0, '숲속의 여우는 깜짝 놀라서 ★.'), '인물이 바뀜', '그림 속 인물(공주)이 그대로여야 해요');
+    assert.equal(why(0, '모두가 마약 이야기를 하는 사이, 꼬마 공주는 ★.'), '어린이에게 맞지 않는 말');
+    assert.equal(why(0, '어둠 속에서 이상한 소리가 나자 꼬마 공주는 ★.'), '앱 문장을 그대로 씀');
+    assert.equal(why(5, '레오가 지쳐 보였어요. 공주는 웃었어요. 그래서 공주는 레오의 어깨를 두드리며 ★.'), '문장이 너무 많음');
+    // 메모·덧붙인 뜻·따옴표는 떼고 ★ 하나로 봐요
+    for (const t of ['★ = 불안했어요: 용의 그림자가 비치자, 꼬마 공주는 ★.', '용의 그림자가 비치자, 꼬마 공주는 ★(불안했어요).', '용의 그림자가 비치자, 꼬마 공주는 “★”.', '용의 그림자가 비치자, 꼬마 공주는 ★ 불안했어요.', '용의 그림자가 비치자, 꼬마 공주는 ☆.'])
+      assert.deepEqual(fit(0, t), { line: '용의 그림자가 비치자, 꼬마 공주는 {anxious|불안했어요}.' }, t);
+    // ★를 줄기처럼 보고 ★ 말의 끝말을 또 붙였으면 그 끝말만 떼요
+    assert.deepEqual(fit(0, '용의 그림자가 비치자, 꼬마 공주는 ★했어요.'), { line: '용의 그림자가 비치자, 꼬마 공주는 {anxious|불안했어요}.' });
+    assert.deepEqual(fit(3, '공주를 지키려고 레오는 ★한 얼굴로 섰어요.'), { line: '공주를 지키려고 레오는 {brave|용감한} 얼굴로 섰어요.' });
+    // ★ 없이 뜻을 그대로 쓴 줄은 예전처럼 뜻 자리를 찾아요 (다른 말로 바꾼 뜻은 안 돼요)
+    assert.deepEqual(fit(0, '용의 그림자가 비치자, 꼬마 공주는 불안했어요.'), { line: '용의 그림자가 비치자, 꼬마 공주는 {anxious|불안했어요}.', how: '뜻 낱말로' });
+    // 이름씨 뒤 조사는 받침에 맞게
+    assert.deepEqual(fit(4, '공주는 마을에서 ★이었어요.'), { line: '공주는 마을에서 {survey|설문 조사}였어요.' });
+  } finally { p.close(); }
+});
+
+test('AI prompt: numbered lines carry ★ with the meaning only in the (★ = …) note, one worked example keeps ★, and the child-safety rule names what to leave out instead of adjectives such as clean or kind', () => {
+  const p = bootPage();
+  try {
+    const prompt = p.json(`aiReq(${STAR_RES}, ${STAR_ROWS}, 0).prompt`);
+    const L = prompt.split('\n');
+    // 예시 하나: '앱 줄 → 고친 줄' 한 줄, 따라 쓸 꼬리표('줄:'·'답:') 없이. ★가 끝말까지 품은 꼴, 고친 줄에도 ★가 딱 한 번
+    assert.ok(L.includes('예시: 아기 곰은 높은 다리 위에서도 ★. (★ = 용감했어요) → 강 건너에서 엄마가 손을 흔들자, 아기 곰은 높은 다리 위에서도 ★.'), prompt);
+    assert.doesNotMatch(prompt, /^(?:줄|답)\s*:/m);
+    const ex = L.find(l => l.startsWith('예시: ')).split('→')[1];
+    assert.equal((ex.match(/★/g) || []).length, 1);
+    assert.doesNotMatch(ex, /용감/);
+    // 예시를 그대로 읽으면 화살표 뒤의 고친 줄이 나와요 (작은 모델이 예시 꼴을 따라 써도 앱이 읽어요)
+    assert.equal(p.json(`aiClean(AI_EXAMPLE)`), '강 건너에서 엄마가 손을 흔들자, 아기 곰은 높은 다리 위에서도 ★.');
+    // 번호 줄: 단어 뜻 자리는 ★, 뜻은 줄 끝 메모에만
+    assert.deepEqual(L.filter(l => /^\d+\. /.test(l)), [
+      '1. 어둠 속에서 이상한 소리가 나자 꼬마 공주는 ★. (★ = 불안했어요)',
+      '2. 먼저 레오는 도서관에서 두꺼운 지도책을 ★. (★ = 빌렸어요)',
+      '3. 용은 다 먹은 사탕 껍질을 아무 데나 ★. (★ = 버렸어요)',
+      '4. 레오는 ★ 얼굴로 성문 앞에 섰어요. (★ = 용감한)',
+      '5. 공주는 마을에서 ★를 했어요. (★ = 설문 조사)',
+      '6. 드디어 공주는 레오의 어깨를 두드리며 ★. (★ = 격려했어요)'
+    ]);
+    // 번호 없는 줄은 그대로
+    assert.ok(L.includes('옛날 옛적 하늘 성에 기사 레오가 살았어요.') && L.includes('레오와 용은 친구가 됐답니다.'));
+    // 이야기 속으로 새어 들 꾸밈말 없이: 빼야 할 것만
+    // 분위기 말('무서운 내용 없이')도 빼요: 단어 뜻에 따라 조금 긴장되는 장면이 필요해요
+    assert.doesNotMatch(prompt, /깨끗|다정|무서운|싸움/);
+    assert.ok(L.includes('- 어린이가 읽어요. 욕설이나 다치는 장면은 쓰지 않아요.'), prompt);
+    assert.match(prompt, /한두 문장/);
+    assert.match(prompt, /인물은 그대로/);
+    assert.match(prompt, /★ 표시는 지우거나 바꾸지 말고 딱 한 번 그대로 써요/);
+    assert.match(prompt, /그 말과 뜻이 어울리게 ★ 앞뒤를 써요/);
+    assert.equal(L[L.length - 1], "답은 번호 줄만 1번부터 차례로 '1. 고친 문장' 꼴로 써요. 다른 말은 쓰지 않아요.");
+    // 답 읽기: 예시처럼 '답:'을 붙인 번호 줄, 메모만 쓰고 다음 줄에 쓴 문장, 두 줄로 나눠 쓴 한 답
+    assert.deepEqual(p.json(`aiParse('답: 1. 공주는 ★.\\n2. (★ = 빌렸어요)\\n레오는 지도책을 ★.\\n3. 용은 배가 불렀어요.\\n그래서 껍질을 ★.', 3)`),
+      [['공주는 ★.'], ['레오는 지도책을 ★.'], ['용은 배가 불렀어요. 그래서 껍질을 ★.', '용은 배가 불렀어요.']]);
+  } finally { p.close(); }
+});
+
+test('AI ★ answers: labels copied from an example (줄:/답:, 고친 문장:, the meaning used as a label), an echoed app line with the rewrite after → or on the next line, a note-only line and other number shapes give a clean line with the word mark back in place', async () => {
+  const p = bootPage();
+  try {
+    const answer = '1. 줄: 어둠 속에서 이상한 소리가 나자 꼬마 공주는 ★. (★ = 불안했어요)\n'
+      + '답: 용의 그림자가 성벽에 비치자, 꼬마 공주는 ★.\n'
+      + '2. 먼저 레오는 도서관에서 두꺼운 지도책을 ★. (★ = 빌렸어요) → 길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 ★.\n'
+      + '3. 용은 다 먹은 사탕 껍질을 아무 데나 ★. (★ = 버렸어요)\n'
+      + '→ 배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 ★.\n'
+      + '4번 답: 고친 문장: 공주를 지키려고 레오는 ★ 얼굴로 성문 앞에 섰어요.\n'
+      + '답 5. 설문 조사: 용이 좋아하는 간식을 알아보려고 공주는 마을에서 ★를 했어요.\n'
+      + '6. 줄: 드디어 공주는 레오의 어깨를 두드리며 ★. 답: 레오가 지쳐 보이자, 공주는 레오의 어깨를 두드리며 ★.';
+    const want = [
+      '용의 그림자가 성벽에 비치자, 꼬마 공주는 {anxious|불안했어요}.',
+      '길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 {borrow|빌렸어요}.',
+      '배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 {abandon|버렸어요}.',
+      '공주를 지키려고 레오는 {brave|용감한} 얼굴로 성문 앞에 섰어요.',
+      '용이 좋아하는 간식을 알아보려고 공주는 마을에서 {survey|설문 조사}를 했어요.',
+      '레오가 지쳐 보이자, 공주는 레오의 어깨를 두드리며 {encourage|격려했어요}.'
+    ];
+    let r = await starRun(p, answer);
+    assert.equal(r.n, 6, r.diag.why.join('\n'));
+    assert.deepEqual(r.lines.slice(1, 7), want);
+    assert.deepEqual(r.diag.why, ['1. anxious: 씀', '2. borrow: 씀', '3. abandon: 씀', '4. brave: 씀', '5. survey: 씀', '6. encourage: 씀']);
+    // 그림 설명에도 꼬리표가 들어가지 않아요
+    assert.equal(r.words.borrow.pic, '길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 빌렸어요.');
+    // '1. 답: …', 메모만 쓴 번호 줄 다음 줄의 문장, 뜻을 꼬리표처럼 앞에 붙인 줄, 빈 번호 줄 다음의 '줄:'(되풀이)·'답:' 두 줄
+    r = await starRun(p, '1. 답: 용의 그림자가 성벽에 비치자, 꼬마 공주는 ★.\n'
+      + '2. ★ = 빌렸어요\n길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 ★.\n'
+      + '3. 버렸어요: 배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 ★.\n'
+      + '4.\n줄: 레오는 ★ 얼굴로 성문 앞에 섰어요. (★ = 용감한)\n답: 공주를 지키려고 레오는 ★ 얼굴로 성문 앞에 섰어요.');
+    assert.deepEqual(r.lines.slice(1, 5), want.slice(0, 4), r.diag.why.join('\n'));
+    assert.deepEqual(r.diag.why.slice(4), ['5. survey: 답에서 이 번호를 못 찾음', '6. encourage: 답에서 이 번호를 못 찾음']);
+    // 꼬리표만 떼고 앱 문장을 되풀이한 줄은 고친 게 아니에요
+    r = await starRun(p, '1. 줄: 어둠 속에서 이상한 소리가 나자 꼬마 공주는 ★. (★ = 불안했어요)\n2. 고친 줄: 먼저 레오는 도서관에서 두꺼운 지도책을 ★.');
+    assert.equal(r.n, 0);
+    assert.deepEqual(r.diag.why.slice(0, 2), ['1. anxious: 답에서 이 번호를 못 찾음', '2. borrow: 앱 문장을 그대로 씀']);
+    assert.deepEqual(r.lines, JSON.parse(STAR_RES).lines);
+    // 대답·정답 같은 낱말 속 '답:'은 꼬리표가 아니에요
+    assert.equal(p.json(`aiClean('공주가 외쳤어요. “정답: 사과!” 레오는 ★.')`), '공주가 외쳤어요. “정답: 사과!” 레오는 ★.');
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI ★ checks: an app line that already has two sentences may get one more (a reason or a result), four are still too many; the limit counts the word mark so an accepted line always fits the deck', async () => {
+  const p = bootPage();
+  try {
+    const rows = JSON.stringify({ profit: { en: 'profit', ko: '이익, 수익', pos: 'x' }, dream: { en: 'dream', ko: '꿈', pos: 'x' } });
+    const res = JSON.stringify({ lines: ['옛날 옛적 하늘 성에 기사 레오가 살았어요.', '레오는 매운 떡볶이를 팔아 {profit|이익}을 냈어요. 그 돈으로 떡볶이를 또 샀죠.', '꼬마 공주는 레오에게 {dream|꿈}을 물었어요. “나는 최고의 방패 선수가 될 거야!”', '레오와 용은 친구가 됐답니다.'] });
+    const fit = (k, t) => p.json(`(() => { const q = aiReq(${res}, ${rows}, 0); const r = aiFit(aiClean(${JSON.stringify(t)}), q.items[${k}], q.f, q); return r.line || r.why; })()`);
+    assert.equal(fit(0, '떡볶이가 인기가 많았어요. 레오는 매운 떡볶이를 팔아 ★을 냈어요. 그 돈으로 떡볶이를 또 샀죠.'), '떡볶이가 인기가 많았어요. 레오는 매운 떡볶이를 팔아 {profit|이익}을 냈어요. 그 돈으로 떡볶이를 또 샀죠.');
+    assert.equal(fit(0, '떡볶이가 인기가 많았어요. 손님이 줄을 섰어요. 레오는 매운 떡볶이를 팔아 ★을 냈어요. 그 돈으로 떡볶이를 또 샀죠.'), '문장이 너무 많음');
+    // 대사(따옴표 속)는 한 문장으로 세요
+    assert.equal(fit(1, '공주는 레오의 마음이 궁금했어요. 그래서 레오에게 ★을 물었어요. “나는 최고의 방패 선수가 될 거야!”'), '공주는 레오의 마음이 궁금했어요. 그래서 레오에게 {dream|꿈}을 물었어요. “나는 최고의 방패 선수가 될 거야!”');
+
+    // 길이: 단어 표시({anxious|…})까지 넣어 140자. 꼭 맞는 줄은 쓰고 단어장(mkEpisode)에도 남아요, 한 글자라도 넘으면 앱 문장을 그대로 둬요
+    const fits = '아주 깊은 밤에 용의 커다란 그림자가 높은 성벽 위로 천천히 지나가고 차가운 바람이 낡은 나무 창문을 덜컹덜컹 흔들었어요. 게다가 탁자 위 촛불까지 훅 꺼지자 꼬마 공주는 폭신한 이불을 머리끝까지 뒤집어쓴 채 숨을 죽이고 ★.';
+    const over = fits.replace('탁자 위', '탁자 위의');
+    assert.equal(fits.replace('★', '불안했어요').length, 130);
+    let r = await starRun(p, `1. ${over}`);
+    assert.equal(r.diag.why[0], '1. anxious: 너무 김');
+    r = await starRun(p, `1. ${fits}`);
+    assert.equal(r.diag.why[0], '1. anxious: 씀');
+    assert.equal(r.lines[1].length, 140);
+    const ep = p.json(`(() => { const res = window.__res, rows = ${STAR_ROWS}; return mkEpisode('t', '시험', Object.keys(rows), rows, res).scene.lines; })()`);
+    assert.ok(ep.includes(r.lines[1]), ep.join('\n'));
+    assert.ok(!ep.some(l => /잊지 말아야 할 단어/.test(l)), ep.join('\n'));
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI ★ checks: when a line is skipped and the rest renumbered, an answer that fits another line is not put on this word but moved to the line it belongs to; repeating a few words of the line before (as the prompt asks) is still fine', async () => {
+  const p = bootPage();
+  try {
+    // 2번 줄을 빼먹고 나머지를 1씩 당겨 썼어요
+    const r = await starRun(p, '1. 용의 그림자가 비치자, 꼬마 공주는 ★.\n'
+      + '2. 배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 ★.\n'
+      + '3. 공주를 지키려고 레오는 ★ 얼굴로 성문 앞에 섰어요.\n'
+      + '4. 용이 좋아하는 간식을 알아보려고 공주는 마을에서 ★를 했어요.\n'
+      + '5. 레오가 지쳐 보이자, 공주는 레오의 어깨를 두드리며 ★.');
+    const before = JSON.parse(STAR_RES).lines;
+    assert.deepEqual(r.lines.slice(1, 7), [
+      '용의 그림자가 비치자, 꼬마 공주는 {anxious|불안했어요}.',
+      before[2],
+      '배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 {abandon|버렸어요}.',
+      '공주를 지키려고 레오는 {brave|용감한} 얼굴로 성문 앞에 섰어요.',
+      '용이 좋아하는 간식을 알아보려고 공주는 마을에서 {survey|설문 조사}를 했어요.',
+      '레오가 지쳐 보이자, 공주는 레오의 어깨를 두드리며 {encourage|격려했어요}.'
+    ]);
+    assert.deepEqual(r.diag.why, ['1. anxious: 씀', '2. borrow: 다른 줄 답 같음', '3. abandon: 씀 (2번 답을 옮겨 씀)', '4. brave: 씀 (3번 답을 옮겨 씀)', '5. survey: 씀 (4번 답을 옮겨 씀)', '6. encourage: 씀 (5번 답을 옮겨 씀)']);
+    // 낱말 하나뿐인 줄('레오는 누구보다 ★'): ★ 바로 앞 낱말이 같으면 그 줄의 답이에요
+    const rows = JSON.stringify(Object.fromEntries([['borrow', '빌리다'], ['brave', '용감한'], ['wait', '기다리다']].map(([en, ko]) => [en, { en, ko, pos: 'x' }])));
+    const res = JSON.stringify({ lines: ['옛날 옛적 하늘 성에 기사 레오가 살았어요.', '먼저 레오는 도서관에서 두꺼운 지도책을 {borrow|빌렸어요}.', '레오는 누구보다 {brave|용감했어요}.', '레오는 성 축제를 손꼽아 {wait|기다렸어요}.', '레오와 용은 친구가 됐답니다.'] });
+    const fit = (k, t) => p.json(`(() => { const q = aiReq(${res}, ${rows}, 0); const r = aiFit(aiClean(${JSON.stringify(t)}), q.items[${k}], q.f, q); return r.line || r.why + (r.to != null ? ' → ' + (r.to + 1) : ''); })()`);
+    assert.equal(fit(0, '용이 나타나도 물러서지 않았으니, 레오는 누구보다 ★.'), '다른 줄 답 같음 → 2');
+    assert.equal(fit(1, '축제에서 방패 솜씨를 뽐내고 싶어서 레오는 성 축제를 손꼽아 ★.'), '다른 줄 답 같음 → 3');
+    // 앞 줄 일을 까닭으로 되풀이해 이어 쓴 줄, 이야기 곳곳에 나오는 낱말 하나만 겹친 줄은 괜찮아요
+    assert.equal(fit(1, '도서관에서 두꺼운 지도책을 빌려 다 읽은 레오는 누구보다 ★.'), '도서관에서 두꺼운 지도책을 빌려 다 읽은 레오는 누구보다 {brave|용감했어요}.');
+    assert.equal(fit(2, '용이 무섭지 않게 된 레오는 누구보다 신이 나서 성 축제를 손꼽아 ★.'), '용이 무섭지 않게 된 레오는 누구보다 신이 나서 성 축제를 손꼽아 {wait|기다렸어요}.');
+    assert.equal(fit(0, '성 축제가 다가오자 레오는 도서관에서 두꺼운 지도책을 ★.'), '성 축제가 다가오자 레오는 도서관에서 두꺼운 지도책을 {borrow|빌렸어요}.');
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI ★ checks: a noun ★ must be followed by a particle or a word (not end the sentence or shine like a star), a meaning that ends in 의 may keep 의 after ★, words only from the worked example are refused, and a one-syllable meaning comes with its other sense', async () => {
+  const p = bootPage();
+  try {
+    const fit = (k, t, more) => p.json(`(() => { const q = aiReq(${STAR_RES}, ${STAR_ROWS}, 0); ${more || ''}; const r = aiFit(aiClean(${JSON.stringify(t)}), q.items[${k}], q.f, q); return r.line || r.why; })()`);
+    // 이름씨(설문 조사)
+    assert.equal(fit(4, '해가 지자 공주는 마을에서 드디어 ★.'), '★ 자리가 문장과 안 맞음');
+    assert.equal(fit(4, '공주의 눈이 마을 하늘의 ★처럼 반짝였어요.'), '★ 자리가 문장과 안 맞음');
+    assert.equal(fit(4, '공주는 ★, 그것부터 마을에서 시작했어요.'), '★ 자리가 문장과 안 맞음');
+    assert.equal(fit(4, '용이 좋아하는 간식을 알아보려고 공주는 마을에서 ★를 했어요.'), '용이 좋아하는 간식을 알아보려고 공주는 마을에서 {survey|설문 조사}를 했어요.');
+    assert.equal(fit(4, '공주는 마을에서 ★ 결과를 꼼꼼히 정리했어요.'), '공주는 마을에서 {survey|설문 조사} 결과를 꼼꼼히 정리했어요.');
+    // 예시에만 나오는 말(아기 곰·엄마가 손을 흔들자·강 건너·높은 다리)은 예시를 따라 쓴 거예요. 앱 이야기에도 있으면 괜찮아요
+    assert.equal(fit(0, '강 건너에서 엄마가 손을 흔들자, 꼬마 공주는 ★.'), '예시를 따라 씀');
+    assert.equal(fit(1, '아기 곰이 손을 흔들자, 레오는 도서관에서 두꺼운 지도책을 ★.'), '예시를 따라 씀');
+    assert.equal(fit(1, '강 건너 마을로 가려고 레오는 도서관에서 두꺼운 지도책을 ★.', 'q.text += "\\n레오는 강 건너 마을을 바라봤어요."'), '강 건너 마을로 가려고 레오는 도서관에서 두꺼운 지도책을 {borrow|빌렸어요}.');
+    // '-의' 뜻(고대의): ★ 자리는 '고대', AI가 붙인 '의'는 표시 밖에 그대로. '-의' 뜻이 아니면('용감한') '★의'는 안 돼요
+    const rows = JSON.stringify({ ancient: { en: 'ancient', ko: '고대의', pos: 'x' }, amount: { en: 'amount', ko: '양, 액수', pos: 'x' } });
+    const res = JSON.stringify({ lines: ['옛날 옛적 하늘 성에 기사 레오가 살았어요.', '레오는 동굴 깊은 곳에서 {ancient|고대} 지도를 발견했어요.', '레오는 그제야 {amount|양}이 왜 중요한지 깨달았어요.'] });
+    const q = p.json(`(() => { const q = aiReq(${res}, ${rows}, 0); return { ok: aiFit('횃불을 비추자, 레오는 동굴 깊은 곳에서 ★의 지도를 발견했어요.', q.items[0], q.f, q), bare: aiFit('횃불을 비추자, 레오는 동굴 깊은 곳에서 ★ 지도를 발견했어요.', q.items[0], q.f, q), prompt: q.prompt }; })()`);
+    assert.deepEqual(q.ok, { line: '횃불을 비추자, 레오는 동굴 깊은 곳에서 {ancient|고대}의 지도를 발견했어요.' });
+    assert.deepEqual(q.bare, { line: '횃불을 비추자, 레오는 동굴 깊은 곳에서 {ancient|고대} 지도를 발견했어요.' });
+    assert.equal(fit(3, '공주를 지키려고 레오는 ★의 얼굴로 섰어요.'), '★ 자리가 문장과 안 맞음');
+    // 한 글자 뜻('양')은 다른 뜻을 덧붙여 알려 줘요 ('하얀 양 떼'로 읽지 않게). 두 글자 넘는 뜻은 그대로
+    assert.ok(q.prompt.split('\n').includes('2. 레오는 그제야 ★이 왜 중요한지 깨달았어요. (★ = 양, 액수와 같은 뜻)'), q.prompt);
+    assert.ok(q.prompt.split('\n').includes('1. 레오는 동굴 깊은 곳에서 ★ 지도를 발견했어요. (★ = 고대)'), q.prompt);
+    assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
 

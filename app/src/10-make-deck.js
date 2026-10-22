@@ -33,12 +33,14 @@ function mkAnsFrom(raw, ko) {
   return out;
 }
 const MK_EMOJI = { n: '📦', v: '🏃', a: '✨', d: '⏩', p: '💬', x: '📘' };
+// 이야기 한 줄의 가장 긴 길이 (단어 표시 {영어|뜻}까지 넣어서). 더 긴 줄은 단어장에 넣지 않아요 (이야기 AI도 이 길이 안에서 써요: aiFit)
+const MK_LINE_MAX = 140;
 // 에피소드 하나를 앱이 쓰는 모양으로 (자막의 {단어|뜻} 표시 확인·보정 포함)
 function mkEpisode(key, title, epWords, rows, res) {
   const byLow = Object.create(null); for (const id of epWords) byLow[id.toLowerCase()] = id;
   const words = {}, order = [], used = new Set();
   // 글줄만, 너무 긴 줄은 뺌
-  let lines = Array.isArray(res && res.lines) ? res.lines.filter(l => typeof l === 'string').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l && l.length <= 140).slice(0, 14) : [];
+  let lines = Array.isArray(res && res.lines) ? res.lines.filter(l => typeof l === 'string').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l && l.length <= MK_LINE_MAX).slice(0, 14) : [];
   // 한 줄에 단어 표시는 하나만, 이 에피소드 단어만. 표시 밖에 남은 { } | 글자는 지움
   lines = lines.map(line => {
     let got = false, out = '', last = 0;
@@ -306,7 +308,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
           try {
             const c = await aiRewrite(ai, res, rows, storySeed + k, ctl.signal);
             aiLines += c;
-            mkLogSet(li, c ? 'ok' : 'warn', c ? `에피소드 ${k + 1} ‘${ep.title}’ 완성 (AI 문장 ${c}줄)` : `에피소드 ${k + 1}: AI 문장이 단어와 맞지 않아 기본 문장으로`);
+            mkLogSet(li, c ? 'ok' : 'warn', c ? `에피소드 ${k + 1} ‘${ep.title}’ 완성 (AI 문장 ${c}줄)` : `에피소드 ${k + 1}: AI 문장이 규칙(단어 자리·뜻)에 맞지 않아 기본 문장으로`);
             break;
           } catch (e) {
             if (e && e.code === 'cancelled') throw e;
@@ -339,7 +341,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     const lostNote = !aiLostN ? '' : aiReloadFail ? ' 쓰는 중에 그래픽 칩 연결이 끊겼어요(휴대폰이 AI의 그래픽 작업을 멈췄어요). AI를 다시 준비하지 못해서 남은 이야기는 기본 문장으로 만들었어요. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 두세요.'
       : aiGaveUp ? ' 쓰는 중에 그래픽 칩 연결이 끊겼어요(휴대폰이 AI의 그래픽 작업을 멈췄어요). AI를 다시 준비해서 한 번 더 써 봤지만 또 끊겨서, 남은 이야기는 기본 문장으로 만들었어요. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 두세요.'
         : ' 쓰는 중에 그래픽 칩 연결이 한 번 끊겨서(휴대폰이 AI의 그래픽 작업을 멈췄어요), AI를 다시 준비해 그 에피소드를 다시 썼어요.';
-    MK.aiNote = MK.useAI ? '' : aiData ? `모바일 데이터로 연결돼 있어서 이야기 AI(${AI_SIZE})는 받지 않았어요. 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 한 번 받아 두세요.` : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : aiTried ? (aiLines ? `이야기 AI(Gemma 4)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : aiErrs.length ? `이야기 AI가 문장을 쓰다가 오류가 났어요 (오류: ${aiErrs[0].slice(0, 160)}). 이번 이야기는 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요.` : '이야기 AI가 쓴 문장이 단어 뜻과 맞지 않아서 모두 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’에서 까닭을 볼 수 있어요.') + lostNote : '';
+    MK.aiNote = MK.useAI ? '' : aiData ? `모바일 데이터로 연결돼 있어서 이야기 AI(${AI_SIZE})는 받지 않았어요. 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 한 번 받아 두세요.` : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : aiTried ? (aiLines ? `이야기 AI(Gemma 4)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : aiErrs.length ? `이야기 AI가 문장을 쓰다가 오류가 났어요 (오류: ${aiErrs[0].slice(0, 160)}). 이번 이야기는 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요.` : '이야기 AI가 쓴 문장이 규칙(단어 자리·뜻)에 맞지 않아서 모두 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요.') + lostNote : '';
     if (MK.aiNote && MK.bg) MK.aiNote += ' ' + MK_BG.replace('다 만들 때까지', '다음에는 다 만들 때까지');
     // 'AI가 쓴 글 보기': AI를 준비하거나 쓴 기록이 있으면 (기기 정보도 한 줄)
     MK.aiDiag = (AI.diag || []).length ? AI.diag.slice() : null;
