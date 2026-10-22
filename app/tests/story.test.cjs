@@ -165,3 +165,45 @@ test('abstract words become events of the episode plot, with a matching picture'
     }
   }
 });
+
+// 칩은 배우는 뜻 그대로: '-의' 뜻은 '의'까지 ('장래의'를 '장래'로 떼면 다른 낱말). '의'를 뗀 말도 뜻 목록에 있으면 떼요 ('구식의, 구식' → '구식 물건')
+test('word chip keeps a -의 meaning unless the bare noun is listed too', () => {
+  const stories = P().json(`(() => {
+    const rows = { prospective: { en: 'prospective', ko: '장래의, 유망한', pos: 'x' }, 'old-fashioned': { en: 'old-fashioned', ko: '구식의, 구식', pos: 'x' }, ancient: { en: 'ancient', ko: '고대의', pos: 'x' } };
+    return SF.map((f, n) => mkStory(Object.keys(rows), rows, n).lines.join('\\n'));
+  })()`);
+  assert.equal(stories.length, 12);
+  for (const s of stories) {
+    assert.match(s, /\{prospective\|장래의\} 꿈/);
+    assert.match(s, /\{old-fashioned\|구식\} 물건/);
+    assert.match(s, /\{ancient\|고대의/);
+  }
+});
+
+// 돈·물건·계획 줄은 그 이야기의 목표와 이어져요: 사건(E)·찾는 물건(G)·물건 쓰임(use)·번 돈으로 살 것(buy)·다짐(vow) 가운데 하나를 말해요
+// (경주 이야기에 뜬금없는 케이크 가게·물 모으기가 나오지 않게). 일반 사전 낱말과 직접 쓴 뜻
+const BIZ = [
+  ['profitable', '수익성이 있는, 이익이 되는'], ['considerable', '상당한, 많은'], ['feasible', '실행 가능한, 실현 가능한'], ['budget', '예산'],
+  ['secure', '확보하다, 안전한'], ['classify', '분류하다'], ['inquire', '문의하다, 묻다'], ['revenue', '수익, 수입'], ['moderate', '적당한, 온건한'],
+  ['fluctuate', '변동하다, 오르내리다'], ['expenditure', '지출, 비용'], ['refund', '환불, 환불하다'], ['wage', '임금, 급여'], ['earn', '벌다'],
+  ['save', '저축하다, 아끼다'], ['purchase', '구입하다, 사다'], ['sell', '판매하다, 팔다'], ['operate', '운영하다, 작동하다'], ['customer', '손님, 고객'], ['savings', '저축, 저금']
+];
+test('money, supply and plan lines serve the goal of every story world', () => {
+  const r = P().json(`(() => {
+    const W = ${JSON.stringify(BIZ)}, rows = {}; for (const [en, ko] of W) rows[en] = { en, ko, pos: 'x' };
+    const ids = Object.keys(rows), plain = l => l.replace(/\\{[^|}]+\\|([^}]+)\\}/g, '$1'), bad = [], props = [];
+    let n = 0;
+    SF.forEach((f, k) => {
+      if (!(f.N.use && f.N.buy && f.N.vow && f.N.dream && f.N.X && f.N.X.supply)) props.push(f.title);
+      const goal = [f.E, f.G, f.N.use, f.N.buy, f.N.vow];
+      for (let i = 0; i < ids.length; i += 7) {
+        const ep = ids.slice(i, i + 7), lines = mkStory(ep, rows, k).lines;
+        for (const id of ep) { const l = lines.find(x => x.includes('{' + id + '|')); n++; if (!l || !goal.some(g => plain(l).includes(g))) bad.push(f.title + ': ' + (l || id)); }
+      }
+    });
+    return { n, worlds: SF.length, bad, props };
+  })()`);
+  assert.deepEqual(r.props, []);
+  assert.deepEqual(r.bad, []);
+  assert.equal(r.n, r.worlds * BIZ.length);
+});
