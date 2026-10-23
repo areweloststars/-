@@ -121,7 +121,7 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     for (const l of wordLines.filter(l => /깜짝 놀라/.test(l))) assert.ok(r.before.includes(l.replace('모두가 깜짝 놀라 지켜보는 가운데, ', '')), l);
 
     // 단어장 만들기 전체: AI 준비 → 에피소드마다 AI → 저장 안내
-    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; AI.engine.calls = 0;`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; AI.engine.calls = 0; showScreen('make');`);
     await p.run('mkMake()');
     const made = p.json('({ step: MK.step, err: MK.err, note: MK.aiNote, calls: AI.engine.calls, scenes: MK.deck.scenes.length, log: MK.log.map(l => l.text) })');
     assert.equal(made.step, 'done', made.err);

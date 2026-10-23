@@ -176,6 +176,12 @@ test('voice: an English word that does not start once is tried again on the phon
     assert.match(d, /빠진 영어 단어 1/);
     assert.match(d, /영어 단어 못 냄: VoiceLoading/);
     assert.match(d, /en 시작 안 함 \d+ms Phone English \[en-voice\] 기기/);
+    // 안 된다고 정한 뒤에도 30초마다 휴대폰 영어 목소리를 한 번 다시 해 봐요: 소리가 나면 다시 써요 (이야기 내내 영어가 빠지지 않게)
+    p.run('ssBrokenAt.en = Date.now() - SS_WAIT.again - 1; __plan.en = [5]; __said.length = 0');
+    await p.run(`svWordSay(${id}, () => true, 1)`);
+    assert.deepEqual(p.json('__said.map(s => s.d)'), [5]);
+    assert.equal(p.json('!!ssBroken.en'), false);
+    assert.equal(p.json('VDiag.drop'), 1);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
@@ -232,6 +238,17 @@ test('voice: the backup English voice rests while the phone voice speaks, and it
     await until(() => gates().some(m => m.hold) && !gates()[gates().length - 1].hold);
     assert.ok(gates().some(m => m.hold && m.heavy), '휴대폰 목소리가 말하는 동안 쉬어요');
     assert.equal(gates()[gates().length - 1].hold, false, '말을 마치면 쉬기를 풀어요');
+    // 휴대폰 영어 목소리를 못 쓰면 이야기 중에도 준비해요 (영어 단어가 이야기 내내 빠지지 않게)
+    p.run('ssBroken.en = true; svCtl()');
+    assert.equal(gates()[gates().length - 1].heavy, false);
+    // 일꾼이 무거운 준비를 하는 동안에는 휴대폰 목소리가 기다렸다가 말해요
+    p.run('svPause(); __said.length = 0; __workers[0].onmessage({ data: { t: "busy", on: true } }); tts("사과", "ko-KR", 1).catch(() => { })');
+    await new Promise(r => setTimeout(r, 150));
+    assert.equal(p.json('__said.length'), 0, '무거운 준비를 하는 동안 기다려요');
+    p.run('__workers[0].onmessage({ data: { t: "busy", on: false } })');
+    await until(() => p.json('__said.length') > 0);
+    assert.equal(p.json('__said[0].lang'), 'ko-KR');
+    p.run('delete ssBroken.en; svCtl()');
     p.run('goHome()');
     await until(() => { const g = gates(); return !g[g.length - 1].hold && !g[g.length - 1].heavy; });
     const g = gates();
@@ -253,6 +270,7 @@ test('voice: the backup English voice rests while the phone voice speaks, and it
     box.onmessage({ data: { t: 'gate', hold: false, heavy: false } });
     await until(() => box.calls.length > 0);
     assert.deepEqual(box.calls, ['https://example.test/tts/ort.wasm.min.js']);
+    assert.deepEqual(JSON.parse(JSON.stringify(box.posts.filter(m => m.t === 'busy'))), [{ t: 'busy', on: true }, { t: 'busy', on: false }], '무거운 일을 하는 동안을 알려요');
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });

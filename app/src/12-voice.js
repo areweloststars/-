@@ -117,10 +117,10 @@ let ssCur = null;
 // 그 언어 기기 목소리가 소리를 못 냈으면 이번에는 다른 방법으로
 // ssProbed: 목록이 비어 있을 때 한 번 해 본 언어 (나중에 목록이 오면 그 목소리를 써요)
 // 언어마다: ssWoke 엔진이 그 언어로 깨어 있는지 (아니면 첫 문장은 시작을 오래 기다려요. 이야기 AI를 내려놓은 뒤에도 다시 오래),
-// ssEver 이번에 한 번이라도 소리를 냈는지, ssMiss 연달아 소리를 내지 못한 번 수
-const ssBroken = {}, ssOk = {}, ssProbed = {}, ssWoke = {}, ssEver = {}, ssMiss = {};
-// 시작을 기다리는 시간(ms): 목록 없이 해 볼 때, 그 언어가 깨어 있을 때, 그 언어 첫 문장
-const SS_WAIT = { probe: 2500, warm: 3500, cold: 7000 };
+// ssEver 이번에 한 번이라도 소리를 냈는지, ssMiss 연달아 소리를 내지 못한 번 수, ssBrokenAt 안 된다고 정한 시각 (SS_WAIT.again 뒤에 한 번 다시 해 봐요)
+const ssBroken = {}, ssOk = {}, ssProbed = {}, ssWoke = {}, ssEver = {}, ssMiss = {}, ssBrokenAt = {};
+// 시작을 기다리는 시간(ms): 목록 없이 해 볼 때, 그 언어가 깨어 있을 때, 그 언어 첫 문장. again: 안 된다고 정한 목소리를 다시 해 보기까지
+const SS_WAIT = { probe: 2500, warm: 3500, cold: 7000, again: 30000 };
 // 이 시각까지는 말을 시작하지 않아요 (이야기 AI를 내려놓은 뒤 휴대폰이 메모리를 정리하는 동안)
 let ssCalm = 0;
 // 이야기 AI를 내려놓았을 때: 휴대폰이 메모리를 정리하는 동안 목소리가 늦게 시작하거나 끊길 수 있어서
@@ -129,6 +129,9 @@ function voiceCold(ms = 0) {
   for (const k of Object.keys(ssWoke)) delete ssWoke[k];
   if (ms) ssCalm = Math.max(ssCalm, Date.now() + ms);
 }
+// 안 된다고 정한 언어라도 휴대폰에 그 목소리가 있으면 SS_WAIT.again마다 한 번 다시 해 봐요
+// (메모리 정리 등으로 잠깐 안 됐던 목소리가 돌아오면 다시 써요. 그동안 영어는 고품질 목소리로 읽어요)
+const ssAgain = lang => { const l2 = lang.slice(0, 2); return hasSS && (ssHas(lang) || !!ssOk[l2]) && !!ssBroken[l2] && !!ssBrokenAt[l2] && Date.now() - ssBrokenAt[l2] >= SS_WAIT.again; };
 // probe: 목소리 목록이 비어 있는 화면에서 소리가 나는지 한 번 해 볼 때 (짧게 기다림)
 function ssSpeak(text, lang, rate, probe = false) {
   return new Promise((res, rej) => {
@@ -223,10 +226,13 @@ const VOICE_WORKER = `
 let O = null, E = null, espWasm = null, cfg = null, base = '';
 const sess = {};
 // 쉬기: hold면 휴대폰 목소리가 말하는 중이라 받기·준비·만들기를 모두 쉬어요. heavy면 멈출 수 없는 무거운 준비
-// (엔진 스크립트·eSpeak 올리기, 목소리 모델 올리기)를 시작하지 않아요 (이야기 화면에서 휴대폰 한국어 목소리로 읽는 동안)
+// (엔진 스크립트·eSpeak 올리기, 목소리 모델 올리기)를 시작하지 않아요 (이야기 화면에서 휴대폰 목소리로 한국어·영어를 다 읽을 수 있는 동안)
 let hold = false, heavy = false;
 const waiters = [];
 async function gate(big) { while (hold || (big && heavy)) await new Promise(r => waiters.push(r)); }
+// 멈출 수 없는 무거운 일: 시작해도 될 때까지 기다렸다가 하고, 하는 동안은 화면에 알려요 (그동안 휴대폰 목소리는 말을 기다려요)
+let nBusy = 0;
+async function heavyStep(f) { await gate(true); if (!nBusy++) postMessage({ t: 'busy', on: true }); try { return await f(); } finally { if (!--nBusy) postMessage({ t: 'busy', on: false }); } }
 const idb = () => new Promise((ok, no) => { const r = indexedDB.open('voca-voice', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
 async function cget(k) { try { const db = await idb(); return await new Promise(ok => { const q = db.transaction('f').objectStore('f').get(k); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); } catch (e) { return null; } }
 async function cput(k, v) { try { const db = await idb(); await new Promise(ok => { const t = db.transaction('f', 'readwrite'); t.objectStore('f').put(v, k); t.oncomplete = ok; t.onerror = ok; }); } catch (e) { } }
@@ -256,20 +262,18 @@ async function model(lang) {
     const parts = await Promise.all(Array.from({ length: v.parts }, (_, i) => file(name + '.' + i + '.wasm')));
     const all = new Uint8Array(parts.reduce((a, p) => a + p.byteLength, 0)); let o = 0;
     for (const p of parts) { all.set(new Uint8Array(p), o); o += p.byteLength; }
-    await gate(true);
-    return O.InferenceSession.create(all, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+    return heavyStep(() => O.InferenceSession.create(all, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' }));
   })();
   sess[lang].catch(() => { delete sess[lang]; });
   return sess[lang];
 }
 async function init(b) {
   base = b;
-  await gate(true);
-  importScripts(base + 'ort.wasm.min.js');
+  await heavyStep(async () => { importScripts(base + 'ort.wasm.min.js'); });
   O = self.ort;
   O.env.wasm.numThreads = 1; O.env.wasm.proxy = false; O.env.wasm.wasmPaths = base;
   cfg = await (await fetch(base + 'voices.json')).json();
-  const [m, w] = await Promise.all([import(base + 'espeak-ng.js'), file('espeak-ng-gz.wasm', true).then(async b => { await gate(true); return WebAssembly.compile(b); })]);
+  const [m, w] = await Promise.all([import(base + 'espeak-ng.js'), file('espeak-ng-gz.wasm', true).then(b => heavyStep(() => WebAssembly.compile(b)))]);
   E = m.default; espWasm = w;
 }
 async function ipa(text, lang) {
@@ -320,7 +324,8 @@ onmessage = async e => {
   } catch (err) { postMessage({ t: 'err', id: m.id, msg: String(err && err.message || err) }); }
 };`;
 const Voice = (() => {
-  let w = null, seq = 0, readyEn = false, failed = false, prog = 0, busy = false, force = false, gs = { hold: false, heavy: false };
+  let w = null, seq = 0, readyEn = false, failed = false, prog = 0, busy = false, force = false, gs = { hold: false, heavy: false }, heavyOn = false;
+  const idleW = []; // 무거운 준비가 끝나기를 기다리는 휴대폰 목소리
   const pend = new Map(), cache = new Map(), listeners = [], queue = [];
   const ok = typeof Worker === 'function' && typeof WebAssembly === 'object' && typeof DecompressionStream === 'function' && typeof indexedDB === 'object';
   function start() {
@@ -329,7 +334,8 @@ const Voice = (() => {
       w = new Worker(URL.createObjectURL(new Blob([VOICE_WORKER], { type: 'text/javascript' })));
       w.onmessage = e => {
         const m = e.data;
-        if (m.t === 'prog') { prog = m.p; listeners.forEach(f => f()); }
+        if (m.t === 'busy') { heavyOn = !!m.on; if (!heavyOn) idleW.splice(0).forEach(f => f()); }
+        else if (m.t === 'prog') { prog = m.p; listeners.forEach(f => f()); }
         else if (m.t === 'ready') { if (m.lang === 'en') readyEn = true; prog = 1; force = false; listeners.forEach(f => f()); }
         else if (m.t === 'err' && m.id == null) { failed = true; force = false; vErr('고품질 준비: ' + m.msg); listeners.forEach(f => f()); } // 준비 실패: 기기 목소리·eSpeak로
         else if (m.t === 'wav' || m.t === 'err') {
@@ -337,7 +343,7 @@ const Voice = (() => {
           if (m.t === 'wav') p.ok(URL.createObjectURL(new Blob([m.wav], { type: 'audio/wav' }))); else { if (/fetch|init|session/i.test(m.msg) && !readyEn) failed = true; p.no(new Error(m.msg)); }
         }
       };
-      w.onerror = e => { failed = true; vErr('고품질 일꾼: ' + ((e && e.message) || '오류')); for (const p of pend.values()) p.no(new Error('voice worker')); pend.clear(); listeners.forEach(f => f()); };
+      w.onerror = e => { failed = true; heavyOn = false; idleW.splice(0).forEach(f => f()); vErr('고품질 일꾼: ' + ((e && e.message) || '오류')); for (const p of pend.values()) p.no(new Error('voice worker')); pend.clear(); listeners.forEach(f => f()); };
       w.postMessage({ t: 'gate', hold: gs.hold, heavy: gs.heavy });
       w.postMessage({ t: 'init', base: new URL('tts/', location.href).href });
     } catch (e) { failed = true; }
@@ -359,8 +365,8 @@ const Voice = (() => {
     pend.set(id, { ok: u => { job.res(u); fin(); }, no: e => { job.rej(e); fin(); } });
     w.postMessage({ id, text: job.text, lang: job.L, rate: job.rate });
   }
-  // 쉬기를 일꾼에게 알려요. hold: 휴대폰 목소리가 말하는 중이면 모두 쉬어요. heavy: 이야기 화면에서 휴대폰 한국어 목소리로
-  // 읽는 중이면 무거운 준비를 이야기를 나간 뒤로 미뤄요 (‘목소리 다시 준비’를 누른 뒤 준비가 끝날 때까지는 빼고: force)
+  // 쉬기를 일꾼에게 알려요. hold: 휴대폰 목소리가 말하는 중이면 모두 쉬어요. heavy: 무거운 준비를 미뤄요 (언제인지는 voiceGate)
+  // (‘목소리 다시 준비’를 누른 뒤 준비가 끝날 때까지는 미루지 않아요: force)
   function gate(h, big) {
     h = !!h; big = !!big && !force;
     if (gs.hold === h && gs.heavy === big) return;
@@ -368,6 +374,15 @@ const Voice = (() => {
     if (w) try { w.postMessage({ t: 'gate', hold: h, heavy: big }); } catch (e) { }
   }
   function forceNow() { force = true; gate(gs.hold, false); }
+  // 일꾼이 멈출 수 없는 무거운 준비를 하는 중이면 끝날 때까지 기다려요 (휴대폰 목소리는 그 뒤에 말해요).
+  // ms보다 오래 걸리면 그 준비는 더 기다리지 않아요 (다음 무거운 준비가 시작되면 다시 기다려요)
+  function idle(ms) {
+    if (!heavyOn) return Promise.resolve();
+    return new Promise(res => {
+      const t = setTimeout(() => { heavyOn = false; idleW.splice(0).forEach(f => f()); }, ms);
+      idleW.push(() => { clearTimeout(t); res(); });
+    });
+  }
   // 문장 하나 → wav 주소. 같은 문장은 한 번만 만들어요
   function synth(text, lang, rate = 1, urgent = false) {
     if (!/^en/i.test(lang)) return Promise.reject(new Error('english only'));
@@ -390,7 +405,7 @@ const Voice = (() => {
   function reset() {
     const was = failed;
     if (w) try { w.terminate(); } catch (e) { }
-    w = null; failed = false; readyEn = false; prog = 0; force = false;
+    w = null; failed = false; readyEn = false; prog = 0; force = false; heavyOn = false; idleW.splice(0).forEach(f => f());
     clearTimeout(waitT); waitT = 0;
     // (줄을 먼저 비워요: 만들던 문장을 그만두면 다음 문장을 꺼내 가려고 해요)
     const jobs = queue.splice(0), ps = [...pend.values()];
@@ -402,7 +417,7 @@ const Voice = (() => {
     listeners.forEach(f => f());
   }
   return {
-    start, synth, whenReady, reset, gate, force: forceNow, onChange(f) { listeners.push(f); },
+    start, synth, whenReady, reset, gate, idle, force: forceNow, onChange(f) { listeners.push(f); },
     ready: lang => !failed && /^en/i.test(lang) && readyEn,
     get failed() { return failed || !ok; }, get progress() { return prog; }, get loading() { return !!w && !readyEn && !failed; }, get held() { return gs.heavy; }
   };
@@ -438,15 +453,24 @@ async function tts(text, lang, rate) {
   if (ssCalm > Date.now()) await sleep(ssCalm - Date.now());
   if (gone()) throw { name: 'AbortError' };
   // 목소리 목록이 아예 비어 있어도 소리를 내는 화면이 있어 한 번은 해 봐요 (안 나면 다시 해 보지 않고, 나중에 목록이 오면 그 목소리를 써요)
-  const l2 = lang.slice(0, 2), probe = !devVoice(lang) && hasSS && !ssVoices.length && !ssProbed[l2];
-  if (devVoice(lang) || probe) {
-    try { await ssSpeak(text, lang, rate, probe); if (probe) ssOk[l2] = true; return; }
+  const l2 = lang.slice(0, 2), probe = !devVoice(lang) && hasSS && !ssVoices.length && !ssProbed[l2], again = !devVoice(lang) && ssAgain(lang);
+  if (devVoice(lang) || probe || again) {
+    // 고품질 영어 목소리가 멈출 수 없는 무거운 준비를 하는 중이면 끝날 때까지 잠깐 기다렸다가 말해요 (겹치면 휴대폰 목소리가 끊겨요)
+    await Voice.idle(8000);
+    if (gone()) throw { name: 'AbortError' };
+    try {
+      await ssSpeak(text, lang, rate, probe);
+      ssMiss[l2] = 0; ssEver[l2] = true;
+      if (probe) ssOk[l2] = true;
+      if (again) { delete ssBroken[l2]; delete ssBrokenAt[l2]; svCtl(); } // 다시 소리를 냈어요: 이 목소리를 다시 써요
+      return;
+    }
     catch (e) {
       if (e && e.name === 'AbortError') throw e;
       // 안 된다고 정하는 건 이번에 한 번도 소리를 내지 못한 목소리가 시작하지 않았을 때와 두 번 연달아 안 됐을 때만이에요
       // (한 번 늦게 시작했다고 정해 버리면 그 뒤 영어 단어가 모두 고품질 목소리를 기다리느라 빠졌어요)
       if (probe) ssProbed[l2] = true;
-      else { ssMiss[l2] = (ssMiss[l2] || 0) + 1; if (ssMiss[l2] >= 2 || (e && e.nostart && !ssEver[l2])) ssBroken[l2] = true; }
+      else { ssMiss[l2] = (ssMiss[l2] || 0) + 1; if (ssMiss[l2] >= 2 || (e && e.nostart && !ssEver[l2])) { ssBroken[l2] = true; ssBrokenAt[l2] = Date.now(); } }
       if (gone()) throw { name: 'AbortError' };
       // 한 번 안 됐을 뿐이면 다른 목소리로 바꾸지 않아요 (고품질 목소리도 받지 않아요). 부른 쪽이 한 번 더 해 보거나 그 줄만 넘어가요
       if (devVoice(lang)) throw { name: 'PhoneMiss' };
@@ -456,7 +480,7 @@ async function tts(text, lang, rate) {
   }
   if (ko) { if (hasSS) vErr(ssVoices.length ? '한국어 기기 목소리 안 됨' : '기기 목소리 목록 없음'); throw { name: 'NoKoVoice' }; }
   if (!Voice.failed) {
-    Voice.start(); // (이야기 화면에서 휴대폰 한국어 목소리로 읽는 동안에는 일꾼이 무거운 준비를 이야기를 나간 뒤로 미뤄요)
+    Voice.start(); // (일꾼은 휴대폰 목소리가 말하는 동안 쉬어요: voiceGate)
     // 기기에 저장해 둔 목소리를 엔진에 올리는 중이면 잠깐 기다려요 (미뤄 둔 때는 기다리지 않아요)
     if (Voice.loading && Voice.progress >= 0.99 && !Voice.held) await Voice.whenReady(6000);
     if (gone()) throw { name: 'AbortError' };
@@ -485,10 +509,11 @@ function voiceWarm(note) {
     if (note) toast('영어 발음용 고품질 목소리를 준비하고 있어요 · 처음 한 번만 약 37MB를 받아요');
   });
 }
-// 고품질 영어 목소리 일꾼에게 지금 쉴지 알려요: 휴대폰 목소리가 말하는 중이면 모두 쉬고,
-// 이야기 화면에서 휴대폰 한국어 목소리로 읽는 중이면 무거운 준비를 이야기를 나간 뒤로 미뤄요
+// 고품질 영어 목소리 일꾼에게 지금 쉴지 알려요: 휴대폰 목소리가 말하는 중이면 모두 쉬어요.
+// 이야기 화면에서 휴대폰 목소리로 한국어·영어를 다 읽을 수 있으면 무거운 준비는 이야기를 나간 뒤로 미뤄요.
+// 영어를 휴대폰 목소리로 못 읽으면 이야기 중에도 준비해요 (말 사이에만 시작하고, 하는 동안은 휴대폰 목소리가 기다려요: Voice.idle)
 function voiceGate() {
-  try { Voice.gate(!!ssCur, M.kind === 'scene' && !!SAVE.narr && !$('#story').hidden && devVoice('ko-KR')); } catch (e) { }
+  try { Voice.gate(!!ssCur, M.kind === 'scene' && !!SAVE.narr && !$('#story').hidden && devVoice('ko-KR') && devVoice('en-US')); } catch (e) { }
 }
 // 앱 안 화면(Claude 앱·카카오톡·인스타그램 등 앱 속 브라우저): 휴대폰 목소리를 쓸 수 없는 경우가 많아요
 const inApp = /; wv\)|\bClaude\/|KAKAOTALK|NAVER\(inapp|Instagram|FBA[NV]|\bLine\/|DaumApps|everytimeApp/i.test(navigator.userAgent || '');
@@ -657,7 +682,7 @@ const Narr = (() => {
 function voiceReset() {
   ttsStop();
   if (hasSS) { try { speechSynthesis.cancel(); if (speechSynthesis.paused) speechSynthesis.resume(); } catch (e) { } }
-  for (const o of [ssBroken, ssOk, ssProbed, ssWoke, ssEver, ssMiss]) for (const k of Object.keys(o)) delete o[k];
+  for (const o of [ssBroken, ssOk, ssProbed, ssWoke, ssEver, ssMiss, ssBrokenAt]) for (const k of Object.keys(o)) delete o[k];
   ssWaited = null; ssCur = null;
   if (hasSS) ssLoad();
   Narr.reset();
