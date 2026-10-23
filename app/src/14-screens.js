@@ -351,16 +351,15 @@ async function svTTS(L, ms, after) {
   if (!live()) return;
   if (ok) after(); else SV.t = setTimeout(after, Math.max(400, ms - (Date.now() - t0)));
 }
-// 이야기 속 영어 단어는 그냥 빠뜨리지 않아요: 휴대폰 목소리가 한 번 소리를 내지 못했으면 한 번 더 해 보고,
-// 고품질 영어 목소리를 준비하는 중이면 잠깐 기다려요. 그래도 못 내면 진단 줄에 세어 두고 이야기는 계속해요 (실패를 밖으로 내지 않아요)
+// 이야기 속 영어 단어는 그냥 빠뜨리지 않아요: 휴대폰 목소리가 한 번 소리를 내지 못했으면 한 번 더 해 봐요.
+// 고품질 영어 목소리가 거의 준비됐으면 tts()가 잠깐 기다려요. 그래도 못 내면 진단 줄에 세어 두고 이야기는 계속해요 (실패를 밖으로 내지 않아요)
 async function svWordSay(id, live, rate) {
   for (let n = 0; n < 2; n++) {
     try { await sayWord(id, rate); return; }
     catch (e) {
       if (!live() || (e && e.name === 'AbortError')) return;
       if (n === 0 && e && e.name === 'PhoneMiss') continue;
-      if (n === 0 && e && e.name === 'VoiceLoading' && !Voice.held && await Voice.whenReady(3000) && live()) continue;
-      if (live()) vDrop(e);
+      vDrop(e);
       return;
     }
   }
