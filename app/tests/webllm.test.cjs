@@ -96,9 +96,55 @@ test('WebLLM patch: the model-manifest prompt path (Gemma 4) reads 275 tokens in
 
 test('WebLLM patch: every changed spot is marked and listed in NOTICE.txt', () => {
   const marks = SRC.split('\n').filter(l => l.includes('word-game patch')).length;
-  assert.equal(marks, 9);
+  assert.equal(marks, 17);
   const notice = fs.readFileSync(path.join(__dirname, '..', '..', 'word-game', 'llm', 'NOTICE.txt'), 'utf8');
   assert.match(notice, /Changes made to web-llm\.js for this game/);
   assert.match(notice, /wg_prefill_chunk/);
   assert.match(notice, /wgPrefillChunkDone/);
+  assert.match(notice, /wg_prefill_gap/);
+  assert.match(notice, /wgSampleStep/);
+  assert.match(notice, /last chunk's logits/);
+});
+
+test('WebLLM patch: only the last prefill chunk keeps its logits (earlier chunks free logits and text embeddings at once), the GPU rests after each chunk when asked, and the first sampling reports its start and end', async () => {
+  const { p } = quiet(() => pipeline({ wg_prefill_chunk: 32, wg_prefill_gap: 30 }));
+  assert.equal(p.wgPrefillGap, 30);
+  assert.equal(quiet(() => pipeline({ wg_prefill_chunk: 32 })).p.wgPrefillGap, 0, '설정이 없으면 쉬지 않아요');
+  assert.deepEqual([5000, -1, 'x', 12.7, 0].map(v => p.wgSetPrefillGap(v)), [1000, 0, 0, 12, 0]);
+  p.wgSetPrefillGap(30);
+  p.artifact = {};
+  p.conversation = { isTextCompletion: false, config: {}, appendMessage() { }, appendReplyHeader() { }, getArtifactPromptSegments: () => ['story'] };
+  const made = [];
+  const tensor = kind => { const t = { kind, freed: 0, dispose() { t.freed++; } }; made.push(t); return t; };
+  p.device = { sync: async () => { } };
+  p.getArtifactTextEmbeddings = () => tensor('emb');
+  p.artifactPrefillAndForward = (emb, ids) => { p.filledKVCacheLength += ids.length; return tensor('logits'); };
+  const at = [];
+  globalThis.wgPrefillChunkDone = () => at.push(performance.now());
+  try {
+    const out = await p.forwardPrefill('story', 'user', undefined, undefined);
+    const L = made.filter(t => t.kind === 'logits'), E = made.filter(t => t.kind === 'emb');
+    assert.deepEqual(L.map(t => t.freed), [1, 1, 1, 1, 1, 1, 1, 1, 0], '앞 조각 8개의 logits는 바로 풀어요');
+    assert.equal(out.logits, L[8], '마지막 조각의 logits로 첫 토큰을 골라요');
+    assert.deepEqual(E.map(t => t.freed), [1, 1, 1, 1, 1, 1, 1, 1, 0], '글 조각 embedding도');
+    assert.equal(at.length, 9);
+    for (let i = 1; i < at.length; i++) assert.ok(at[i] - at[i - 1] >= 25, `조각 사이에 쉼 ${(at[i] - at[i - 1]).toFixed(1)}ms`);
+    // 알릴 곳(gpu-watch.js)이 없으면 쉬지도 않아요 (WebLLM 원래대로). logits는 그래도 풀어요
+    delete globalThis.wgPrefillChunkDone;
+    p.filledKVCacheLength = 0;
+    const t0 = performance.now();
+    await p.forwardPrefill('story', 'user', undefined, undefined);
+    assert.ok(performance.now() - t0 < 150);
+    assert.equal(made.filter(t => t.kind === 'logits' && t.freed).length, 16);
+  } finally { delete globalThis.wgPrefillChunkDone; }
+  // 첫 토큰 고르기: 글을 다 읽은 뒤 'start', 고른 뒤 'end' (그 사이에 그래픽 칩을 잃었는지 가려요). 알림 오류는 글쓰기를 막지 않아요
+  const order = [];
+  p.forwardPrefill = async () => { order.push('read'); return { logits: { dispose() { order.push('free'); } }, promptLen: 275, promptTokenIds: [], assistantPrefixTokenIds: [] }; };
+  p.prepareGrammarMatcherForSampling = async () => { };
+  p.resetGenerationRoundState = () => { };
+  p.device = { sync: async () => { order.push('sync'); } };
+  p.sampleFromRawLogits = async () => { order.push('sample'); return 7; };
+  globalThis.wgSampleStep = d => { order.push(`${d.at} ${d.tokens}`); throw new Error('hook'); };
+  try { await p.samplePrefillStep('story', 'user', undefined, {}); } catch (e) { /* 그 뒤 기록은 진짜 대화가 있어야 해요 */ } finally { delete globalThis.wgSampleStep; }
+  assert.deepEqual(order.slice(0, 6), ['read', 'start 275', 'sync', 'sample', 'end 275', 'free']);
 });

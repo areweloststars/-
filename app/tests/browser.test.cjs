@@ -81,11 +81,11 @@ test('browser: the locked site opens with its key link, AI 진단 runs to the en
     });
     const btn = page.locator('#mkai [data-mk="bench"]');
     await btn.waitFor();
-    assert.equal((await btn.textContent()).trim(), 'AI 진단 (3~6분)');
+    assert.equal((await btn.textContent()).trim(), 'AI 진단 (4~8분)');
     await btn.click();
     await page.waitForFunction(() => /결과: 모든 단계를 마쳤어요/.test((document.getElementById('mkbenchout') || {}).textContent || ''), null, { timeout: 30000 });
     const text = await page.locator('#mkbenchout').textContent();
-    const labs = ['1 저장소에서 불러오기', '2 그래픽 준비(처음 한 번)', '3 짧은 글 읽기', '4 중간 글 16토큰씩 읽기', '5 중간 글 32토큰씩 읽기', '6 중간 글 64토큰씩 읽기', '7 중간 글 128토큰씩 읽기', '8 긴 글 읽기(실제 크기)', '9 길게 쓰기'];
+    const labs = ['1 저장소에서 불러오기', '2 그래픽 준비(처음 한 번)', '3 짧은 글 읽기', '4 중간 글 16토큰씩 읽기', '5 중간 글 32토큰씩 읽기', '6 중간 글 64토큰씩 읽기', '7 중간 글 128토큰씩 읽기', '8 긴 글 읽기(실제 크기)', '9 글 길이 448토큰 읽기', '10 글 길이 512토큰 읽기', '11 글 길이 576토큰 읽기', '12 길게 쓰기(600토큰)'];
     for (const lab of labs) assert.ok(text.includes(`${lab}: ok (성공)`), text);
     // 가짜 엔진은 조각 시간을 보내지 않아요: 안전한 크기는 남기지 않아요 (진짜 일꾼은 조각 크기 바꾸기 부탁을 받아도 멀쩡해요)
     assert.match(text, /이 기기의 안전한 조각 크기: 아직 못 찾았어요/);

@@ -219,7 +219,7 @@ function swControl(ms) {
 // (app/tests/offline.test.cjs가 실제 파일과 맞는지 봐요. llm/은 처음 열 때 받지 않으려고 sw.js가 미리 저장하지 않아요)
 // 글꼴 조각은 fonts/fonts.css에 적힌 것을 모두 받아요. 이야기 AI 모델은 WebLLM이 따로 받아 저장해요
 const OFFLINE_FILES = [
-  ['llm/web-llm.js', 6819562], ['llm/worker.js', 1040], ['llm/gpu-watch.js', 6549],
+  ['llm/web-llm.js', 6821360], ['llm/worker.js', 1379], ['llm/gpu-watch.js', 7005],
   ['ocr/tesseract.min.js', 66695], ['ocr/worker.min.js', 123724], ['ocr/tesseract-core-lstm.wasm.js', 3938277],
   ['ocr/eng-traineddata.wasm', 2952873], ['ocr/kor-traineddata.wasm', 1572336], ['ocr/words-en.txt', 1139787], ['ocr/ko-lex.txt', 1900788],
   ['tts/voices.json', 1582], ['tts/espeak-ng.js', 178386], ['tts/espeak-ng-gz.wasm', 9137545], ['tts/ort.wasm.min.js', 49026],

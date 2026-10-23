@@ -283,13 +283,13 @@ function aiWorkText(w, failed) {
 }
 // 'AI가 쓴 글 보기'·'AI 진단'의 자세한 줄 (그래픽 칩을 잃었을 때 어디서 멈췄는지 가리려고). o: est 요청 글 토큰(어림), tin 실제로 읽은 토큰,
 // workers 요청 전 일꾼, last 마지막 조각 12개의 시간(ms), ci/cof 몇 번째 조각까지/모두 몇 개, gap 조각마다 쉰 시간,
-// samp 첫 토큰 고르기('' 안 함 · start 시작 · end 끝), lostGap 마지막 조각 소식에서 GPU 끊김 소식까지(ms), failed 오류로 멈춤
+// samp 첫 토큰 고르기(예전 진단 기록처럼 workers가 없으면 적지 않아요. '' 안 함 · start 시작 · end 끝), lostGap 마지막 조각 소식에서 GPU 끊김 소식까지(ms), failed 오류로 멈춤
 function aiMoreText(o) {
   const out = [];
   if (o.est || o.tin) out.push(`요청 글 토큰: ${[o.est ? `어림 ${o.est}` : '', o.tin ? `실제 ${o.tin}` : ''].filter(Boolean).join(' · ')}`);
   if (o.workers) out.push(`요청 전 일꾼: ${o.workers}`);
   if (o.last && o.last.length) out.push(`마지막 조각 ${o.last.length}개(ms): ${o.last.join(' ')}${o.cof ? ` · 조각 ${o.ci}/${o.cof}까지 읽음` : ''}${o.gap ? ` · 조각마다 ${o.gap}ms 쉼` : ''}`);
-  if (o.failed) out.push(`첫 토큰 고르기: ${o.samp === 'end' ? '끝남 (글을 다 읽고 쓰는 중에 멈췄어요)' : o.samp === 'start' ? '시작했지만 안 끝남 (글을 다 읽은 바로 뒤에 멈췄어요)' : '시작 안 함 (글을 읽는 중에 멈췄어요)'}`);
+  if (o.failed && o.workers != null) out.push(`첫 토큰 고르기: ${o.samp === 'end' ? '끝남 (글을 다 읽고 쓰는 중에 멈췄어요)' : o.samp === 'start' ? '시작했지만 안 끝남 (글을 다 읽은 바로 뒤에 멈췄어요)' : '시작 안 함 (글을 읽는 중에 멈췄어요)'}`);
   if (o.lostGap != null) out.push(`마지막 조각 소식 뒤 ${aiSec(o.lostGap)} 만에 GPU 끊김 소식`);
   return out;
 }
@@ -547,9 +547,11 @@ ${body}
    (Gemma 토큰 나누기로 잰 앱 요청 글에서 글자당 토큰이 가장 큰 값보다 조금 크게) */
 const AI_BUDGET = 440, AI_TOK_PER_CHAR = 0.68, AI_TOK_TMPL = 9;
 const aiTokEst = t => Math.ceil(String(t).length * AI_TOK_PER_CHAR) + AI_TOK_TMPL;
+// 길이 한도는 휴대폰만 (글을 작은 조각으로 나눠 읽는 기기). 컴퓨터는 예전처럼 에피소드마다 요청 하나
+const aiBudget = () => (aiIsPhone(AI.gpuInfo) ? AI_BUDGET : Infinity);
 // story(aiReq의 이야기 줄)를 요청 글로: [{ items: 이 요청의 번호 줄 차례들(0부터), prompt, est: 토큰 어림 }]
 // 번호 줄을 차례대로 k묶음(가능한 한 고르게)으로 나눠요. k = 1부터, 모든 묶음이 AI_BUDGET 안이 될 때까지 (한 줄씩이 되면 그대로)
-function aiParts(story, first) {
+function aiParts(story, first, budget = AI_BUDGET) {
   const at = story.map((s, i) => (s.n ? i : -1)).filter(i => i >= 0);
   for (let k = 1; ; k++) {
     const parts = [];
@@ -560,7 +562,7 @@ function aiParts(story, first) {
       const prompt = aiPrompt(st);
       parts.push({ items: Array.from({ length: b - a }, (_, i) => a + i), prompt, est: aiTokEst(prompt) });
     }
-    if (k >= at.length || parts.every(q => q.est <= AI_BUDGET)) return parts;
+    if (k >= at.length || parts.every(q => q.est <= budget)) return parts;
   }
 }
 // AI 답에서 생각하는 글(생각 블록)을 떼요. Gemma 4는 생각 모드를 켤 때만(<|think|>) 생각을 쓰고, 이 앱은 켜지 않지만
@@ -732,7 +734,7 @@ function aiHint(core, ko) {
   return o.length ? `${o.slice(0, -1).concat(koP(o[o.length - 1], '과')).join(', ')} 같은 뜻` : '';
 }
 // 요청 준비: 앱이 만든 이야기(res)에서 단어 줄을 찾아 번호를 붙이고 단어 뜻 자리를 ★로 (AI 진단도 같은 방법으로 실제 크기의 요청 글을 만들어요)
-function aiReq(res, rows, n) {
+function aiReq(res, rows, n, budget = AI_BUDGET) {
   const f = SF[((n % SF.length) + SF.length) % SF.length];
   const lines = res.lines.slice(), plainOf = l => l.replace(/\{[^|}]+\|([^}]+)\}/g, '$1');
   const idx = [], items = [];
@@ -747,14 +749,14 @@ function aiReq(res, rows, n) {
   });
   const story = lines.map((l, i) => { const k = idx.indexOf(i); return k >= 0 ? { n: k + 1, core: items[k].core, hint: items[k].hint, text: items[k].star } : { n: 0, text: plainOf(l) }; });
   // text: 앱 이야기 전체 (AI 답에 예시만 따라 쓴 말이 있는지 견줘요), parts: 보낼 요청들 (aiParts), prompt: 첫 요청 글
-  const parts = items.length ? aiParts(story, plainOf(lines[0] || '')) : [];
+  const parts = items.length ? aiParts(story, plainOf(lines[0] || ''), budget) : [];
   return { f, lines, plainOf, idx, items, story, text: lines.map(plainOf).join('\n'), parts, prompt: parts.length ? parts[0].prompt : '' };
 }
 // 앱이 만든 이야기(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요.
 // 요청이 여럿으로 나뉘면(aiParts) 차례로 묻고, 다 끝난 뒤에 한꺼번에 바꿔요 (중간에 오류가 나면 이 에피소드는 앱 문장 그대로)
 const AI_DIAG_N = 12;
 async function aiRewrite(eng, res, rows, n, signal) {
-  const req = aiReq(res, rows, n), { lines, plainOf, idx, items, parts } = req;
+  const req = aiReq(res, rows, n, aiBudget()), { lines, plainOf, idx, items, parts } = req;
   if (!items.length) return 0;
   const stop = () => { try { eng.interruptGenerate(); } catch (e) { } };
   if (signal) { if (signal.aborted) throw { code: 'cancelled' }; signal.addEventListener('abort', stop, { once: true }); }
@@ -876,7 +878,7 @@ const AI_BENCH_TINY = '너는 어린이 그림책 작가야. 읽는 사람은 �
 function aiBenchLong() {
   const rows = Object.create(null);
   for (const [en, ko] of AI_BENCH_WORDS) rows[en] = { en, ko, pos: 'x' };
-  return aiReq(mkStory(AI_BENCH_WORDS.map(w => w[0]), rows, 0), rows, 0).prompt;
+  return aiReq(mkStory(AI_BENCH_WORDS.map(w => w[0]), rows, 0), rows, 0, aiBudget()).prompt;
 }
 // 중간 글: 실제 요청 글의 앞부분. 3단계에서 잰 '글자당 토큰'으로 450토큰 안쪽이 되게 잘라요 (실제 글보다는 늘 짧게).
 // 갤럭시 S25에서는 약 275토큰이었어요 (이 글을 한 조각으로 읽다가 그래픽 칩이 끊겼어요). 조각 크기 재기는 모두 이 글로 해요
@@ -987,7 +989,8 @@ async function aiBenchRun(signal, onChange) {
     b.ckey = aiChunkKey(info);
     for (let i = 0; i < AI_BENCH.length; i++) {
       const def = AI_BENCH[i], st = b.stages[i];
-      if (i > 0 && b.t1 && Date.now() - b.t1 > AI_BENCH_MAX_MS) { st.state = 'skip'; st.note = `진단이 ${AI_BENCH_MAX_MS / 60000}분을 넘어서 건너뛰었어요`; put(); continue; }
+      const maxMs = AI.benchMaxMs == null ? AI_BENCH_MAX_MS : AI.benchMaxMs; // AI.benchMaxMs: 시험용
+      if (i > 0 && b.t1 && Date.now() - b.t1 >= maxMs) { st.state = 'skip'; st.note = `진단이 ${Math.round(maxMs / 60000)}분을 넘어서 건너뛰었어요`; b.late = true; put(); continue; }
       if (def.k === 'sweep') {
         // 처음 재기 전에 전에 찾은 안전한 크기를 지워요 (이번에 다시 찾아요). 전에 안 된 크기와 그보다 큰 크기, 한계에 가까웠던 크기부터는 건너뛰어요
         if (def === AI_BENCH.find(d => d.k === 'sweep')) aiChunkPut(b.ckey, r => { r.safe = 0; });
@@ -1087,7 +1090,7 @@ function aiBenchText(b) {
   // 조각 크기를 재기 시작했으면: 이번에 찾은 안전한 크기 (이야기를 만들 때 이 크기로 읽어요)
   if (b.stages.some(s => s.k === 'sweep' && s.state && s.state !== 'skip')) out.push(b.safe ? `이 기기의 안전한 조각 크기: ${b.safe}토큰 (이야기를 만들 때 이 크기로 나눠 읽어요)` : '이 기기의 안전한 조각 크기: 아직 못 찾았어요');
   const bad = b.stages.find(s => s.state === 'fail' || s.state === 'crash');
-  out.push(b.state === 'run' ? '결과: 진단하는 중이에요. 화면을 켜 둔 채 기다려 주세요.' : b.state === 'done' ? '결과: 모든 단계를 마쳤어요.' : b.state === 'stop' ? '결과: 중간에 그만뒀어요.'
+  out.push(b.state === 'run' ? '결과: 진단하는 중이에요. 화면을 켜 둔 채 기다려 주세요.' : b.state === 'done' ? (b.late ? '결과: 진단이 길어져서 남은 단계는 건너뛰었어요.' : '결과: 모든 단계를 마쳤어요.') : b.state === 'stop' ? '결과: 중간에 그만뒀어요.'
     : bad ? `결과: ${bad.label.split(' ')[0]}단계에서 멈췄어요${bad.state === 'crash' ? ' (진단 중에 탭이 꺼졌어요)' : ''}.` : '결과: 멈췄어요.');
   return out.join('\n');
 }
