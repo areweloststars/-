@@ -1,7 +1,8 @@
 // 이야기 목소리: 소리가 시작하지 않으면 알려 주고 다시 준비하기, 게임을 열 때 이야기 AI 내려놓기
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { bootPage } = require('./page.cjs');
+const { bootPage, FAKE_AI } = require('./page.cjs');
+const vm = require('node:vm');
 // 화면이 바뀔 때까지 기다려요 (정해진 짧은 시간만 기다리면 컴퓨터가 바쁠 때 실패해요)
 const until = async (ok, ms = 3000) => { const t = Date.now(); while (!ok() && Date.now() - t < ms) await new Promise(r => setTimeout(r, 15)); };
 
@@ -98,5 +99,282 @@ test('story AI: opening a story puts the loaded AI down to free phone memory, bu
     p.run('vFix()');
     assert.equal(p.json('!!AI.engine'), false);
     assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+// 가짜 휴대폰 목소리 2: 언어마다 시작까지 걸리는 시간을 차례로 정해요 (__plan.en = [250, -1]: 250ms 뒤 시작, 다음은 시작 안 함). 정하지 않으면 5ms
+const FAKE_SPEECH_PLAN = `(() => {
+  window.__said = []; window.__plan = {};
+  const voices = [{ lang: 'ko-KR', name: 'Phone Korean', voiceURI: 'ko-voice', localService: true }, { lang: 'en-US', name: 'Phone English', voiceURI: 'en-voice', localService: true }];
+  let cur = null;
+  const ss = { speaking: false, pending: false, paused: false, getVoices: () => voices, addEventListener() { }, removeEventListener() { },
+    cancel() { const u = cur; cur = null; ss.speaking = ss.pending = false; if (u) setTimeout(() => u.onerror && u.onerror({ error: 'canceled' }), 0); },
+    resume() { ss.paused = false; },
+    speak(u) {
+      const l = String(u.lang).slice(0, 2), q = __plan[l] || [], d = q.length ? q.shift() : 5;
+      cur = u; ss.pending = true; __said.push({ lang: u.lang, d, rate: u.rate, at: Date.now() });
+      if (d < 0) return;
+      setTimeout(() => {
+        if (cur !== u) return;
+        ss.pending = false; ss.speaking = true; u.onstart && u.onstart();
+        setTimeout(() => { if (cur !== u) return; cur = null; ss.speaking = false; u.onend && u.onend(); }, 40);
+      }, d);
+    } };
+  window.speechSynthesis = ss;
+  window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+})();`;
+// 가짜 고품질 목소리 일꾼: 받은 말만 적어 둬요 (일꾼을 쓸 수 있는 기기처럼)
+const FAKE_WORKER = `(() => {
+  window.__workers = [];
+  window.indexedDB = window.indexedDB || {}; window.DecompressionStream = window.DecompressionStream || class { };
+  window.Worker = class { constructor() { this.posts = []; __workers.push(this); } postMessage(m) { this.posts.push(JSON.parse(JSON.stringify(m))); } terminate() { this.dead = true; } };
+})();`;
+const ROWS = [['apple', '사과'], ['river', '강'], ['window', '창문'], ['bridge', '다리'], ['candle', '양초'], ['garden', '정원']].map(([en, ko]) => ({ en, ko, pos: 'x' }));
+
+test('voice: one slow first English start does not mark English broken or start the backup voice; diagnostics show each voice and its start delay', async () => {
+  const p = bootPage({}, FAKE_SPEECH_PLAN + FAKE_WORKER);
+  try {
+    // 깨어 있는 언어는 80ms, 그 언어 첫 문장은 600ms까지 기다려요. 영어 첫 단어는 250ms 뒤에 시작해요
+    // (예전에는 한국어가 깨어 있으면 영어 첫 단어도 짧게 기다려서, 한 번 늦으면 이번 방문 내내 안 된다고 정했어요)
+    p.run('SS_WAIT.warm = 80; SS_WAIT.cold = 600; VDiag.waitMs = 5000; __plan.en = [250]');
+    p.run('openMission("scene", SCENES[0].key)');
+    await until(() => p.json('!!ssEver.en'), 6000);
+    p.run('svPause()');
+    assert.equal(p.json('!!ssEver.en'), true, '영어 단어가 휴대폰 목소리로 나와요');
+    assert.deepEqual(p.json('ssBroken'), {});
+    assert.equal(p.json('__workers.length'), 0, '고품질 목소리를 받기 시작하지 않아요');
+    assert.equal(p.json('VDiag.drop'), 0);
+    const en = p.json('VDiag.said').find(s => s.lang === 'en');
+    assert.ok(en && en.ok && en.ms >= 200, JSON.stringify(en));
+    assert.match(p.json('voiceDiag()'), /최근 문장: .*ko \d+ms Phone Korean \[ko-voice\] 기기 \/ en \d+ms Phone English \[en-voice\] 기기/);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('voice: an English word that does not start once is tried again on the phone voice; one that cannot be spoken is counted in the diagnostics', async () => {
+  const p = bootPage({}, FAKE_SPEECH_PLAN + FAKE_WORKER);
+  try {
+    p.run('SS_WAIT.warm = 80; SS_WAIT.cold = 300');
+    const id = JSON.stringify(p.json('SCENES[0].words[0]'));
+    await p.run(`sayWord(${id}, 1)`);
+    assert.equal(p.json('!!ssEver.en'), true);
+    // 한 번 소리를 낸 영어 목소리가 한 번 시작하지 않으면: 한 번 더 해서 나와요 (안 된다고 정하지 않고 고품질 목소리도 받지 않아요)
+    p.run('__plan.en = [-1, 5]; __said.length = 0');
+    await p.run(`svWordSay(${id}, () => true, 1)`);
+    assert.deepEqual(p.json('__said.map(s => s.d)'), [-1, 5]);
+    assert.deepEqual(p.json('ssBroken'), {});
+    assert.equal(p.json('__workers.length'), 0);
+    assert.equal(p.json('VDiag.drop'), 0);
+    // 두 번 연달아 안 되면 그때 안 된다고 정하고 고품질 목소리를 준비해요. 이번 단어는 낼 수 없어서 진단 줄에 세어요
+    p.run('__plan.en = [-1, -1]; __said.length = 0');
+    await p.run(`svWordSay(${id}, () => true, 1)`);
+    assert.deepEqual(p.json('__said.map(s => s.d)'), [-1, -1]);
+    assert.equal(p.json('ssBroken.en'), true);
+    assert.equal(p.json('__workers.length'), 1);
+    assert.equal(p.json('VDiag.drop'), 1);
+    const d = p.json('voiceDiag()');
+    assert.match(d, /빠진 영어 단어 1/);
+    assert.match(d, /영어 단어 못 냄: VoiceLoading/);
+    assert.match(d, /en 시작 안 함 \d+ms Phone English \[en-voice\] 기기/);
+    // 안 된다고 정한 뒤에도 30초마다 휴대폰 영어 목소리를 한 번 다시 해 봐요: 소리가 나면 다시 써요 (이야기 내내 영어가 빠지지 않게)
+    p.run('ssBrokenAt.en = Date.now() - SS_WAIT.again - 1; __plan.en = [5]; __said.length = 0');
+    await p.run(`svWordSay(${id}, () => true, 1)`);
+    assert.deepEqual(p.json('__said.map(s => s.d)'), [5]);
+    assert.equal(p.json('!!ssBroken.en'), false);
+    assert.equal(p.json('VDiag.drop'), 1);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('voice: English words use one speed when made ahead and when spoken, so the made-ahead sound is used', async () => {
+  const p = bootPage({}, FAKE_SPEECH_PLAN + FAKE_WORKER);
+  try {
+    p.run('SAVE.rate = 0.8; ssBroken.en = true; window.__synth = []; Voice.ready = () => true; Voice.synth = (t, l, r) => { __synth.push([t, l, r]); return new Promise(() => { }); }');
+    const id = JSON.stringify(p.json('SCENES[0].words[0]'));
+    p.run(`SV.lines = [parseLine('{' + ${id} + '|x}')]; voicePrefetch(); sayWord(${id}, SAVE.rate)`);
+    await until(() => p.json('__synth.length') >= 2);
+    const [made, said] = p.json('__synth');
+    assert.deepEqual(made, said);
+    assert.ok(Math.abs(made[2] - 0.8 * 0.72) < 1e-9, String(made[2]));
+    assert.equal(made[2], p.json('wordSpeed(0.8)'));
+  } finally { p.close(); }
+});
+
+test('story AI: put down when the make screen is left or a deck finishes while elsewhere (not while making); if still loaded at story open, the first line waits', async () => {
+  const p = bootPage({}, FAKE_SPEECH_PLAN);
+  try {
+    const load = () => p.run('window.__dead = window.__dead || []; AI.engine = { chat: {} }; AI.worker = { terminate() { __dead.push(1); } }; AI.loading = Promise.resolve(AI.engine)');
+    load();
+    p.run('showScreen("make"); MK.step = "making"; goHome()');
+    assert.equal(p.json('!!AI.engine'), true, '만드는 중에는 그대로');
+    p.run('MK.step = "pick"; showScreen("make"); goHome()');
+    assert.equal(p.json('!!AI.engine'), false, '만들기 화면을 나가면 내려놓아요');
+    // 다른 화면에 있는 동안 다 만들면 그때 내려놓아요 (이야기 AI가 써요: 가짜 AI)
+    load();
+    p.run(`AI.gpu = true; AI.engine = ${FAKE_AI}; AI.loading = Promise.resolve(AI.engine);`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    await p.run('mkMake()');
+    assert.equal(p.json('MK.step'), 'done', p.json('MK.err'));
+    assert.equal(p.json('!!AI.engine'), false, '다 만들면 내려놓아요');
+    // 그래도 이야기를 열 때 올라가 있으면 내려놓고, 휴대폰이 메모리를 정리하는 동안(1.5초) 첫 문장을 기다려요
+    load();
+    const t0 = Date.now();
+    p.run('openMission("scene", SCENES[0].key)');
+    assert.equal(p.json('!!AI.engine'), false);
+    await new Promise(r => setTimeout(r, 500));
+    assert.equal(p.json('__said.length'), 0, '바로 읽지 않아요');
+    await until(() => p.json('__said.length') > 0, 4000);
+    assert.ok(p.json('__said[0].at') - t0 >= 1400, String(p.json('__said[0].at') - t0));
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('voice: the backup English voice rests while the phone voice speaks, and its heavy setup waits while a story is read by the phone Korean voice', async () => {
+  const p = bootPage({}, FAKE_SPEECH_PLAN + FAKE_WORKER);
+  try {
+    p.run('openMission("scene", SCENES[0].key); Voice.start()');
+    assert.deepEqual(p.json('__workers[0].posts.map(m => m.t)').slice(0, 2), ['gate', 'init']);
+    const gates = () => p.json('__workers[0].posts.filter(m => m.t === "gate")');
+    assert.equal(gates()[0].heavy, true, '이야기를 읽는 동안에는 무거운 준비를 미뤄요');
+    await until(() => gates().some(m => m.hold) && !gates()[gates().length - 1].hold);
+    assert.ok(gates().some(m => m.hold && m.heavy), '휴대폰 목소리가 말하는 동안 쉬어요');
+    assert.equal(gates()[gates().length - 1].hold, false, '말을 마치면 쉬기를 풀어요');
+    // 휴대폰 영어 목소리를 못 쓰면 이야기 중에도 준비해요 (영어 단어가 이야기 내내 빠지지 않게)
+    p.run('ssBroken.en = true; svCtl()');
+    assert.equal(gates()[gates().length - 1].heavy, false);
+    // 일꾼이 무거운 준비를 하는 동안에는 휴대폰 목소리가 기다렸다가 말해요
+    p.run('svPause(); __said.length = 0; __workers[0].onmessage({ data: { t: "busy", on: true } }); tts("사과", "ko-KR", 1).catch(() => { })');
+    await new Promise(r => setTimeout(r, 150));
+    assert.equal(p.json('__said.length'), 0, '무거운 준비를 하는 동안 기다려요');
+    p.run('__workers[0].onmessage({ data: { t: "busy", on: false } })');
+    await until(() => p.json('__said.length') > 0);
+    assert.equal(p.json('__said[0].lang'), 'ko-KR');
+    p.run('delete ssBroken.en; svCtl()');
+    p.run('goHome()');
+    await until(() => { const g = gates(); return !g[g.length - 1].hold && !g[g.length - 1].heavy; });
+    const g = gates();
+    assert.deepEqual(g[g.length - 1], { t: 'gate', hold: false, heavy: false }, '이야기를 나가면 준비를 이어 가요');
+    // 일꾼 쪽: 쉬라고 하면 준비를 시작하지 않고, 풀리면 시작해요
+    const box = { calls: [], posts: [] };
+    box.postMessage = m => box.posts.push(m);
+    box.importScripts = u => { box.calls.push(u); throw new Error('stop here'); };
+    box.self = box;
+    vm.createContext(box);
+    vm.runInContext(p.json('VOICE_WORKER'), box);
+    box.onmessage({ data: { t: 'gate', hold: false, heavy: true } });
+    box.onmessage({ data: { t: 'init', base: 'https://example.test/tts/' } });
+    await new Promise(r => setTimeout(r, 40));
+    assert.deepEqual(box.calls, [], '이야기를 읽는 동안에는 시작하지 않아요');
+    box.onmessage({ data: { t: 'gate', hold: true, heavy: false } });
+    await new Promise(r => setTimeout(r, 40));
+    assert.deepEqual(box.calls, [], '휴대폰 목소리가 말하는 동안에는 시작하지 않아요');
+    box.onmessage({ data: { t: 'gate', hold: false, heavy: false } });
+    await until(() => box.calls.length > 0);
+    assert.deepEqual(box.calls, ['https://example.test/tts/ort.wasm.min.js']);
+    assert.deepEqual(JSON.parse(JSON.stringify(box.posts.filter(m => m.t === 'busy'))), [{ t: 'busy', on: true }, { t: 'busy', on: false }], '무거운 일을 하는 동안을 알려요');
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+// 목소리 목록을 정해서: 기기 안 목소리(localService true)와 인터넷 목소리(false). 말한 목소리 이름을 __said에 적어요
+const SPEECH = (voices, ua) => `(() => {
+  ${ua ? `Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => ${JSON.stringify(ua)} });` : ''}
+  window.__said = [];
+  const voices = ${JSON.stringify(voices)};
+  let cur = null;
+  const ss = { speaking: false, pending: false, paused: false, getVoices: () => voices, addEventListener() { }, removeEventListener() { },
+    cancel() { const u = cur; cur = null; ss.speaking = ss.pending = false; if (u) setTimeout(() => u.onerror && u.onerror({ error: 'canceled' }), 0); },
+    resume() { ss.paused = false; },
+    speak(u) {
+      cur = u; ss.pending = true; __said.push((u.voice ? u.voice.name : '(브라우저가 고름)') + ' ' + u.lang);
+      setTimeout(() => { if (cur !== u) return; ss.pending = false; ss.speaking = true; u.onstart && u.onstart(); setTimeout(() => { if (cur !== u) return; cur = null; ss.speaking = false; u.onend && u.onend(); }, 30); }, 5);
+    } };
+  window.speechSynthesis = ss;
+  window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+})()`;
+const KO_HERE = { lang: 'ko-KR', name: 'Microsoft Heami - Korean (Korean)', voiceURI: 'heami', localService: true };
+const KO_NET = { lang: 'ko-KR', name: 'Microsoft SunHi Online (Natural) - Korean (Korean)', voiceURI: 'sunhi', localService: false };
+const KO_NET2 = { lang: 'ko-KR', name: 'Google 한국의', voiceURI: 'Google 한국의', localService: false };
+const EN_HERE = { lang: 'en-US', name: 'Microsoft Zira - English (United States)', voiceURI: 'zira', localService: true };
+const EN_NET = { lang: 'en-US', name: 'Google US English', voiceURI: 'Google US English', localService: false };
+const UA_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
+const UA_MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
+const UA_PHONE = 'Mozilla/5.0 (Linux; Android 15; SM-S931N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36';
+const vname = (p, lang) => p.json(`(bestVoice('${lang}') || {}).name || null`);
+
+test('voice privacy: automatic choice uses on-device voices only, for Korean and English', async () => {
+  let p = bootPage({}, SPEECH([KO_HERE, EN_HERE], UA_WIN));
+  try {
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US'), p.json('devVoice("ko-KR")'), p.json('devVoice("en-US")'), p.json('voiceOutsideHTML()')], [KO_HERE.name, EN_HERE.name, true, true, '']);
+    await p.run('tts("안녕하세요", "ko-KR", 1)');
+    assert.deepEqual(p.json('__said'), [KO_HERE.name + ' ko-KR']);
+  } finally { p.close(); }
+  // 섞여 있으면: 전에 더 높게 치던 인터넷 목소리(Natural·Google) 대신 기기 안 목소리
+  p = bootPage({}, SPEECH([KO_NET, KO_NET2, KO_HERE, EN_NET, EN_HERE], UA_WIN));
+  try {
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US')], [KO_HERE.name, EN_HERE.name]);
+    await p.run('tts("안녕하세요", "ko-KR", 1)');
+    await p.run('tts("hello", "en-US", 1)');
+    assert.deepEqual(p.json('__said'), [KO_HERE.name + ' ko-KR', EN_HERE.name + ' en-US']);
+    // '인터넷 목소리도 쓰기'를 켜면 인터넷 목소리도 골라요
+    p.run('SAVE.netVoice = true');
+    assert.equal(vname(p, 'ko-KR'), KO_NET.name);
+    // 설정에서 직접 고른 목소리는 그 사람이 고른 것: 켜지 않아도 써요
+    p.run('SAVE.netVoice = false; SAVE.koVoice = "Google 한국의"');
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US')], [KO_NET2.name, EN_HERE.name]);
+  } finally { p.close(); }
+  // 인터넷 목소리만: 한국어는 소리를 내지 않고(브라우저에 목소리를 맡기지도 않아요), 영어는 기기 안 고품질 목소리 차례
+  p = bootPage({}, SPEECH([KO_NET, EN_NET], UA_WIN));
+  try {
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US'), p.json('devVoice("ko-KR")'), p.json('devVoice("en-US")')], [null, null, false, false]);
+    await assert.rejects(p.run('tts("안녕하세요", "ko-KR", 1)'), e => e && e.name === 'NoKoVoice');
+    assert.deepEqual(p.json('__said'), []);
+    assert.match(p.json('voiceStat()'), /^한국어: 인터넷 목소리뿐 → 자막으로 · 영어: (?!.*Google)/);
+    assert.match(p.json('voiceDiag()'), /기기 목소리 한1\(인터넷 1\) 영1\(인터넷 1\)/);
+  } finally { p.close(); }
+});
+
+test('voice privacy: with only online Korean voices the story shows how to add one and an online-voice switch, also on a phone', async () => {
+  for (const [ua, how] of [[UA_WIN, /Windows 설정 → 시간 및 언어 → 음성\(또는 언어\)에서 한국어 음성을 추가/], [UA_MAC, /Mac 시스템 설정 → 손쉬운 사용 → 읽기 및 말하기 → 시스템 음성에서 Yuna 같은 한국어 음성을 추가/], [UA_PHONE, /휴대폰 설정 → 텍스트 음성 변환\(TTS\)에서 한국어 음성 데이터를 받으면/]]) {
+    const p = bootPage({}, SPEECH([KO_NET2, EN_HERE], ua));
+    try {
+      p.run('openMission("scene", SCENES[0].key)');
+      const hint = p.document.getElementById('vhint');
+      await until(() => /인터넷 목소리뿐/.test(hint.textContent));
+      assert.match(hint.textContent, /이 기기의 한국어 목소리는 인터넷 목소리뿐이라서 한국어 자막은 글로만 보여 주고/);
+      assert.match(hint.textContent, how);
+      assert.match(hint.textContent, /인터넷 목소리도 쓰기를 눌러요\. 그러면 읽을 문장이 목소리 회사로 가요\./);
+      const btn = hint.querySelector('[data-act="vnet"]');
+      assert.equal(btn.textContent, '인터넷 목소리도 쓰기');
+      btn.click();
+      assert.deepEqual([p.json('SAVE.netVoice'), p.json('devVoice("ko-KR")')], [true, true]);
+      await until(() => !/인터넷 목소리뿐/.test(hint.textContent));
+      assert.doesNotMatch(hint.textContent, /인터넷 목소리뿐/);
+      assert.deepEqual(p.errors, []);
+    } finally { p.close(); }
+  }
+  // 한국어 목소리가 아예 없으면 더하는 방법만 (단추 없음)
+  const p = bootPage({}, SPEECH([EN_HERE], UA_WIN));
+  try {
+    p.run('openMission("scene", SCENES[0].key)');
+    const hint = p.document.getElementById('vhint');
+    await until(() => /한국어 목소리가 없어서/.test(hint.textContent));
+    assert.match(hint.textContent, /이 기기에는 한국어 목소리가 없어서.*Windows 설정 → 시간 및 언어 → 음성/);
+    assert.equal(hint.querySelector('[data-act="vnet"]'), null);
+  } finally { p.close(); }
+});
+
+test('voice privacy: the settings switch 인터넷 목소리도 쓰기 is off by default and says where sentences go when on', () => {
+  const p = bootPage({}, SPEECH([KO_NET2, EN_HERE], UA_WIN));
+  try {
+    p.run('renderHome()');
+    const seg = () => p.document.querySelector('#home .seg[data-set="netVoice"]');
+    assert.deepEqual([p.json('SAVE.netVoice'), seg().querySelector('button.on').dataset.v], [false, 'false']);
+    assert.match(seg().parentElement.textContent, /인터넷 목소리도 쓰기 꺼 두면 기기 안 목소리만 써요\. 읽을 문장이 기기 밖으로 나가지 않아요\./);
+    assert.match(p.document.getElementById('vstat').textContent, /한국어: 인터넷 목소리뿐 → 자막으로/);
+    seg().querySelector('button[data-v="true"]').click();
+    assert.equal(p.json('SAVE.netVoice'), true);
+    assert.match(seg().parentElement.textContent, /켜 두면 기기 안 목소리가 없을 때 인터넷 목소리로 읽어요\. 그때 읽을 문장이 목소리 회사\(Google·Microsoft 등\)로 가요\./);
+    assert.match(p.document.getElementById('vstat').textContent, /한국어: 인터넷 목소리 \(Google 한국의\)/);
   } finally { p.close(); }
 });

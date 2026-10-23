@@ -11522,6 +11522,30 @@ async function wgPrefillChunkDone(pipeline, t0, tokens, index, count) {
     catch (e) {
         // the report must never break generation
     }
+    // word-game patch: then give the GPU a short rest (config.wg_prefill_gap / wgSetPrefillGap, ms; 0 = no pause)
+    if (pipeline.wgPrefillGap > 0) {
+        await new Promise((resolve) => setTimeout(resolve, pipeline.wgPrefillGap));
+    }
+}
+// word-game patch: free a TVM tensor now instead of at the end of its scope (the later scope dispose does nothing)
+function wgFree(tensor) {
+    if (tensor && typeof tensor.dispose === "function") {
+        tensor.dispose();
+    }
+}
+// word-game patch: tell globalThis.wgSampleStep (set by gpu-watch.js) when sampling the first token starts and ends
+// (after the whole prompt was read), so a lost GPU can be placed: while reading, during that first sampling, or later
+function wgSampleStep(at, tokens) {
+    const hook = globalThis.wgSampleStep;
+    if (typeof hook !== "function") {
+        return;
+    }
+    try {
+        hook({ at, tokens });
+    }
+    catch (e) {
+        // the report must never break generation
+    }
 }
 /**
  * A lock implemented using Promise.
@@ -11903,6 +11927,7 @@ class LLMChatPipeline {
         // word-game patch: keep the compiled size and use a smaller chunk if the app asks (config.wg_prefill_chunk)
         this.wgCompiledPrefillChunk = this.prefillChunkSize;
         this.wgSetPrefillChunk(config.wg_prefill_chunk);
+        this.wgSetPrefillGap(config.wg_prefill_gap); // word-game patch: rest after each prefill chunk (ms)
         // 5. Consolidate KVCache settings: context window, sliding window, attention sink
         this.slidingWindowSize = config.sliding_window_size;
         this.contextWindowSize = config.context_window_size;
@@ -12316,6 +12341,12 @@ class LLMChatPipeline {
         log.info("word-game prefillChunkSize: ", this.prefillChunkSize);
         return this.prefillChunkSize;
     }
+    // word-game patch: rest (0..1000 ms) after each prefill chunk the GPU finished (only with wgPrefillChunkDone); returns it
+    wgSetPrefillGap(ms) {
+        const n = Math.floor(Number(ms));
+        this.wgPrefillGap = n > 0 ? Math.min(n, 1000) : 0;
+        return this.wgPrefillGap;
+    }
     /**
      * Generate the first token given input prompt
      */
@@ -12344,6 +12375,7 @@ class LLMChatPipeline {
             // with prefilling the prompt to hide overhead by using this promise.
             const grammarMatcherInitPromise = this.prepareGrammarMatcherForSampling(genConfig);
             const { logits, promptLen, promptTokenIds, assistantPrefixTokenIds } = yield this.forwardPrefill(inp, msgRole, inp_role_str, genConfig);
+            wgSampleStep("start", promptLen); // word-game patch
             let promptCheckpoint;
             let nextToken;
             try {
@@ -12356,6 +12388,7 @@ class LLMChatPipeline {
                 yield this.device.sync();
                 yield grammarMatcherInitPromise;
                 nextToken = yield this.sampleFromRawLogits(logits, genConfig);
+                wgSampleStep("end", promptLen); // word-game patch
             }
             finally {
                 logits.dispose();
@@ -12427,6 +12460,14 @@ class LLMChatPipeline {
                         }
                         if (i === chunks.length - 1) {
                             logits = this.tvm.detachFromCurrentScope(chunkLogits);
+                        }
+                        else {
+                            // word-game patch: only the last chunk's logits are sampled. Free this chunk's logits (1 x vocab f32,
+                            // 1 MB for Gemma 4) and its text embeddings now, so they are not all kept until the prompt is read
+                            wgFree(chunkLogits);
+                            if (chunk.embeddings === undefined || chunk.embeddings === null) {
+                                wgFree(embeddings);
+                            }
                         }
                     }
                 }

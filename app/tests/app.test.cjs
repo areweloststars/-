@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { build, out, seal, unseal, sumOf, sum } = require('../build.cjs');
-const { bootPage } = require('./page.cjs');
+const { bootPage, FAKE_AI } = require('./page.cjs');
 
 const STORE_KEY = 'day02-voca-mission-v1';
 // 일반 사전 뜻으로 만든 연습용 단어 목록 (교재 내용 아님)
@@ -135,6 +135,7 @@ test('a deck made on this device is saved, reopened after reload, and keeps its 
   const p = bootPage();
   let store;
   try {
+    p.run(`AI.gpu = true; AI.engine = ${FAKE_AI};`); // 이 기기의 이야기 AI가 써요 (가짜 AI)
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
     const made = p.json('({ step: MK.step, err: MK.err, id: MK.deck && MK.deck.id, scenes: MK.deck && MK.deck.scenes.length, words: MK.deck && Object.keys(MK.deck.words).length })');

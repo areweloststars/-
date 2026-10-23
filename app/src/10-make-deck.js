@@ -91,7 +91,7 @@ function mkChunk(list, size = 6) {
 }
 // 이야기 AI 준비 (만들기 기록에 진행률). 그만두기를 누르면 내려받기도 멈춰요. 못 하면 null
 async function mkAiReady(ctl, label) {
-  const first = !aiReadyBefore(), lab = label || (first ? `이야기 AI(Gemma 4) 받는 중 · ${AI_SIZE}, 처음 한 번만 (와이파이에서)` : '이야기 AI 준비 중'), t0 = Date.now();
+  const first = !aiReadyBefore(), lab = label || (first ? `이야기 AI(Gemma 4) 받는 중 · ${aiSize()}, 처음 한 번만 (와이파이에서)` : '이야기 AI 준비 중'), t0 = Date.now();
   const li = mkLog(lab);
   // 진행률은 단계마다 0→100이 다시 시작돼요: 내려받기 → 기기에 올리기 → 마무리
   let last = '';
@@ -183,12 +183,19 @@ function mkWhenVisible(signal) {
     if (signal) { if (signal.aborted) return ab(); signal.addEventListener('abort', ab, { once: true }); }
   });
 }
+// 이야기 AI가 준비하거나 쓰다가 멈췄을 때: 단어장은 저장하지 않고 까닭을 보여 줘요 (catch: 'AI가 쓴 글 보기'·'다시 해 보기', 입력한 단어는 그대로)
+const mkFail = text => ({ code: 'ai_failed', fail: true, text: String(text).replace(/\s+/g, ' ').trim() });
 async function mkMake() {
+  MK.fail = false;
   const rows0 = mkValidRows();
   if (rows0.length < MK_MIN || rows0.length > MK_MAX) {
     MK.err = rows0.length < MK_MIN ? `쓸 수 있는 단어가 ${rows0.length}개예요. ${MK_MIN}단어 이상 필요해요 (같은 단어는 하나로 쳐요).` : `${MK_MAX}단어까지만 만들 수 있어요.`;
     renderMake(); return;
   }
+  // 새 단어장은 이 기기의 이야기 AI(Gemma 4)가 이야기를 써야 만들어요 (local. Claude가 쓰는 화면은 예전 그대로).
+  // 이야기 AI를 못 돌리는 기기이거나, 아직 안 받았는데 모바일 데이터면 만들지 않고 까닭과 할 일을 보여 줘요 (입력한 단어·이름은 그대로)
+  const local = !(MK.useAI && mkCanAI()), gate = local ? mkGate() : '';
+  if (gate) { MK.err = gate; renderMake(); return; }
   MK.err = ''; MK.log = []; MK.step = 'making'; MK.saveNote = ''; MK.aiNote = ''; MK.aiDiag = null; MK.aiEnv = ''; MK.bg = 0; MK.bgNew = false; AI.diag = []; mkPicN = 0;
   const storySeed = Math.floor(Math.random() * SF.length);
   const redo = MK.redo, ctl = MK.ctl = new AbortController(), id = redo ? redo.id : 'u' + Date.now().toString(36);
@@ -202,6 +209,12 @@ async function mkMake() {
   renderMake();
   try {
     wakeHold('make'); // 만드는 동안 화면이 꺼지지 않게 (끝나면 finally에서 풀어요)
+    // 이야기 AI를 쓸 수 있는지 아직 몰랐으면(확인 화면이 다 그려지기 전에 눌렀으면) 여기서 확인해요
+    if (local) {
+      const why = await aiWhyNot();
+      if (ctl.signal.aborted) throw { code: 'cancelled' };
+      if (why) { MK.aiWhy = why; throw { code: 'no_ai', text: mkNoAiText(why) }; }
+    }
     let plan = null;
     if (MK.useAI && mkCanAI()) {
       const li = mkLog('단어를 이야기 에피소드로 나누는 중');
@@ -242,27 +255,14 @@ JSON으로만 답해. 형식: {"deckName": "단어장 이름(12자 이내)", "ep
       for (const part of mkChunk(rows0.map(r => r.en).filter(w => !used.has(w)))) eps.push({ title: '', theme: '', words: part });
     }
     if (!eps.length) eps = mkChunk(rows0.map(r => r.en)).map((ws, i) => ({ title: `단어 미션 ${i + 1}`, theme: '', words: ws }));
-    // 휴대폰 안 이야기 AI(Gemma 4) 준비: 처음이면 한 번 내려받아요. 못 돌리는 기기나 실패면 앱이 만든 문장 그대로
-    // 아직 안 받았는데 모바일 데이터(데이터 절약 모드)면 3GB를 저절로 받지 않고 앱 문장으로 만들어요
-    let ai = null, aiMsg = '', aiData = false;
-    if (!(MK.useAI && mkCanAI())) {
-      if (await aiGpuOk()) {
-        if (ctl.signal.aborted) throw { code: 'cancelled' };
-        if (aiNeedsDownload() && aiMobileData()) {
-          aiData = true;
-          mkLogSet(mkLog('이야기 AI 확인'), 'warn', `모바일 데이터라서 이야기 AI(${AI_SIZE})는 받지 않고 기본 문장으로 만들어요`);
-        } else {
-          ai = await mkAiReady(ctl, null);
-          if (!ai) aiMsg = (AI.err && AI.err.text) || '이야기 AI를 내려받거나 준비하지 못했어요.';
-        }
-      } else {
-        aiMsg = (await aiWhyNot()) || '이 기기(브라우저)에서는 이야기 AI를 돌릴 수 없어요.';
-        mkLogSet(mkLog('이야기 AI 확인'), 'warn', '이야기 AI를 쓸 수 없어서 기본 문장으로 만들어요');
-      }
+    // 이야기 AI 준비: 처음이면 한 번 내려받아요(와이파이). 준비하지 못하면 단어장을 만들지 않아요
+    let ai = null;
+    if (local) {
+      ai = await mkAiReady(ctl, null);
+      if (!ai) throw mkFail(`이야기 AI를 준비하지 못해서 단어장을 만들지 않았어요. ${(AI.err && AI.err.text) || ''}`);
     }
-    // aiLostN: 그래픽 칩을 잃은 횟수. 엔진은 한 번만 다시 준비하고(aiReloaded), 그 에피소드를 한 번만 다시 써요 (되풀이하지 않게)
-    let aiLines = 0, aiLostN = 0, aiReloaded = false, aiReloadFail = false, aiGaveUp = false;
-    const aiTried = !!ai, aiErrs = [];
+    // aiReloaded: 그래픽 칩을 잃으면 엔진은 한 번만 다시 준비하고(그 에피소드를 한 번만 다시 써요), 또 잃으면 멈춰요 (되풀이하지 않게)
+    let aiLines = 0, wordN = 0, aiReloaded = false;
     // 너무 작은 에피소드(1~2단어)는 앞 에피소드와 합침(최대 8단어)
     for (let i = eps.length - 1; i > 0; i--) if (!eps[i].keep && eps[i].words.length < 3 && eps[i - 1].words.length + eps[i].words.length <= 8) { eps[i - 1].words.push(...eps[i].words); eps.splice(i, 1); }
     for (let k = 0; k < eps.length; k++) {
@@ -298,35 +298,46 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
         }
       }
       if (!res) {
-        // Claude 없이: 단어마다 한 줄, 그림 칸에는 뜻 힌트
-        // Claude 없이: 이야기 틀로 바로 (에피소드마다 다른 이야기)
+        // 줄거리 틀(mkStory: 인물·말썽 → 해결·단어 자리·뜻 그림)을 만들고, 이 기기의 이야기 AI가 단어 줄을 써요 (에피소드마다 다른 이야기)
+        // (Claude가 쓰는 화면에서 Claude가 못 쓴 에피소드는 예전처럼 틀 그대로)
         res = mkStory(ep.words, rows, storySeed + k);
         ep.title = res.title;
-        // 이야기 AI가 앱 문장을 다듬어요. 쓰다가 그래픽 칩을 잃으면(엔진이 죽어요) 엔진을 버리고, 한 번만 다시 준비해서 같은 에피소드를 한 번 더 써요
-        for (let again = false; ai; again = true) {
-          const li = mkLog(`에피소드 ${k + 1}/${eps.length} ‘${ep.title}’ 이야기 AI가 ${again ? '다시 ' : ''}쓰는 중`);
-          try {
-            const c = await aiRewrite(ai, res, rows, storySeed + k, ctl.signal);
-            aiLines += c;
-            mkLogSet(li, c ? 'ok' : 'warn', c ? `에피소드 ${k + 1} ‘${ep.title}’ 완성 (AI 문장 ${c}줄)` : `에피소드 ${k + 1}: AI 문장이 규칙(단어 자리·뜻)에 맞지 않아 기본 문장으로`);
-            break;
-          } catch (e) {
-            if (e && e.code === 'cancelled') throw e;
-            // 무슨 오류였는지 남겨요 (안내 글에. 'AI가 쓴 글 보기' 기록은 aiRewrite가 남겨요)
-            const msg = aiMsgOf(e) || '알 수 없는 오류';
-            aiErrs.push(msg);
-            if (!aiLost(e)) { mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI가 쓰다가 오류가 나서 기본 문장으로 (${msg.slice(0, 80)})`); break; }
-            // 그래픽 칩을 잃었어요: 이 엔진은 다시 쓸 수 없어요 (그대로 두면 다음 단어장도 바로 실패해요)
-            aiLostN++;
-            aiDrop(); ai = null;
-            if (aiReloaded) { aiGaveUp = true; mkLogSet(li, 'warn', `에피소드 ${k + 1}: 그래픽 칩 연결이 또 끊겨서 남은 이야기는 기본 문장으로`); break; }
-            aiReloaded = true;
-            mkLogSet(li, 'warn', `에피소드 ${k + 1}: 쓰는 중에 그래픽 칩 연결이 끊겼어요. AI를 다시 준비해서 한 번 더 써요`);
-            await mkWhenVisible(ctl.signal);
-            await mkSleep(AI.retryMs == null ? 1500 : AI.retryMs, ctl.signal);
-            ai = await mkAiReady(ctl, '이야기 AI 다시 준비 중');
-            if (!ai) aiReloadFail = true;
+        if (local) {
+          const at = `에피소드 ${k + 1} ‘${ep.title}’에서`;
+          // 쓰다가 그래픽 칩을 잃으면(엔진이 죽어요) 엔진을 버리고, 한 번만 다시 준비해서 같은 에피소드를 한 번 더 써요. 다른 오류면 멈춰요
+          let c = -1, li = 0;
+          for (let again = false; c < 0; again = true) {
+            li = mkLog(`에피소드 ${k + 1}/${eps.length} ‘${ep.title}’ 이야기 AI가 ${again ? '다시 ' : ''}쓰는 중`);
+            try {
+              c = await aiRewrite(ai, res, rows, storySeed + k, ctl.signal, true);
+            } catch (e) {
+              if (e && e.code === 'cancelled') throw e;
+              // 무슨 오류였는지 ('AI가 쓴 글 보기' 기록은 aiRewrite가 남겨요)
+              const msg = aiMsgOf(e) || '알 수 없는 오류';
+              if (!aiLost(e)) {
+                mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI가 쓰다가 오류가 났어요 (${msg.slice(0, 80)})`);
+                throw mkFail(`${at} 이야기 AI가 쓰다가 오류가 나서 단어장을 만들지 않았어요 (오류: ${msg.slice(0, 160)}). 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요.`);
+              }
+              // 그래픽 칩을 잃었어요: 이 엔진은 다시 쓸 수 없어요 (그대로 두면 다음 단어장도 바로 실패해요)
+              aiDrop(); ai = null;
+              const lost = `${at} 이야기 AI가 쓰는 중에 그래픽 칩 연결이 끊겼어요(휴대폰이 AI의 그래픽 작업을 멈췄어요).`, calm = '다른 앱을 닫고, 다 만들 때까지 화면을 켜 둔 채로 다시 해 보세요.';
+              if (aiReloaded) { mkLogSet(li, 'warn', `에피소드 ${k + 1}: 그래픽 칩 연결이 또 끊겼어요`); throw mkFail(`${lost} AI를 다시 준비해서 한 번 더 써 봤지만 또 끊겨서 단어장을 만들지 않았어요. ${calm}`); }
+              aiReloaded = true;
+              mkLogSet(li, 'warn', `에피소드 ${k + 1}: 쓰는 중에 그래픽 칩 연결이 끊겼어요. AI를 다시 준비해서 한 번 더 써요`);
+              await mkWhenVisible(ctl.signal);
+              await mkSleep(AI.retryMs == null ? 1500 : AI.retryMs, ctl.signal);
+              ai = await mkAiReady(ctl, '이야기 AI 다시 준비 중');
+              if (!ai) throw mkFail(`${lost} AI를 다시 준비하지 못해서 단어장을 만들지 않았어요. ${(AI.err && AI.err.text) || ''} ${calm}`);
+            }
           }
+          // 이야기 AI가 단어 줄의 AI_MIN_SHARE(2/3, 올림) 이상을 써야 이 에피소드를 써요. 남은 몇 줄은 줄거리 틀 문장 그대로 (단어마다 칩이 있게)
+          const n = aiWordLines(res, rows), need = Math.max(1, aiNeed(n));
+          if (c < need) {
+            mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI 문장이 모자라요 (${n}줄 가운데 ${c}줄)`);
+            throw mkFail(`${at} 이야기 AI가 단어 문장 ${n}줄 가운데 ${c}줄만 규칙(단어 자리·뜻)에 맞게 썼어요. ${need}줄 이상 써야 해서 단어장을 만들지 않았어요. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요.`);
+          }
+          mkLogSet(li, 'ok', `에피소드 ${k + 1} ‘${ep.title}’ 완성 (AI 문장 ${c}줄)`);
+          aiLines += c; wordN += n;
         }
       }
       const out = mkEpisode(key, ep.title, ep.words, rows, res);
@@ -335,13 +346,8 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     deck.scenes = deck.scenes.filter(sc => sc.words.length);
     if (!deck.scenes.length) throw { code: 'empty_completion' };
     const saved = await DeckStore.put(deck);
-    // 이야기 AI가 몇 줄을 썼는지, 못 썼으면 왜 그런지 크게 알려 줘요
-    const wordN = deck.scenes.reduce((a, sc) => a + sc.words.length, 0);
-    // 그래픽 칩을 잃었을 때: 무슨 일인지와 다시 준비해 본 결과
-    const lostNote = !aiLostN ? '' : aiReloadFail ? ' 쓰는 중에 그래픽 칩 연결이 끊겼어요(휴대폰이 AI의 그래픽 작업을 멈췄어요). AI를 다시 준비하지 못해서 남은 이야기는 기본 문장으로 만들었어요. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 두세요.'
-      : aiGaveUp ? ' 쓰는 중에 그래픽 칩 연결이 끊겼어요(휴대폰이 AI의 그래픽 작업을 멈췄어요). AI를 다시 준비해서 한 번 더 써 봤지만 또 끊겨서, 남은 이야기는 기본 문장으로 만들었어요. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 두세요.'
-        : ' 쓰는 중에 그래픽 칩 연결이 한 번 끊겨서(휴대폰이 AI의 그래픽 작업을 멈췄어요), AI를 다시 준비해 그 에피소드를 다시 썼어요.';
-    MK.aiNote = MK.useAI ? '' : aiData ? `모바일 데이터로 연결돼 있어서 이야기 AI(${AI_SIZE})는 받지 않았어요. 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 한 번 받아 두세요.` : aiMsg ? `이야기 AI를 쓰지 못했어요. ${aiMsg} 이번 이야기는 앱이 줄거리에 맞춘 기본 문장으로 만들었어요.` : aiTried ? (aiLines ? `이야기 AI(Gemma 4)가 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 다듬었어요.` : aiErrs.length ? `이야기 AI가 문장을 쓰다가 오류가 났어요 (오류: ${aiErrs[0].slice(0, 160)}). 이번 이야기는 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요.` : '이야기 AI가 쓴 문장이 규칙(단어 자리·뜻)에 맞지 않아서 모두 앱의 기본 문장으로 만들었어요. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요.') + lostNote : '';
+    // 이야기 AI가 단어 줄을 몇 줄 썼는지 (그래픽 칩을 한 번 잃고 다시 썼으면 그 일도)
+    MK.aiNote = !local ? '' : `이야기 AI(Gemma 4)가 이 기기에서 단어 문장 ${wordN}줄 가운데 ${aiLines}줄을 썼어요.` + (aiReloaded ? ' 쓰는 중에 그래픽 칩 연결이 한 번 끊겨서(휴대폰이 AI의 그래픽 작업을 멈췄어요), AI를 다시 준비해 그 에피소드를 다시 썼어요.' : '');
     if (MK.aiNote && MK.bg) MK.aiNote += ' ' + MK_BG.replace('다 만들 때까지', '다음에는 다 만들 때까지');
     // 'AI가 쓴 글 보기': AI를 준비하거나 쓴 기록이 있으면 (기기 정보도 한 줄)
     MK.aiDiag = (AI.diag || []).length ? AI.diag.slice() : null;
@@ -352,13 +358,24 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
     if (redo && DECK.id === deck.id) switchDeck(deck.id); // 지금 쓰는 단어장이면 새 이야기로 다시 열어요
     MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
     Sound.play('project');
-    voiceWarm(); // 게임을 열기 전에 목소리를 미리 준비
+    voiceWarm(); // 게임을 열기 전에 목소리를 미리 준비 (이야기 AI가 일을 다 마친 뒤)
     // 만드는 동안 다른 화면에 가 있었으면 다 됐다고 알려 줌
     if ($('#make').hidden) toast(`‘${deck.name}’ 단어장이 완성됐어요! 홈 위 단어장 단추에서 골라요`);
   } catch (e) {
-    MK.step = 'review'; MK.err = mkErrText(e) || '만들기를 멈췄어요.';
+    MK.step = 'review'; MK.err = (e && e.text) || mkErrText(e) || '만들기를 멈췄어요.';
+    // 이야기 AI가 준비하거나 쓰다가 멈췄어요: 단어장은 저장하지 않았어요. 까닭과 'AI가 쓴 글 보기', '다시 해 보기'를 보여 줘요 (입력한 단어는 그대로)
+    if (e && e.fail) {
+      MK.fail = true;
+      MK.err += (MK.bg ? ' ' + MK_BG : '') + ' 입력한 단어는 그대로 있어요. ‘다시 해 보기’를 누르면 처음부터 다시 만들어요.';
+      MK.aiDiag = (AI.diag || []).length ? AI.diag.slice() : null;
+      MK.aiEnv = MK.aiDiag ? [aiEnvText(), aiDevText()].filter(Boolean).join('\n') : '';
+    }
     if ($('#make').hidden && e && e.code !== 'cancelled') toast('단어장을 만들지 못했어요. ‘사진 찍어 새 단어장 만들기’를 다시 눌러 확인해 주세요');
-  } finally { wakeFree('make'); }
+  } finally {
+    wakeFree('make');
+    // 다른 화면에 가 있는 동안 다 만들었으면(실패해도) 여기서 이야기 AI를 내려놓아요. 만들기 화면에 있으면 그 화면을 나갈 때 내려놓아요 (showScreen)
+    if ($('#make').hidden) aiRelease();
+  }
   if (!$('#make').hidden) renderMake();
 }
 
@@ -401,26 +418,26 @@ function bindMake() {
       const parsed = mkParse(MK.paste), rows = mkDedupe(parsed);
       if (!rows.length) { MK.err = '‘영어 - 뜻’ 모양의 줄을 찾지 못했어요.'; renderMake(); return; }
       MK.note = [parsed.skipped ? `읽지 못한 줄 ${parsed.skipped}개는 뺐어요.` : '', rows.length > MK_MAX ? `단어가 많아서 앞의 ${MK_MAX}개만 가져왔어요.` : ''].filter(Boolean).join(' ');
-      MK.rows = rows.slice(0, MK_MAX); MK.err = ''; MK.step = 'review'; voiceWarm(); renderMake();
+      MK.rows = rows.slice(0, MK_MAX); MK.err = ''; MK.step = 'review'; if (!aiSoon()) voiceWarm(); renderMake(); // 이야기 AI를 쓸 기기는 다 만든 뒤에 받아요
     }
     else if (a === 'rmrow') { MK.rows.splice(+b.dataset.i, 1); renderMake(); }
     else if (a === 'addrow') { MK.rows.push({ en: '', ko: '', pos: 'x' }); renderMake(); const ins = document.querySelectorAll('#make .mken'); if (ins.length) ins[ins.length - 1].focus(); }
-    else if ((a === 'make' || a === 'makeai' || a === 'aidl' || a === 'bench') && MK.benchCtl) toast('AI 진단 중이에요. 끝난 뒤에 해 주세요');
-    else if (a === 'make' || a === 'makeai') { const nm = $('#mkname'); if (nm) MK.name = nm.value; MK.useAI = a === 'makeai'; mkMake(); }
+    else if ((a === 'make' || a === 'makeai' || a === 'retry' || a === 'aidl' || a === 'bench') && MK.benchCtl) toast('AI 진단 중이에요. 끝난 뒤에 해 주세요');
+    else if (a === 'make' || a === 'makeai' || a === 'retry') { const nm = $('#mkname'); if (nm) MK.name = nm.value; if (a !== 'retry') MK.useAI = a === 'makeai'; mkMake(); } // 다시 해 보기: 같은 단어로 처음부터
     else if (a === 'bench') {
       // 아직 AI를 안 받았으면 진단하면서 받아요: 모바일 데이터면 한 번 더 물어요
-      if (aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 진단하려면 이야기 AI(${AI_SIZE})를 먼저 받아요.</small><br>그래도 하려면 한 번 더 눌러요`)) return;
+      if (aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 진단하려면 이야기 AI(${aiSize()})를 먼저 받아요.</small><br>그래도 하려면 한 번 더 눌러요`)) return;
       mkBench();
     }
     else if (a === 'benchstop') { if (MK.benchCtl) MK.benchCtl.abort(); }
     else if (a === 'benchcopy') mkBenchCopy();
     else if (a === 'aidl') {
       // 모바일 데이터면 한 번 더 눌러야 받아요 (이야기 AI 약 3GB)
-      if (!MK.aiWhy && aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 이야기 AI는 ${AI_SIZE}라서 와이파이에서 받는 게 좋아요.</small><br>그래도 받으려면 한 번 더 눌러요`)) return;
+      if (!MK.aiWhy && aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 이야기 AI는 ${aiSize()}라서 와이파이에서 받는 게 좋아요.</small><br>그래도 받으려면 한 번 더 눌러요`)) return;
       mkAiPrefetch();
     }
     else if (a === 'aidlstop') { if (MK.aiDlCtl) MK.aiDlCtl.abort(); }
-    else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.note = ''; MK.redo = null; renderMake(); }
+    else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.fail = false; MK.note = ''; MK.redo = null; renderMake(); }
     else if (a === 'play') { const d = MK.deck; MK.step = 'pick'; MK.deck = null; if (d) switchDeck(d.id); goHome(); }
   });
 }

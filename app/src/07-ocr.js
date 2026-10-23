@@ -1311,7 +1311,9 @@ async function mkRead() {
       MK.err = '사진에서 ‘영어 단어 + 한글 뜻’ 줄을 찾지 못했어요. 아래 칸에 읽은 글자를 넣어 두었으니 고쳐서 ‘이 단어들로 확인하기’를 눌러 주세요.';
     } else {
       MK.rows = rows.slice(0, MK_MAX); MK.step = 'review';
-      voiceWarm(); // 단어를 확인하는 동안 목소리를 미리 준비 (단어장을 다 만든 뒤 받기 시작하면 첫 이야기 줄이 늦게 나와요)
+      // 단어를 확인하는 동안 목소리를 미리 준비 (단어장을 다 만든 뒤 받기 시작하면 첫 이야기 줄이 늦게 나와요).
+      // 이야기 AI를 쓸 기기는 받지 않아요: AI가 글을 읽는 동안 받기·준비가 겹치지 않게 (단어장을 다 만든 뒤에 받아요)
+      if (!aiSoon()) voiceWarm();
       const nf = rows.filter(r => r.flag).length;
       MK.note = `사진에서 ${rows.length}단어를 읽었어요.` + (nf ? ` 그중 ${nf}개는 빨간 칸으로 표시했어요. 꼭 확인하고 고쳐 주세요.` : ' 틀린 글자가 없는지 한 번 훑어봐 주세요.') + (rows.length > MK_MAX ? ` 앞의 ${MK_MAX}개만 가져왔어요.` : '');
     }
