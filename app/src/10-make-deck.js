@@ -91,7 +91,7 @@ function mkChunk(list, size = 6) {
 }
 // 이야기 AI 준비 (만들기 기록에 진행률). 그만두기를 누르면 내려받기도 멈춰요. 못 하면 null
 async function mkAiReady(ctl, label) {
-  const first = !aiReadyBefore(), lab = label || (first ? `이야기 AI(Gemma 4) 받는 중 · ${AI_SIZE}, 처음 한 번만 (와이파이에서)` : '이야기 AI 준비 중'), t0 = Date.now();
+  const first = !aiReadyBefore(), lab = label || (first ? `이야기 AI(Gemma 4) 받는 중 · ${aiSize()}, 처음 한 번만 (와이파이에서)` : '이야기 AI 준비 중'), t0 = Date.now();
   const li = mkLog(lab);
   // 진행률은 단계마다 0→100이 다시 시작돼요: 내려받기 → 기기에 올리기 → 마무리
   let last = '';
@@ -426,14 +426,14 @@ function bindMake() {
     else if (a === 'make' || a === 'makeai' || a === 'retry') { const nm = $('#mkname'); if (nm) MK.name = nm.value; if (a !== 'retry') MK.useAI = a === 'makeai'; mkMake(); } // 다시 해 보기: 같은 단어로 처음부터
     else if (a === 'bench') {
       // 아직 AI를 안 받았으면 진단하면서 받아요: 모바일 데이터면 한 번 더 물어요
-      if (aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 진단하려면 이야기 AI(${AI_SIZE})를 먼저 받아요.</small><br>그래도 하려면 한 번 더 눌러요`)) return;
+      if (aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 진단하려면 이야기 AI(${aiSize()})를 먼저 받아요.</small><br>그래도 하려면 한 번 더 눌러요`)) return;
       mkBench();
     }
     else if (a === 'benchstop') { if (MK.benchCtl) MK.benchCtl.abort(); }
     else if (a === 'benchcopy') mkBenchCopy();
     else if (a === 'aidl') {
       // 모바일 데이터면 한 번 더 눌러야 받아요 (이야기 AI 약 3GB)
-      if (!MK.aiWhy && aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 이야기 AI는 ${AI_SIZE}라서 와이파이에서 받는 게 좋아요.</small><br>그래도 받으려면 한 번 더 눌러요`)) return;
+      if (!MK.aiWhy && aiNeedsDownload() && aiMobileData() && !confirmTap(b, `<small>모바일 데이터로 연결돼 있어요. 이야기 AI는 ${aiSize()}라서 와이파이에서 받는 게 좋아요.</small><br>그래도 받으려면 한 번 더 눌러요`)) return;
       mkAiPrefetch();
     }
     else if (a === 'aidlstop') { if (MK.aiDlCtl) MK.aiDlCtl.abort(); }

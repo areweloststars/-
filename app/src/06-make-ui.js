@@ -103,11 +103,11 @@ function mkReviewHTML() {
     <button type="button" class="linkbtn" data-mk="restart">처음으로</button>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`;
 }
 // 새 단어장은 이 기기의 이야기 AI가 이야기를 써야 만들어요: 누가 쓰는지와 필요한 것 (홈 카드·만들기 화면)
-const mkNeedText = () => `이 기기의 이야기 AI(Gemma 4)가 이야기를 써서 새 단어장을 만들어요. 이야기 AI가 돌아가는 크롬과, 처음 한 번 와이파이로 받을 이야기 AI(${AI_SIZE})가 필요해요. 기본 단어장은 어느 기기에서나 할 수 있어요.`;
+const mkNeedText = () => `이 기기의 이야기 AI(Gemma 4)가 이야기를 써서 새 단어장을 만들어요. 이야기 AI가 돌아가는 크롬과, 처음 한 번 와이파이로 받을 이야기 AI(${aiSize()})가 필요해요. 기본 단어장은 어느 기기에서나 할 수 있어요.`;
 // 이야기 AI를 못 돌리는 기기(aiWhyNot의 까닭)와 할 일
 const mkNoAiText = why => `이 기기(브라우저)에서는 이야기 AI가 돌아가지 않아서 새 단어장을 만들 수 없어요. ${why} 이야기 AI가 돌아가는 휴대폰·컴퓨터의 크롬에서 만들어 주세요. 입력한 단어는 이 화면에 그대로 있어요.`;
 // 아직 안 받았는데 모바일 데이터(데이터 절약 모드)면: 3GB를 저절로 받지 않고, 와이파이에서 준비하기 단추로 받으라고 해요
-const mkDataText = () => `지금은 모바일 데이터로 연결돼 있고 이야기 AI(${AI_SIZE})를 아직 받지 않았어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 이야기 AI를 먼저 받아야 단어장을 만들 수 있어요. 입력한 단어는 이 화면에 그대로 있어요.`;
+const mkDataText = () => `지금은 모바일 데이터로 연결돼 있고 이야기 AI(${aiSize()})를 아직 받지 않았어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 이야기 AI를 먼저 받아야 단어장을 만들 수 있어요. 입력한 단어는 이 화면에 그대로 있어요.`;
 // 지금 단어장을 만들 수 없으면 그 까닭과 할 일 ('' = 만들 수 있어요. 이야기 AI를 쓸 수 있는지 아직 확인 중이어도 '': mkMake가 다시 확인해요)
 function mkGate() {
   if (MK.aiWhy) return mkNoAiText(MK.aiWhy);
@@ -138,7 +138,7 @@ function mkAiHTML() {
   const done = files && (!ai || aiReady);
   const aiPart = !ai ? `<b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>새 단어장은 이야기 AI가 이야기를 써야 만들 수 있어요. 이야기 AI가 돌아가는 휴대폰·컴퓨터의 크롬에서 만들어 주세요. 기본 단어장 게임은 그대로 할 수 있어요.`
     : aiReady ? '<b>✓ 이야기 AI(Gemma 4)를 이 기기에 받아 두었어요.</b> 인터넷 없이도 이 기기에서 이야기를 써요. 에피소드마다 30초~1분쯤 걸려요.'
-      : `<b>✓ 이 기기에서 이야기 AI(Gemma 4)를 쓸 수 있어요.</b> 처음 한 번 AI(${AI_SIZE})를 받아요.`;
+      : `<b>✓ 이 기기에서 이야기 AI(Gemma 4)를 쓸 수 있어요.</b> 처음 한 번 AI(${aiSize()})를 받아요.`;
   const filePart = MK.offline === 'ok' ? (ai ? '✓ 사진 읽기·목소리 파일도 이 기기에 받아 두었어요.' : '✓ 사진 읽기·목소리 파일은 이 기기에 받아 두었어요. 인터넷 없이도 게임을 해요.')
     : MK.offline === 'nosw' ? '이 브라우저는 게임 파일을 저장해 두지 못해서 인터넷 없이는 열리지 않아요. 크롬이나 삼성 인터넷으로 열어 주세요.'
       : `게임 파일(사진 읽기·목소리 등, 약 ${offlineMB()}MB)${ai ? '도' : '을'} 받아 두면 인터넷 없이 써요.`;
@@ -153,7 +153,7 @@ function mkAiHTML() {
 function mkBenchHTML() {
   const b = aiBenchLoad(), run = !!MK.benchCtl;
   return `<div class="mkbench"><button type="button" class="btn" data-mk="bench"${run || (MK.aiDl && MK.aiDl.state === 'run') ? ' disabled' : ''}>${run ? 'AI 진단 중…' : 'AI 진단 (4~8분)'}</button>${run ? ' <button type="button" class="linkbtn" data-mk="benchstop">진단 그만두기</button>' : ''}
-    <p class="mksmall">휴대폰 그래픽 칩이 어느 단계에서 멈추는지 알아보고, 글을 나눠 읽을 안전한 조각 크기를 찾아요. 결과는 이 휴대폰에만 남고 어디로도 보내지 않아요.</p>${b ? `<pre id="mkbenchout">${esc(aiBenchText(b))}</pre>${run ? '' : '<button type="button" class="btn" data-mk="benchcopy">결과 복사</button>'}` : ''}</div>`;
+    <p class="mksmall">${aiIsPhone() ? '휴대폰 그래픽 칩이 어느 단계에서 멈추는지 알아보고, 글을 나눠 읽을 안전한 조각 크기를 찾아요. 결과는 이 휴대폰에만 남고' : '컴퓨터 그래픽 칩이 단계마다 얼마나 걸리는지 재요. 컴퓨터는 글을 모델이 만들어진 크기(512토큰) 그대로 읽어요. 결과는 이 컴퓨터에만 남고'} 어디로도 보내지 않아요.</p>${b ? `<pre id="mkbenchout">${esc(aiBenchText(b))}</pre>${run ? '' : '<button type="button" class="btn" data-mk="benchcopy">결과 복사</button>'}` : ''}</div>`;
 }
 // 상자만 다시 그려요 (입력 중인 단어 칸은 그대로)
 // 확인 화면이면 만들기 단추 위 안내와 단추도 (이야기 AI를 쓸 수 있는지 알게 됐거나 받기를 마쳤을 때)
@@ -176,7 +176,7 @@ async function mkAiPrefetch() {
   let last = '';
   const put = st => { MK.aiDl = st; mkAiPut(); };
   const step = (p, x) => { if (x !== last) { last = x; put({ state: 'run', text: x, p }); } };
-  const onProg = (p, t) => step(p, mkAiProgText(p, t, `이야기 AI(${AI_SIZE}) 받는 중`));
+  const onProg = (p, t) => step(p, mkAiProgText(p, t, `이야기 AI(${aiSize()}) 받는 중`));
   const errs = [];
   put({ state: 'run', text: '받기 준비 중', p: 0 });
   wakeHold('aidl'); // 받는 동안 화면이 꺼지지 않게

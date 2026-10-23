@@ -275,3 +275,106 @@ test('voice: the backup English voice rests while the phone voice speaks, and it
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
+
+// 목소리 목록을 정해서: 기기 안 목소리(localService true)와 인터넷 목소리(false). 말한 목소리 이름을 __said에 적어요
+const SPEECH = (voices, ua) => `(() => {
+  ${ua ? `Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => ${JSON.stringify(ua)} });` : ''}
+  window.__said = [];
+  const voices = ${JSON.stringify(voices)};
+  let cur = null;
+  const ss = { speaking: false, pending: false, paused: false, getVoices: () => voices, addEventListener() { }, removeEventListener() { },
+    cancel() { const u = cur; cur = null; ss.speaking = ss.pending = false; if (u) setTimeout(() => u.onerror && u.onerror({ error: 'canceled' }), 0); },
+    resume() { ss.paused = false; },
+    speak(u) {
+      cur = u; ss.pending = true; __said.push((u.voice ? u.voice.name : '(브라우저가 고름)') + ' ' + u.lang);
+      setTimeout(() => { if (cur !== u) return; ss.pending = false; ss.speaking = true; u.onstart && u.onstart(); setTimeout(() => { if (cur !== u) return; cur = null; ss.speaking = false; u.onend && u.onend(); }, 30); }, 5);
+    } };
+  window.speechSynthesis = ss;
+  window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+})()`;
+const KO_HERE = { lang: 'ko-KR', name: 'Microsoft Heami - Korean (Korean)', voiceURI: 'heami', localService: true };
+const KO_NET = { lang: 'ko-KR', name: 'Microsoft SunHi Online (Natural) - Korean (Korean)', voiceURI: 'sunhi', localService: false };
+const KO_NET2 = { lang: 'ko-KR', name: 'Google 한국의', voiceURI: 'Google 한국의', localService: false };
+const EN_HERE = { lang: 'en-US', name: 'Microsoft Zira - English (United States)', voiceURI: 'zira', localService: true };
+const EN_NET = { lang: 'en-US', name: 'Google US English', voiceURI: 'Google US English', localService: false };
+const UA_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
+const UA_MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
+const UA_PHONE = 'Mozilla/5.0 (Linux; Android 15; SM-S931N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36';
+const vname = (p, lang) => p.json(`(bestVoice('${lang}') || {}).name || null`);
+
+test('voice privacy: automatic choice uses on-device voices only, for Korean and English', async () => {
+  let p = bootPage({}, SPEECH([KO_HERE, EN_HERE], UA_WIN));
+  try {
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US'), p.json('devVoice("ko-KR")'), p.json('devVoice("en-US")'), p.json('voiceOutsideHTML()')], [KO_HERE.name, EN_HERE.name, true, true, '']);
+    await p.run('tts("안녕하세요", "ko-KR", 1)');
+    assert.deepEqual(p.json('__said'), [KO_HERE.name + ' ko-KR']);
+  } finally { p.close(); }
+  // 섞여 있으면: 전에 더 높게 치던 인터넷 목소리(Natural·Google) 대신 기기 안 목소리
+  p = bootPage({}, SPEECH([KO_NET, KO_NET2, KO_HERE, EN_NET, EN_HERE], UA_WIN));
+  try {
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US')], [KO_HERE.name, EN_HERE.name]);
+    await p.run('tts("안녕하세요", "ko-KR", 1)');
+    await p.run('tts("hello", "en-US", 1)');
+    assert.deepEqual(p.json('__said'), [KO_HERE.name + ' ko-KR', EN_HERE.name + ' en-US']);
+    // '인터넷 목소리도 쓰기'를 켜면 인터넷 목소리도 골라요
+    p.run('SAVE.netVoice = true');
+    assert.equal(vname(p, 'ko-KR'), KO_NET.name);
+    // 설정에서 직접 고른 목소리는 그 사람이 고른 것: 켜지 않아도 써요
+    p.run('SAVE.netVoice = false; SAVE.koVoice = "Google 한국의"');
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US')], [KO_NET2.name, EN_HERE.name]);
+  } finally { p.close(); }
+  // 인터넷 목소리만: 한국어는 소리를 내지 않고(브라우저에 목소리를 맡기지도 않아요), 영어는 기기 안 고품질 목소리 차례
+  p = bootPage({}, SPEECH([KO_NET, EN_NET], UA_WIN));
+  try {
+    assert.deepEqual([vname(p, 'ko-KR'), vname(p, 'en-US'), p.json('devVoice("ko-KR")'), p.json('devVoice("en-US")')], [null, null, false, false]);
+    await assert.rejects(p.run('tts("안녕하세요", "ko-KR", 1)'), e => e && e.name === 'NoKoVoice');
+    assert.deepEqual(p.json('__said'), []);
+    assert.match(p.json('voiceStat()'), /^한국어: 인터넷 목소리뿐 → 자막으로 · 영어: (?!.*Google)/);
+    assert.match(p.json('voiceDiag()'), /기기 목소리 한1\(인터넷 1\) 영1\(인터넷 1\)/);
+  } finally { p.close(); }
+});
+
+test('voice privacy: with only online Korean voices the story shows how to add one and an online-voice switch, also on a phone', async () => {
+  for (const [ua, how] of [[UA_WIN, /Windows 설정 → 시간 및 언어 → 음성\(또는 언어\)에서 한국어 음성을 추가/], [UA_MAC, /Mac 시스템 설정 → 손쉬운 사용 → 읽기 및 말하기 → 시스템 음성에서 Yuna 같은 한국어 음성을 추가/], [UA_PHONE, /휴대폰 설정 → 텍스트 음성 변환\(TTS\)에서 한국어 음성 데이터를 받으면/]]) {
+    const p = bootPage({}, SPEECH([KO_NET2, EN_HERE], ua));
+    try {
+      p.run('openMission("scene", SCENES[0].key)');
+      const hint = p.document.getElementById('vhint');
+      await until(() => /인터넷 목소리뿐/.test(hint.textContent));
+      assert.match(hint.textContent, /이 기기의 한국어 목소리는 인터넷 목소리뿐이라서 한국어 자막은 글로만 보여 주고/);
+      assert.match(hint.textContent, how);
+      assert.match(hint.textContent, /인터넷 목소리도 쓰기를 눌러요\. 그러면 읽을 문장이 목소리 회사로 가요\./);
+      const btn = hint.querySelector('[data-act="vnet"]');
+      assert.equal(btn.textContent, '인터넷 목소리도 쓰기');
+      btn.click();
+      assert.deepEqual([p.json('SAVE.netVoice'), p.json('devVoice("ko-KR")')], [true, true]);
+      await until(() => !/인터넷 목소리뿐/.test(hint.textContent));
+      assert.doesNotMatch(hint.textContent, /인터넷 목소리뿐/);
+      assert.deepEqual(p.errors, []);
+    } finally { p.close(); }
+  }
+  // 한국어 목소리가 아예 없으면 더하는 방법만 (단추 없음)
+  const p = bootPage({}, SPEECH([EN_HERE], UA_WIN));
+  try {
+    p.run('openMission("scene", SCENES[0].key)');
+    const hint = p.document.getElementById('vhint');
+    await until(() => /한국어 목소리가 없어서/.test(hint.textContent));
+    assert.match(hint.textContent, /이 기기에는 한국어 목소리가 없어서.*Windows 설정 → 시간 및 언어 → 음성/);
+    assert.equal(hint.querySelector('[data-act="vnet"]'), null);
+  } finally { p.close(); }
+});
+
+test('voice privacy: the settings switch 인터넷 목소리도 쓰기 is off by default and says where sentences go when on', () => {
+  const p = bootPage({}, SPEECH([KO_NET2, EN_HERE], UA_WIN));
+  try {
+    p.run('renderHome()');
+    const seg = () => p.document.querySelector('#home .seg[data-set="netVoice"]');
+    assert.deepEqual([p.json('SAVE.netVoice'), seg().querySelector('button.on').dataset.v], [false, 'false']);
+    assert.match(seg().parentElement.textContent, /인터넷 목소리도 쓰기 꺼 두면 기기 안 목소리만 써요\. 읽을 문장이 기기 밖으로 나가지 않아요\./);
+    assert.match(p.document.getElementById('vstat').textContent, /한국어: 인터넷 목소리뿐 → 자막으로/);
+    seg().querySelector('button[data-v="true"]').click();
+    assert.equal(p.json('SAVE.netVoice'), true);
+    assert.match(seg().parentElement.textContent, /켜 두면 기기 안 목소리가 없을 때 인터넷 목소리로 읽어요\. 그때 읽을 문장이 목소리 회사\(Google·Microsoft 등\)로 가요\./);
+    assert.match(p.document.getElementById('vstat').textContent, /한국어: 인터넷 목소리 \(Google 한국의\)/);
+  } finally { p.close(); }
+});

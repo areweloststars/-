@@ -629,12 +629,14 @@ test('AI check: low phone memory, a small GPU buffer limit and missing f16 each 
     gpu(true, 134217728);
     assert.match(await why(), /한 번에 다룰 수 있는 크기가 작아요\(약 128MB, 이야기 AI는 약 192MB 필요\)/);
     // 모델 기록이 있으면 그 값으로
-    p.run('AI.lib = { prebuiltAppConfig: { model_list: [{ model_id: AI_MODEL, buffer_size_required_bytes: 262144000 }] } }');
+    p.run('AI.lib = { prebuiltAppConfig: { model_list: [{ model_id: AI_MODEL, buffer_size_required_bytes: 262144000 }, { model_id: AI_MODEL_F32, buffer_size_required_bytes: 262144000 }] } }');
     gpu(true, 201326592);
     assert.match(await why(), /약 192MB, 이야기 AI는 약 250MB 필요/);
     p.run('AI.lib = null');
+    // 16비트 계산이 없는 컴퓨터는 q4f32를 써요 (휴대폰은 이야기 AI 없음: 'AI model' 시험)
     gpu(false, 2 ** 30);
-    assert.match(await why(), /16비트 계산/);
+    assert.equal(await why(), '');
+    assert.equal(p.json('aiModel()'), 'gemma-4-E2B-it-q4f32_1-MLC');
     gpu(true, 2 ** 30);
     assert.equal(await why(), '');
     assert.equal(p.json('AI.gpu'), true);
@@ -1183,7 +1185,7 @@ test('AI diagnosis: the sweep stops at the first size that loses the GPU, does n
 });
 
 test('AI diagnosis: a GPU lost event sent over the channel during the long prompt is recorded with its reason and message, and the bench stops there', async () => {
-  const p = bootPage(READY);
+  const p = bootPage(READY, ANDROID);
   try {
     p.run(CHAN); p.run(BENCH_LIB('lost-long'));
     const out = await benchRun(p, /결과: 8단계에서 멈췄어요/);
@@ -1203,15 +1205,15 @@ test('AI diagnosis: a GPU lost event sent over the channel during the long promp
     const saved = JSON.parse(p.window.localStorage.getItem('wg-ai-bench'));
     assert.equal(saved.state, 'fail');
     assert.equal(saved.stages[7].gpu.length, 3);
-    // 그래픽 칩을 잃은 크기는 쓰지 않아요: 다음에는 64토큰
-    assert.equal(p.json('aiChunkPick()'), 64);
+    // 그래픽 칩을 잃은 크기는 쓰지 않아요: 다음에는 그보다 작은 휴대폰 기본 크기(32토큰)
+    assert.equal(p.json('aiChunkPick()'), 32);
     assert.equal(p.json('WAKE.tags.size'), 0);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
 
 test('AI diagnosis: if the tab dies during a stage, the next load shows the partial result with that stage as crashed', async () => {
-  const p = bootPage(READY);
+  const p = bootPage(READY, ANDROID);
   let store;
   try {
     p.run(CHAN); p.run(BENCH_LIB('hang-long'));
@@ -1233,7 +1235,7 @@ test('AI diagnosis: if the tab dies during a stage, the next load shows the part
     assert.match(benchOut(p), /결과: 중간에 그만뒀어요\.$/);
   } finally { p.close(); }
   // 탭이 꺼진 뒤 다시 열어요
-  const q = bootPage(store);
+  const q = bootPage(store, ANDROID);
   try {
     await until(() => /AI 진단 중에 탭이 꺼졌어요/.test((q.document.querySelector('.toast') || {}).textContent || ''), 4000);
     assert.match(q.document.querySelector('.toast').textContent, /새 단어장 만들기 화면에서 결과를 볼 수 있어요/);
@@ -1250,7 +1252,7 @@ test('AI diagnosis: if the tab dies during a stage, the next load shows the part
     store = q.storage();
   } finally { q.close(); }
   // 한 번만 알려요
-  const r = bootPage(store);
+  const r = bootPage(store, ANDROID);
   try {
     await new Promise(ok => setTimeout(ok, 1500));
     assert.ok(!/AI 진단 중에 탭이 꺼졌어요/.test((r.document.querySelector('.toast') || {}).textContent || ''));
@@ -1527,4 +1529,102 @@ test('AI worker GPU watch (llm/gpu-watch.js): the start and end of the first sam
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', '..', 'word-game', 'llm', 'gpu-watch.js'), 'utf8'), ctx);
   ctx.self.wgSampleStep({ at: 'start', tokens: 432 }); ctx.self.wgSampleStep({ at: 'end', tokens: 432 }); ctx.self.wgSampleStep(null);
   assert.deepEqual(sent.map(d => [d.w, d.kind, d.at, d.tokens]), [['wg-ai-test', 'sample', 'start', 432], ['wg-ai-test', 'sample', 'end', 432]]);
+});
+
+// 그래픽 칩마다 고르는 모델 (가짜 어댑터): 16비트 계산이 되면 q4f16, 없는 컴퓨터는 q4f32, 없는 휴대폰은 이야기 AI 없음
+const F32 = 'gemma-4-E2B-it-q4f32_1-MLC';
+const WIN_UA = `Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' });`;
+const ADAPTER = (f16, info, buf = 1073741824) => `Object.defineProperty(navigator, 'gpu', { configurable: true, value: { requestAdapter: async () => ({ info: ${JSON.stringify(info)}, features: new Set(${f16 ? "['shader-f16']" : '[]'}), limits: { maxStorageBufferBindingSize: ${buf} } }) } });`;
+const NVIDIA = { vendor: 'nvidia', architecture: 'pascal', device: '', description: 'NVIDIA GeForce GTX 1060' };
+// 두 모델 기록 (WebLLM 0.2.86의 값) + 불러온 모델 id를 적어요
+const BOTH = `AI.lib.prebuiltAppConfig.model_list = [{ model_id: AI_MODEL, buffer_size_required_bytes: 201326592, required_features: ['shader-f16'], overrides: { context_window_size: 4096 } }, { model_id: AI_MODEL_F32, buffer_size_required_bytes: 201326592, overrides: { context_window_size: 4096 } }];
+  window.__ids = []; window.__del = []; { const make = AI.lib.CreateWebWorkerMLCEngine; AI.lib.CreateWebWorkerMLCEngine = (w, id, cfg) => { __ids.push(id); return make(w, id, cfg); }; }
+  AI.lib.deleteModelAllInfoInCache = async id => { __del.push(id); };`;
+
+test('AI model: an f16 GPU gets q4f16, a computer without f16 gets q4f32 with its own size, storage need and keys, a phone without f16 gets no AI', async () => {
+  let p = bootPage({}, WIN_UA + ADAPTER(true, NVIDIA));
+  try {
+    assert.equal(await p.run('aiWhyNot()'), '');
+    assert.deepEqual([p.json('aiModel()'), p.json('aiSize()'), p.json('aiStoreNeed() / 1048576')], ['gemma-4-E2B-it-q4f16_1-MLC', '약 3GB', 3400]);
+  } finally { p.close(); }
+  p = bootPage({}, WIN_UA + ADAPTER(false, NVIDIA));
+  try {
+    assert.equal(await p.run('aiWhyNot()'), '');
+    assert.deepEqual([p.json('aiModel()'), p.json('aiSize()'), p.json('aiStoreNeed() / 1048576'), p.json('AI.gpu')], [F32, '약 3.5GB', 3900, true]);
+    assert.equal(p.json('aiEnvText()'), '기기: 그래픽 칩 nvidia pascal · 버퍼 한도 1024MB · 16비트 계산 없음 → q4f32 모델');
+    // 만들기 화면: 준비 단추 위의 크기 글
+    p.run(`MK.step = 'pick'; MK.aiWhy = ''; MK.offline = 'no'; showScreen('make'); renderMake();`);
+    assert.match(p.document.getElementById('mkai').textContent, /처음 한 번 AI\(약 3\.5GB\)를 받아요.*인터넷 없이 쓰게 준비하기/);
+    // 불러오기: q4f32 기록으로, 16비트 계산을 요구하지 않고, 이 기기 기록(wg-ai-ready·조각 크기)도 q4f32 이름으로
+    p.run(CHAN); p.run(BENCH_LIB('ok')); p.run(BOTH);
+    await p.run('aiLoad()');
+    assert.deepEqual([p.json('__ids'), p.json('__cfgs[0].appConfig.model_list[0].model_id'), p.json('"required_features" in __cfgs[0].appConfig.model_list[0]')], [[F32], F32, false]);
+    assert.deepEqual([p.window.localStorage.getItem('wg-ai-ready'), p.json('aiReadyBefore()'), p.json('AI.chunk'), p.json('AI.engineId')], [F32, true, 512, F32]);
+    assert.equal(p.json('aiChunkKey()'), F32 + ' · nvidia / pascal / NVIDIA GeForce GTX 1060');
+    assert.match(p.json('aiBenchText({ v: 1, model: aiModel(), t0: Date.now(), state: "done", stages: [] })'), /^AI 진단 · gemma-4-E2B-it-q4f32_1-MLC · /);
+    // 올라와 있는 모델은 옛 모델 지우기가 지우지 않아요
+    p.run(`localStorage.setItem('wg-ai-ready', AI_MODEL); AI.engineId = AI_MODEL`);
+    await p.run('aiDropOld(AI.lib)');
+    assert.deepEqual(p.json('__del'), []);
+  } finally { p.close(); }
+  // 옛 모델 지우기: 지금 쓰는 q4f32는 그대로, 옛 Gemma 3와 이제 쓰지 않는 q4f16만 지워요
+  for (const [old, del] of [[F32, []], ['gemma3-1b-it-q4f16_1-MLC', ['gemma3-1b-it-q4f16_1-MLC']], ['gemma-4-E2B-it-q4f16_1-MLC', ['gemma-4-E2B-it-q4f16_1-MLC']]]) {
+    p = bootPage({ 'wg-ai-ready': old }, WIN_UA + ADAPTER(false, NVIDIA));
+    try {
+      await p.run('aiWhyNot()');
+      p.run(CHAN); p.run(BENCH_LIB('ok')); p.run(BOTH);
+      await p.run('aiLoad()');
+      assert.deepEqual([p.json('__del'), p.window.localStorage.getItem('wg-ai-ready')], [del, F32], old);
+    } finally { p.close(); }
+  }
+  // 16비트 계산이 없는 휴대폰: q4f32를 쓰지 않고 이야기 AI 없음 (지금까지의 까닭 그대로)
+  p = bootPage({}, ANDROID + ADAPTER(false, ADRENO));
+  try {
+    assert.equal(await p.run('aiWhyNot()'), '이 휴대폰의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.');
+    assert.deepEqual([p.json('AI.gpu'), p.json('aiModel()'), p.json('aiSize()')], [false, 'gemma-4-E2B-it-q4f16_1-MLC', '약 3GB']);
+  } finally { p.close(); }
+  // 컴퓨터인데 두 모델 다 못 쓰면 모자란 것만 말해요 (q4f32는 16비트 계산이 필요 없어서 버퍼 한도)
+  p = bootPage({}, WIN_UA + ADAPTER(false, NVIDIA, 134217728));
+  try {
+    const why = await p.run('aiWhyNot()');
+    assert.match(why, /^이 컴퓨터의 그래픽 칩은 한 번에 다룰 수 있는 크기가 작아요\(약 128MB, 이야기 AI는 약 192MB 필요\)/);
+    assert.doesNotMatch(why, /16비트/);
+  } finally { p.close(); }
+});
+
+test('AI diagnosis on a computer: no 16-128 sweep, the compiled 512 stays unless a size fails or is too slow', async () => {
+  const NV = { vendor: 'nvidia', architecture: 'ampere', device: '', description: '' };
+  let p = bootPage(READY, GPU_INFO(NV));
+  try {
+    p.run(CHAN); p.run(BENCH_LIB('ok')); p.run('__msPerTok = 1');
+    // 예전 진단이 남긴 작은 '안전한 크기'가 있어도 컴퓨터는 512토큰으로 읽어요
+    p.run(`localStorage.setItem('wg-ai-chunk', JSON.stringify({ [aiChunkKey(${JSON.stringify(NV)})]: { safe: 128, bad: [], at: 1 } }))`);
+    const out = await benchRun(p);
+    assert.match(out, /결과: 모든 단계를 마쳤어요/);
+    for (const s of SWEEP) assert.ok(out.includes(`${s}: 건너뜀 · 컴퓨터는 조각 크기를 재지 않고 모델이 만들어진 크기 그대로 읽어요`), out);
+    assert.match(out, /8 긴 글 읽기\(실제 크기\): ok \(성공\) · [\d.]+초 · 조각 512토큰/);
+    assert.match(out, /이 컴퓨터의 조각 크기: 512토큰 \(모델이 만들어진 크기 그대로\)/);
+    assert.doesNotMatch(out, /안전한 조각 크기/);
+    assert.ok(p.json('__reqs').every(r => r.size === 512));
+    assert.equal(p.json('aiChunkPick()'), 512);
+    assert.deepEqual(Object.values(chunkRec(p)).map(r => r.bad), [[]]);
+  } finally { p.close(); }
+  // 실제 크기 요청에서 조각 하나가 1.2초를 넘으면(512 × 3ms) 그 크기는 다음부터 쓰지 않고 반으로
+  p = bootPage(READY, GPU_INFO(NV));
+  try {
+    p.run(CHAN); p.run(BENCH_LIB('ok')); p.run('__msPerTok = 3');
+    const out = await benchRun(p);
+    assert.match(out, /8 긴 글 읽기\(실제 크기\): ok \(성공\).*조각 하나가 1\.2초를 넘어서 다음부터 256토큰씩 읽어요/);
+    assert.match(out, /9 글 길이 448토큰 읽기: ok \(성공\) · [\d.]+초 · 조각 256토큰/);
+    assert.match(out, /이 컴퓨터의 조각 크기: 256토큰 \(안 됐거나 너무 오래 걸린 크기가 있어서 작게 읽어요\)/);
+    assert.equal(p.json('aiChunkPick()'), 256);
+  } finally { p.close(); }
+  // 긴 글을 읽다가 그래픽 칩을 잃으면(실패) 그 크기도 쓰지 않아요
+  p = bootPage(READY, GPU_INFO(NV));
+  try {
+    p.run(CHAN); p.run(BENCH_LIB('lost-long')); p.run('__msPerTok = 1');
+    const out = await benchRun(p);
+    assert.match(out, /8 긴 글 읽기\(실제 크기\): fail \(실패\)/);
+    assert.equal(p.json('aiChunkPick()'), 256);
+  } finally { p.close(); }
 });

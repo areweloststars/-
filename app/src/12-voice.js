@@ -67,7 +67,11 @@ const ssLoad = () => {
   try { const el = document.getElementById('vstat'); if (el) el.textContent = voiceStat(); const vp = document.getElementById('vpick'); if (vp && !vp.contains(document.activeElement)) vp.innerHTML = voicePickHTML(); } catch (e) { }
 };
 if (hasSS) { ssLoad(); try { speechSynthesis.addEventListener('voiceschanged', ssLoad); } catch (e) { } }
-const ssHas = lang => ssVoices.some(v => String(v.lang || '').replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2)));
+// (기기 안 목소리만 쳐요. 인터넷 목소리는 '인터넷 목소리도 쓰기'를 켰거나 직접 고른 것만: voiceOk)
+const ssHas = lang => langVoices(lang).some(v => voiceOk(v, lang));
+// 이 언어로 소리를 낼 수 있는지: 쓸 수 있는 목소리가 있거나, 목록이 비어 있는 화면에서 한 번 해 봐서 소리가 났어요(ssOk).
+// 목록에 이 언어 목소리가 있는데 모두 인터넷 목소리면 해 보지 않아요 (목소리를 정하지 않으면 브라우저가 인터넷 목소리를 고를 수 있어요)
+const ssCan = lang => ssHas(lang) || (!!ssOk[lang.slice(0, 2)] && !langVoices(lang).length);
 // 목록을 기다리는 건 한 번만 (목소리가 없는 화면에서 문장마다 기다리지 않게. 나중에 목록이 오면 voiceschanged로 채워져요)
 let ssWaited = null;
 function ssWait() {
@@ -83,7 +87,14 @@ function voiceScore(v, lang) {
 // (인터넷으로 받는 목소리는 연결이 약하면 끊기거나 지직거려서 기기 안 목소리 뒤로. 설정에서 고른 목소리가 있으면 그것)
 const langVoices = lang => ssVoices.filter(v => String(v.lang || '').replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2).toLowerCase())).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
 const voiceKey = v => v.voiceURI || v.name || '';
-const bestVoice = lang => { const vs = langVoices(lang), pick = SAVE[lang.slice(0, 2).toLowerCase() + 'Voice']; return (pick && vs.find(v => voiceKey(v) === pick)) || vs[0] || null; };
+// 인터넷 목소리: 읽을 문장을 목소리 회사(Google·Microsoft 등) 서버로 보내서 읽어요 (컴퓨터 크롬의 'Google …', 엣지의 '… Online (Natural)' 등. localService가 false).
+// 저절로 고를 때는 기기 안 목소리만 써요. 설정에서 '인터넷 목소리도 쓰기'를 켰거나(SAVE.netVoice) 설정의 목소리 고르기에서 직접 고른 목소리는 인터넷 목소리여도 써요
+const voiceNet = v => !!v && v.localService === false;
+const voicePicked = lang => SAVE[lang.slice(0, 2).toLowerCase() + 'Voice'] || '';
+const voiceOk = (v, lang) => !voiceNet(v) || !!SAVE.netVoice || (!!voicePicked(lang) && voiceKey(v) === voicePicked(lang));
+// 이 언어 목소리가 있는데 모두 쓰지 않는 인터넷 목소리예요
+const voiceNetOnly = lang => { const vs = langVoices(lang); return vs.length > 0 && !vs.some(v => voiceOk(v, lang)); };
+const bestVoice = lang => { const vs = langVoices(lang), pick = voicePicked(lang); return (pick && vs.find(v => voiceKey(v) === pick)) || vs.find(v => voiceOk(v, lang)) || null; };
 /* 목소리 지켜보기: 소리를 내려고 한 뒤 3초 안에 실제로 시작하지 않으면 이야기 화면에 알려요(VDiag.on).
    무엇이 안 됐는지 짧게 모아 두었다가 진단 줄로 보여 줘요 (주인이 화면을 캡처해 알려 줄 수 있게).
    tries: 소리를 내려고 한 번 수, starts: 실제로 시작한 번 수, armAt: 아직 시작하지 않은 첫 시도 시각 */
@@ -131,7 +142,7 @@ function voiceCold(ms = 0) {
 }
 // 안 된다고 정한 언어라도 휴대폰에 그 목소리가 있으면 SS_WAIT.again마다 한 번 다시 해 봐요
 // (메모리 정리 등으로 잠깐 안 됐던 목소리가 돌아오면 다시 써요. 그동안 영어는 고품질 목소리로 읽어요)
-const ssAgain = lang => { const l2 = lang.slice(0, 2); return hasSS && (ssHas(lang) || !!ssOk[l2]) && !!ssBroken[l2] && !!ssBrokenAt[l2] && Date.now() - ssBrokenAt[l2] >= SS_WAIT.again; };
+const ssAgain = lang => { const l2 = lang.slice(0, 2); return hasSS && ssCan(lang) && !!ssBroken[l2] && !!ssBrokenAt[l2] && Date.now() - ssBrokenAt[l2] >= SS_WAIT.again; };
 // probe: 목소리 목록이 비어 있는 화면에서 소리가 나는지 한 번 해 볼 때 (짧게 기다림)
 function ssSpeak(text, lang, rate, probe = false) {
   return new Promise((res, rej) => {
@@ -442,7 +453,7 @@ function sayEn(t) {
 // (eSpeak 한국어는 음성 인식기로 재 보니 글자의 63~85%를 알아듣지 못해, 뚝뚝 끊기는 기계음으로만 들렸어요)
 // 영어 고품질 목소리를 받는 중이면 { name: 'VoiceLoading' } (eSpeak 영어도 단어의 3분의 1만 알아들어서, 발음 공부에는 기다리는 편이 나아요)
 let ttsTok = 0;
-const devVoice = lang => hasSS && (ssHas(lang) || ssOk[lang.slice(0, 2)]) && !ssBroken[lang.slice(0, 2)];
+const devVoice = lang => hasSS && ssCan(lang) && !ssBroken[lang.slice(0, 2)];
 async function tts(text, lang, rate) {
   const ko = /^ko/i.test(lang);
   text = ko ? sayKo(text) : sayEn(text);
@@ -478,7 +489,7 @@ async function tts(text, lang, rate) {
     }
     if (gone()) throw { name: 'AbortError' };
   }
-  if (ko) { if (hasSS) vErr(ssVoices.length ? '한국어 기기 목소리 안 됨' : '기기 목소리 목록 없음'); throw { name: 'NoKoVoice' }; }
+  if (ko) { if (hasSS) vErr(ssVoices.length ? (voiceNetOnly(lang) ? '한국어는 인터넷 목소리뿐' : '한국어 기기 목소리 안 됨') : '기기 목소리 목록 없음'); throw { name: 'NoKoVoice' }; }
   if (!Voice.failed) {
     Voice.start(); // (일꾼은 휴대폰 목소리가 말하는 동안 쉬어요: voiceGate)
     // 기기에 저장해 둔 목소리를 엔진에 올리는 중이면 잠깐 기다려요 (미뤄 둔 때는 기다리지 않아요)
@@ -533,14 +544,30 @@ function voiceOutsideHTML() {
   if (!SAVE.narr || devVoice('ko-KR')) return '';
   // 한국어 목소리는 있는데 소리를 내지 않았을 때 (굳어 버린 음성 엔진 등)
   if (hasSS && ssHas('ko-KR') && ssBroken.ko) return `휴대폰의 한국어 목소리가 소리를 내지 않아서 한국어 자막은 글로만 보여 줘요. 휴대폰 미디어 음량을 확인하고 <button type="button" class="linkbtn" data-act="vfix">목소리 다시 준비</button>를 눌러 보세요.`;
-  if (!inApp) return `이 기기에는 한국어 목소리가 없어서 한국어 자막은 글로만 보여 주고, 영어 단어는 소리로 들려줘요. 휴대폰 <b>설정 → 텍스트 음성 변환(TTS)</b>에서 한국어 음성을 받으면 자막도 읽어 줘요.`;
+  if (!inApp) return voiceAddHTML();
   return `이 앱 안 화면(Claude 앱·카카오톡 등)에서는 휴대폰 목소리를 쓸 수 없어서 한국어 자막은 글로만 보여 줘요. <b>Chrome</b>이나 <b>삼성 인터넷</b>에서 열면 휴대폰의 자연스러운 목소리로 자막과 영어 발음을 읽어 줘요. 아래 단추로 링크를 복사해 주소창에 붙여 넣으면 돼요.
     ${inKakao ? '<button type="button" class="linkbtn" data-act="vout">다른 브라우저로 열기</button> ' : ''}<button type="button" class="linkbtn" data-act="vcopy">링크 복사</button>`;
 }
+// 기기 안 한국어 목소리가 없을 때: 목소리를 더하는 방법과, 인터넷 목소리만 있으면 '인터넷 목소리도 쓰기' 단추
+// (휴대폰의 한국어 목소리가 인터넷 목소리뿐이어도 소리 없이 넘어가지 않고 이 안내가 나와요)
+function voiceAddHTML() {
+  const net = voiceNetOnly('ko-KR');
+  return (net ? '이 기기의 한국어 목소리는 인터넷 목소리뿐이라서 한국어 자막은 글로만 보여 주고, 영어 단어는 소리로 들려줘요. ' : '이 기기에는 한국어 목소리가 없어서 한국어 자막은 글로만 보여 주고, 영어 단어는 소리로 들려줘요. ')
+    + voiceHowTo('한국어')
+    + (net ? ' 아니면 <button type="button" class="linkbtn" data-act="vnet">인터넷 목소리도 쓰기</button>를 눌러요. 그러면 읽을 문장이 목소리 회사로 가요.' : '');
+}
+// 기기 안 목소리를 더하는 방법 (Windows·Mac·iPhone·안드로이드 휴대폰). what: '한국어'
+function voiceHowTo(what) {
+  const ua = navigator.userAgent || '';
+  if (/Windows/i.test(ua)) return `Windows <b>설정 → 시간 및 언어 → 음성</b>(또는 <b>언어</b>)에서 ${what} 음성을 추가하고 브라우저를 다시 열면 자막도 읽어 줘요.`;
+  if (/iPhone|iPad|iPod/i.test(ua)) return `<b>설정 → 손쉬운 사용 → 읽기 및 말하기 → 음성</b>에서 ${what} 음성을 받으면 자막도 읽어 줘요.`;
+  if (/Macintosh|Mac OS X/i.test(ua)) return `Mac <b>시스템 설정 → 손쉬운 사용 → 읽기 및 말하기 → 시스템 음성</b>에서 Yuna 같은 ${what} 음성을 추가하고 브라우저를 다시 열면 자막도 읽어 줘요.`;
+  return `휴대폰 <b>설정 → 텍스트 음성 변환(TTS)</b>에서 ${what} 음성 데이터를 받으면 자막도 읽어 줘요.`;
+}
 // 설정 화면에 보여 줄 이 기기 목소리 상태
 function voiceStat() {
-  const dev = lang => { const v = bestVoice(lang); return v ? `기기 목소리${v.name ? ` (${v.name})` : ''}` : ''; };
-  const ko = devVoice('ko-KR') ? dev('ko-KR') : '없음 → 자막으로';
+  const dev = lang => { const v = bestVoice(lang); return v ? `${voiceNet(v) ? '인터넷 목소리' : '기기 목소리'}${v.name ? ` (${v.name})` : ''}` : ''; };
+  const ko = devVoice('ko-KR') ? dev('ko-KR') : voiceNetOnly('ko-KR') ? '인터넷 목소리뿐 → 자막으로' : '없음 → 자막으로';
   const en = devVoice('en-US') ? dev('en-US') : Voice.ready('en') ? '기기 안 고품질 목소리' : Voice.loading ? `고품질 목소리 준비 중 (${Math.round(Voice.progress * 100)}%)` : Voice.failed ? 'eSpeak' : '고품질 목소리 (처음 들을 때 받아요)';
   return `한국어: ${ko} · 영어: ${en}${inApp ? ' · 앱 안 화면' : ''}`;
 }
@@ -560,6 +587,12 @@ function voiceTry(lang) {
   const ko = /^ko/.test(lang);
   tts(ko ? '안녕하세요. 이 목소리로 이야기를 읽어 줄게요.' : 'Hello! I will read the English words with this voice.', lang, ko ? SAVE.rate : wordRate())
     .catch(e => { if (e && e.name === 'NoKoVoice') toast('이 화면에서는 한국어 목소리를 쓸 수 없어요'); else voiceWait(e); });
+}
+// 이야기 화면 안내의 '인터넷 목소리도 쓰기' 단추: 설정을 켜요 (다음 문장부터 그 목소리로 읽어요. 설정에서 끌 수 있어요)
+function voiceNetOn() {
+  SAVE.netVoice = true; persist();
+  toast('인터넷 목소리도 써요 · 읽을 문장이 목소리 회사로 가요 · 설정에서 끌 수 있어요');
+  try { voiceGate(); svCtl(); } catch (e) { }
 }
 // 발음 단추를 눌렀는데 영어 목소리가 아직 준비 중일 때 알려 줌
 function voiceWait(e) { if (e && e.name === 'VoiceLoading') toast(`영어 발음용 고품질 목소리를 준비하고 있어요 (${Math.round(Voice.progress * 100)}%) · 다 되면 발음이 나와요`); }
@@ -697,7 +730,8 @@ function voiceReset() {
 function voiceDiag() {
   const n = l => ssVoices.filter(v => String(v.lang || '').toLowerCase().startsWith(l)).length;
   let ss = '없음';
-  if (hasSS) { ss = `한${n('ko')} 영${n('en')}`; try { ss += speechSynthesis.speaking ? ' 말하는 중' : speechSynthesis.pending ? ' 대기' : ''; if (speechSynthesis.paused) ss += ' 멈춤'; } catch (e) { } }
+  const nn = l => ssVoices.filter(v => String(v.lang || '').toLowerCase().startsWith(l) && voiceNet(v)).length, cnt = l => `${n(l)}${nn(l) ? `(인터넷 ${nn(l)})` : ''}`;
+  if (hasSS) { ss = `한${cnt('ko')} 영${cnt('en')}`; try { ss += speechSynthesis.speaking ? ' 말하는 중' : speechSynthesis.pending ? ' 대기' : ''; if (speechSynthesis.paused) ss += ' 멈춤'; } catch (e) { } }
   const broken = Object.keys(ssBroken).filter(k => ssBroken[k]);
   const hq = Voice.ready('en') ? '준비됨' : Voice.loading ? `받는 중 ${Math.round(Voice.progress * 100)}%` : Voice.failed ? '실패' : '안 씀';
   const sw = typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.controller ? '켬' : '끔';
@@ -705,7 +739,7 @@ function voiceDiag() {
   // 최근 문장: 언어, 말하라고 한 뒤 시작까지 걸린 시간(시작하지 않았으면 기다린 시간), 목소리 이름 [voiceURI], 기기 안·인터넷 목소리
   const said = VDiag.said.map(s => `${s.lang} ${s.ok ? '' : '시작 안 함 '}${s.ms}ms ${s.name}${s.uri && s.uri !== s.name ? ` [${s.uri}]` : ''}${s.local === true ? ' 기기' : s.local === false ? ' 인터넷' : ''}`).join(' / ');
   return [`기기 목소리 ${ss}${broken.length ? ` (안 됨: ${broken.join('·')})` : ''}`, `시도 ${VDiag.tries} · 시작 ${VDiag.starts}`,
-    VDiag.errs.length ? `오류: ${VDiag.errs.join(', ')}` : '', said ? `최근 문장: ${said}` : '', VDiag.drop ? `빠진 영어 단어 ${VDiag.drop}` : '', `고품질 영어 ${hq}`, Narr.state(), `오프라인 저장 ${sw}`, `이야기 AI ${ai}`,
+    VDiag.errs.length ? `오류: ${VDiag.errs.join(', ')}` : '', said ? `최근 문장: ${said}` : '', VDiag.drop ? `빠진 영어 단어 ${VDiag.drop}` : '', `고품질 영어 ${hq}`, SAVE.netVoice ? '인터넷 목소리 켬' : '', Narr.state(), `오프라인 저장 ${sw}`, `이야기 AI ${ai}`,
     inApp ? '앱 안 화면' : '', typeof buildLabel === 'function' ? buildLabel() : ''].filter(Boolean).join(' · ');
 }
 

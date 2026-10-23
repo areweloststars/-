@@ -326,6 +326,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--meanin
 .picpanel { scroll-margin-bottom: 110px; }
 .keys { display: none; }
 @media (hover: hover) and (pointer: fine) { .keys { display: block; } }
+/* 큰 화면(컴퓨터·태블릿 가로, 1000px 넘게): 이야기·미션 화면은 그림을 크게 보여 줘요.
+   그림(16:10)과 그 아래 조절 줄이 화면 높이 안에 들어오는 너비로, 가장 넓게 1040px. 그림 아래 글은 읽기 좋게 640px 안에서.
+   홈·만들기 화면(글과 입력칸)과 휴대폰 화면은 그대로예요 */
+@media (min-width: 1000px) and (min-height: 600px) {
+  .app:has(> #story:not([hidden])), .app:has(> #play:not([hidden])) { max-width: min(1040px, max(520px, calc((100vh - 250px) * 1.6 + 38px))); }
+  #story > :not(.sframe) { max-width: 640px; margin-inline: auto; }
+  #play :has(> #ain) { max-width: 640px; margin-inline: auto; }
+}
 
 /* 그림해석 자막 (그림 안 만화 자막 상자) */
 .pcap {

@@ -110,6 +110,7 @@ function renderHome() {
       <div class="setrow"><span class="setlab">스토리 음성(더빙)</span><div class="seg" data-set="narr">${segBtn('narr', true, '켜기')}${segBtn('narr', false, '끄기')}</div></div>
       <div class="setrow"><span class="setlab">음성 속도</span><div class="seg" data-set="rate">${rateSeg()}</div></div>
       <div class="setrow"><span class="setlab">이 기기 목소리 <small id="vstat">${esc(voiceStat())}</small></span><div class="vpick" id="vpick">${voicePickHTML()}</div></div>
+      <div class="setrow"><span class="setlab">인터넷 목소리도 쓰기 <small>${SAVE.netVoice ? '켜 두면 기기 안 목소리가 없을 때 인터넷 목소리로 읽어요. 그때 읽을 문장이 목소리 회사(Google·Microsoft 등)로 가요.' : '꺼 두면 기기 안 목소리만 써요. 읽을 문장이 기기 밖으로 나가지 않아요.'}</small></span><div class="seg" data-set="netVoice">${segBtn('netVoice', true, '켜기')}${segBtn('netVoice', false, '끄기')}</div></div>
       <div class="setrow"><span class="setlab">효과음</span><div class="seg" data-set="sound">${segBtn('sound', true, '켜기')}${segBtn('sound', false, '끄기')}</div></div>
     </div></details>
     <div class="sectlab">에피소드 <span>차례로 깨면 다음 에피소드가 열려요</span></div>

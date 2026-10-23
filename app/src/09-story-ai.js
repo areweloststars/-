@@ -8,23 +8,38 @@
    그 뒤 AI가 에피소드 단어 줄의 2/3(AI_MIN_SHARE, 올림) 이상을 써야 단어장을 만들어요 (남은 줄은 줄거리 틀 문장 그대로, 단어마다 칩이 있게).
    이야기 AI를 못 돌리거나 준비·쓰기에 실패하면 단어장을 만들지 않아요 (mkMake).
    모델 파일은 저장소에 없어요: word-game/llm/NOTICE.txt (Gemma 4: Apache 2.0) */
+// 이야기 AI 모델 두 가지 (같은 Gemma 4 E2B, WebLLM 0.2.86 기록). 이 기기에서 쓸 모델은 aiModel 하나로 정해요.
+// AI_MODEL(q4f16): 16비트 계산(shader-f16)을 하는 그래픽 칩용. 그래픽 메모리 약 3.4GB. 휴대폰은 늘 이것만 써요.
+// AI_MODEL_F32(q4f32): 16비트 계산이 없는 컴퓨터 그래픽 칩용. 그래픽 메모리 약 3.9GB, 받을 파일도 조금 더 커요.
+//   휴대폰은 RAM을 그래픽 칩과 나눠 써서, 메모리를 더 쓰는 q4f32는 쓰지 않아요.
+// size: 받을 크기 글, need: 처음 받을 때 필요한 브라우저 저장 공간 (모델 + 여유, 모델 기록의 그래픽 메모리 값쯤)
 const AI_MODEL = 'gemma-4-E2B-it-q4f16_1-MLC';
-const AI_SIZE = '약 3GB';
+const AI_MODEL_F32 = 'gemma-4-E2B-it-q4f32_1-MLC';
+const AI_MODELS = { [AI_MODEL]: { size: '약 3GB', need: 3400 * 1024 * 1024, f16: true }, [AI_MODEL_F32]: { size: '약 3.5GB', need: 3900 * 1024 * 1024, f16: false } };
+const AI_SIZE = AI_MODELS[AI_MODEL].size;
 // gen: 준비를 그만둘 때마다 늘어요 (그만둔 준비가 늦게 끝나도 쓰지 않게)
 // work: 지금 쓰는 중인 글 하나의 기록 (단계·시작 시각·쓴 토큰 수). 쓰지 않을 때는 null
 // gpuLog: AI 일꾼이 보낸 그래픽 칩 소식 (끊김·오류·콘솔 오류 글), gpuDev: 일꾼이 쓰는 그래픽 칩 정보, wnames: 이 화면이 띄운 일꾼 이름들
 // bench: 'AI 진단' 기록 (아직 안 읽었으면 undefined)
 // chunk: 지금 일꾼이 글을 나눠 읽는 조각 크기(토큰, 일꾼이 없으면 0), chunkLog: 일꾼이 보낸 조각마다 걸린 시간(i/of: 몇 번째 조각/모두 몇 개), onChunk: 조각 시간이 올 때마다
 // gap: 조각마다 그래픽 칩을 쉬게 하는 시간(ms), sampleLog: 글을 다 읽은 뒤 첫 토큰 고르기의 시작·끝 소식, onSample: 그 소식이 올 때마다
-const AI = { engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null, gpuLog: [], gpuDev: null, wnames: new Set(), gpuCh: null, onGpu: null, chunk: 0, chunkLog: [], onChunk: null, gap: 0, sampleLog: [], onSample: null };
+// model: aiGpuOk가 고른 모델 id (아직 모르거나 둘 다 못 쓰면 null), engineId: 지금 올라와 있는 모델 id
+const AI = { model: null, engineId: '', engine: null, loading: null, gpu: null, worker: null, gen: 0, onProgress: null, onRetry: null, err: null, phase: { step: 'init', pct: 0 }, work: null, gpuLog: [], gpuDev: null, wnames: new Set(), gpuCh: null, onGpu: null, chunk: 0, chunkLog: [], onChunk: null, gap: 0, sampleLog: [], onSample: null };
 const aiURL = p => new URL(p, location.href).href;
 // WebLLM의 모델 기록 (가짜 AI.lib 또는 받아 둔 AI.web). 아직 안 받았으면 null
-const aiRec = () => { const L = AI.lib || AI.web, list = L && L.prebuiltAppConfig && L.prebuiltAppConfig.model_list; return (list && list.find(m => m.model_id === AI_MODEL)) || null; };
+const aiRecOf = id => { const L = AI.lib || AI.web, list = L && L.prebuiltAppConfig && L.prebuiltAppConfig.model_list; return (list && list.find(m => m.model_id === id)) || null; };
+const aiRec = () => aiRecOf(aiModel());
+// 이 기기에서 쓸 모델 id: aiGpuOk가 그래픽 칩을 보고 고른 것 (아직 안 봤거나 둘 다 못 쓰면 q4f16).
+// 받기·불러오기·크기 글·저장 공간 확인(aiStoreNeed)·이 기기 기록(wg-ai-ready·조각 크기·진단)·옛 모델 지우기가 모두 이 함수로 모델을 정해요
+const aiModel = () => (AI.model && AI_MODELS[AI.model] ? AI.model : AI_MODEL);
+const aiSize = () => AI_MODELS[aiModel()].size;
+const aiStoreNeed = () => AI_MODELS[aiModel()].need;
 // 그래픽 칩이 한 번에 다뤄야 하는 버퍼 크기 (모델 기록 값, 없으면 WebLLM 0.2.86 기록의 192MB)
 const AI_BUF = 201326592;
-const aiBufNeed = () => +((aiRec() || {}).buffer_size_required_bytes) || AI_BUF;
-// 이 기기에서 AI를 돌릴 수 있는지: 메모리(RAM) 8GB + WebGPU + 반정밀도(shader-f16) + 큰 버퍼.
-// 이 모델은 f16 셰이더가 있어야 돌아가고, 그래픽 칩이 192MB짜리 버퍼를 다룰 수 있어야 해요.
+const aiBufOf = id => +((aiRecOf(id) || {}).buffer_size_required_bytes) || AI_BUF;
+const aiBufNeed = () => aiBufOf(aiModel());
+// 이 기기에서 AI를 돌릴 수 있는지: 메모리(RAM) 8GB + WebGPU + 큰 버퍼 + (q4f16은) 반정밀도(shader-f16).
+// 그래픽 칩이 192MB짜리 버퍼를 다룰 수 있어야 해요. 반정밀도가 없는 컴퓨터는 q4f32를 써요 (aiChoose).
 // 모델이 그래픽 메모리를 약 3.4GB 써요. 휴대폰은 RAM을 그래픽 칩과 나눠 써서, 크롬이 4GB라고 알려 주는 휴대폰(실제 4~6GB)은
 // 그래픽 칩에 올리다가 탭이 꺼져요 (갤럭시 A16: '그래픽 칩에 올리는 중 3%'). 크롬은 RAM을 가까운 2의 거듭제곱으로, 8GB까지만 알려 줘요
 const AI_MEM = 8;
@@ -40,26 +55,40 @@ async function aiGpuOk() {
     const inf = a && a.info;
     AI.gpuName = inf ? [inf.vendor, inf.architecture || inf.device || inf.description].filter(Boolean).join(' ').slice(0, 60) : '';
     AI.gpuInfo = aiInfoOf(inf);
-    AI.gpuWhy = !navigator.gpu ? 'nogpu' : !a ? 'noadapter' : !f16 ? 'nof16' : AI.gpuBuf < aiBufNeed() ? 'buf' : '';
+    const pick = navigator.gpu && a ? aiChoose(f16, AI.gpuBuf, aiIsPhone(AI.gpuInfo) || aiIOS()) : null;
+    AI.model = (pick && pick.id) || null; AI.gpuNeed = (pick && pick.need) || 0;
+    AI.gpuWhy = !navigator.gpu ? 'nogpu' : !a ? 'noadapter' : pick.why;
     AI.gpu = !AI.gpuWhy;
   } catch (e) { AI.gpu = false; AI.gpuWhy = 'noadapter'; }
   return AI.gpu;
 }
+// 모델 고르기: f16 그래픽 칩이 16비트 계산(shader-f16)을 하는지, buf 그래픽 칩 버퍼 한도(바이트), phone 휴대폰인지.
+// 16비트 계산이 되고 버퍼가 모델 기록만큼 크면 q4f16. 아니면 컴퓨터만 q4f32 (필요한 기능은 없고, 버퍼는 모델 기록만큼).
+// 휴대폰은 q4f16만 써요. 둘 다 못 쓰면 id 없이 모자란 것(why: 'nof16' 휴대폰의 16비트 계산, 'buf' 버퍼 한도)과 필요한 버퍼(need)
+function aiChoose(f16, buf, phone) {
+  if (f16 && buf >= aiBufOf(AI_MODEL)) return { id: AI_MODEL, why: '' };
+  if (!phone && buf >= aiBufOf(AI_MODEL_F32)) return { id: AI_MODEL_F32, why: '' };
+  if (phone && !f16) return { id: null, why: 'nof16' };
+  return { id: null, why: 'buf', need: phone || f16 ? aiBufOf(AI_MODEL) : aiBufOf(AI_MODEL_F32) };
+}
+const aiDevWord = () => (aiIsPhone() ? '휴대폰' : '컴퓨터');
+// iPhone·iPad (아이패드는 Mac처럼 알려요: 터치가 되면): 메모리를 그래픽 칩과 나눠 써서 모델은 휴대폰처럼 q4f16만
+const aiIOS = () => { try { const ua = navigator.userAgent || ''; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); } catch (e) { return false; } };
 // 앱 안에서 열린 브라우저 (카카오톡·네이버·인스타그램 …): 이런 화면은 대개 AI 계산 기능(WebGPU)이 없어요
 const AI_INAPP = [[/KAKAOTALK/i, '카카오톡'], [/NAVER\(inapp|NAVER/, '네이버 앱'], [/Instagram/, '인스타그램'], [/FBAN|FBAV|FB_IAB/, '페이스북'], [/\bLine\//, '라인'], [/DaumApps/, '다음 앱'], [/everytimeApp/i, '에브리타임'], [/; wv\)/, '다른 앱']];
 // 이 브라우저에서 이야기 AI를 못 쓰는 까닭 ('' = 쓸 수 있어요)
 async function aiWhyNot() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '', app = (AI_INAPP.find(([re]) => re.test(ua)) || [])[1];
   if (await aiGpuOk()) return '';
-  if (AI.gpuWhy === 'mem') return `이 휴대폰은 메모리(RAM)가 작아서 이야기 AI를 돌릴 수 없어요 (크롬이 알려 준 메모리 약 ${AI.gpuMem}GB, 이야기 AI는 ${AI_MEM}GB 필요).`;
+  if (AI.gpuWhy === 'mem') return `${aiIsPhone() ? '이 휴대폰은' : '이 컴퓨터는'} 메모리(RAM)가 작아서 이야기 AI를 돌릴 수 없어요 (크롬이 알려 준 메모리 약 ${AI.gpuMem}GB, 이야기 AI는 ${AI_MEM}GB 필요).`;
   if (app) return `${app} 안에서 열린 화면이에요. 오른쪽 위 ⋮ 메뉴에서 ‘다른 브라우저로 열기’를 눌러 크롬으로 열어 주세요.`;
-  if (AI.gpuWhy === 'nogpu') return '이 브라우저에는 AI 계산 기능(WebGPU)이 없어요. 휴대폰의 최신 크롬으로 열어 주세요.';
+  if (AI.gpuWhy === 'nogpu') return `이 브라우저에는 AI 계산 기능(WebGPU)이 없어요. ${aiIsPhone() ? '휴대폰의 최신 크롬으로' : '컴퓨터의 최신 크롬이나 엣지로'} 열어 주세요.`;
   if (AI.gpuWhy === 'nof16') return '이 휴대폰의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.';
-  if (AI.gpuWhy === 'buf') return `이 휴대폰의 그래픽 칩은 한 번에 다룰 수 있는 크기가 작아요(약 ${Math.round(AI.gpuBuf / 1048576)}MB, 이야기 AI는 약 ${Math.round(aiBufNeed() / 1048576)}MB 필요). 그래서 이야기 AI를 돌릴 수 없어요.`;
-  return '이 휴대폰의 그래픽 칩을 AI 계산에 쓸 수 없어요. 크롬을 최신으로 업데이트한 뒤 다시 열어 보세요.';
+  if (AI.gpuWhy === 'buf') return `이 ${aiDevWord()}의 그래픽 칩은 한 번에 다룰 수 있는 크기가 작아요(약 ${Math.round(AI.gpuBuf / 1048576)}MB, 이야기 AI는 약 ${Math.round((AI.gpuNeed || aiBufNeed()) / 1048576)}MB 필요). 그래서 이야기 AI를 돌릴 수 없어요.`;
+  return `이 ${aiDevWord()}의 그래픽 칩을 AI 계산에 쓸 수 없어요. ${aiIsPhone() ? '크롬을' : '크롬이나 엣지를'} 최신으로 업데이트한 뒤 다시 열어 보세요.`;
 }
 // 전에 모델을 다 받아 둔 적이 있는지 (처음 안내 문구에만 써요)
-const aiReadyBefore = () => { try { return localStorage.getItem('wg-ai-ready') === AI_MODEL; } catch (e) { return false; } };
+const aiReadyBefore = () => { try { return localStorage.getItem('wg-ai-ready') === aiModel(); } catch (e) { return false; } };
 // 모바일 데이터(또는 데이터 절약 모드)로 연결돼 있는지: 학생 요금제를 지키려고 3GB 모델은 이때 저절로 받지 않아요.
 // 연결 정보(navigator.connection)가 없거나 종류를 모르면(와이파이·유선 포함) false
 const aiMobileData = () => { try { const c = navigator.connection; return !!(c && (c.type === 'cellular' || c.saveData === true)); } catch (e) { return false; } };
@@ -68,7 +97,7 @@ const aiNeedsDownload = () => !AI.engine && !aiReadyBefore();
 // AI 일꾼을 멈추고 처음 상태로 (준비 실패·그만두기·GPU를 잃었을 때)
 function aiDrop() {
   const w = AI.worker;
-  AI.gen++; AI.worker = null; AI.engine = null; AI.loading = null; AI.onProgress = null; AI.chunk = 0; AI.gap = 0;
+  AI.gen++; AI.worker = null; AI.engine = null; AI.engineId = ''; AI.loading = null; AI.onProgress = null; AI.chunk = 0; AI.gap = 0;
   if (w) try { w.terminate(); } catch (e) { }
 }
 // 이야기 AI를 내려놓아요: 단어장 만들기를 마쳤을 때(다른 화면에 가 있으면)와 만들기 화면을 나갈 때, 그래도 남아 있으면 게임을 열 때.
@@ -113,7 +142,7 @@ function aiIsPhone(info) {
   return /Android/i.test(ua) || /^(?:qualcomm|arm|imagination)\b/i.test(g.vendor || '') || /adreno|mali|powervr|valhall|bifrost|midgard|rogue/i.test([g.architecture, g.device, g.description].join(' '));
 }
 // 남겨 둘 이름: 모델 + 그래픽 칩 이름
-const aiChunkKey = info => { const g = info || AI.gpuInfo || {}; return `${AI_MODEL} · ${[g.vendor, g.architecture, g.device, g.description].filter(Boolean).join(' / ') || '그래픽 칩 이름 모름'}`; };
+const aiChunkKey = info => { const g = info || AI.gpuInfo || {}; return `${aiModel()} · ${[g.vendor, g.architecture, g.device, g.description].filter(Boolean).join(' / ') || '그래픽 칩 이름 모름'}`; };
 function aiChunkAll() {
   try { const o = JSON.parse(localStorage.getItem(AI_CHUNK_KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; }
 }
@@ -134,7 +163,8 @@ const aiChunkBad = (key, n) => aiChunkPut(key, r => { if (!r.bad.includes(n)) r.
 function aiChunkPick(info) {
   aiBenchLoad(); // 진단 중에 탭이 꺼졌으면 그때 재던 크기를 먼저 '안 됨'으로 적어요
   const r = aiChunkRec(aiChunkKey(info));
-  let n = r.safe || (aiIsPhone(info) ? AI_CHUNK_PHONE : AI_CHUNK);
+  // 컴퓨터는 늘 모델이 만들어진 512토큰에서 시작해요 (진단이 찾은 '안전한 크기'는 휴대폰에서만 써요). 안 된 크기가 있으면 그보다 작게
+  let n = aiIsPhone(info) ? r.safe || AI_CHUNK_PHONE : AI_CHUNK;
   const lim = r.bad.length ? Math.min(...r.bad) : Infinity;
   while (n > 1 && n >= lim) n = Math.floor(n / 2);
   return Math.max(1, Math.min(n, AI_CHUNK));
@@ -163,8 +193,11 @@ function aiLoad(onProgress) {
     AI.loading = (async () => {
       const lib = AI.lib || (AI.web = AI.web || await import(aiURL('llm/web-llm.js'))); // AI.lib: 시험용 가짜
       if (gen !== AI.gen) throw { code: 'cancelled' };
+      // 어느 모델을 받고 어느 옛 모델을 지울지 정하기 전에 그래픽 칩을 먼저 봐요 (AI.lib: 시험용 가짜는 시험이 정해요)
+      if (!AI.lib && AI.gpu == null) await aiGpuOk();
+      if (gen !== AI.gen) throw { code: 'cancelled' };
       // 처음 받을 때: 브라우저가 이 사이트 저장 공간을 지우지 않게 부탁하고, 쓸 수 있는 공간을 확인해요
-      if (!aiReadyBefore()) { await aiDropOld(lib); const st = await aiStorage(); if (st && st.quota && st.quota < AI_NEED) throw { code: 'quota', quota: st.quota }; }
+      if (!aiReadyBefore()) { await aiDropOld(lib); const st = await aiStorage(); if (st && st.quota && st.quota < aiStoreNeed()) throw { code: 'quota', quota: st.quota }; }
       for (let t = 1; ; t++) {
         try { return await aiStart(lib, gen); }
         catch (e) {
@@ -197,15 +230,15 @@ async function aiStart(lib, gen) {
   // 일꾼이 아예 못 뜨면(파일을 못 받음 등) 답이 영영 안 오니, 오류가 나면 바로 끝내요
   const dead = new Promise((_, no) => worker.addEventListener('error', e => no(new Error('ai worker: ' + ((e && e.message) || 'failed to start'))), { once: true }));
   dead.catch(() => { });
-  // f16이 없는 기기는 3GB를 다 받기 전에 거절되게 (모델 기록에도 있지만 빠지지 않게 늘 넣어요)
-  const rec = lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list.find(m => m.model_id === AI_MODEL);
+  // q4f16: f16이 없는 기기는 3GB를 다 받기 전에 거절되게 (모델 기록에도 있지만 빠지지 않게 늘 넣어요). q4f32는 필요한 기능이 없어요
+  const id = aiModel(), f16 = AI_MODELS[id].f16, rec = lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list.find(m => m.model_id === id);
   // WebLLM의 sliding_window_size는 모델 속 '부분 주의'가 아니라 기억(KV 캐시) 전체를 고리처럼 돌려 쓰는 설정이에요.
   // 모델 설정이 '전체 창'과 '미끄럼 창'을 둘 다 켜 두면 켜다가 멈춰요 (WindowSizeConfigurationError).
   // 전체 창만 쓰게 맞춰요(-1 = 끔): 이야기 한 편(지시 + 이야기 + 답)은 4천 토큰 안에 들어가요
   // wg_prefill_chunk: 글을 이 크기 조각으로 나눠 읽어요, wg_prefill_gap: 조각마다 쉬는 시간(ms) (web-llm.js의 'word-game patch')
-  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, required_features: ['shader-f16'], overrides: { ...(rec.overrides || {}), context_window_size: AI_CTX, sliding_window_size: -1, attention_sink_size: -1, ...(chunk < AI_CHUNK ? { wg_prefill_chunk: chunk } : {}), ...(gap ? { wg_prefill_gap: gap } : {}) } }] } : undefined;
+  const appConfig = rec ? { ...lib.prebuiltAppConfig, model_list: [{ ...rec, ...(f16 ? { required_features: ['shader-f16'] } : {}), overrides: { ...(rec.overrides || {}), context_window_size: AI_CTX, sliding_window_size: -1, attention_sink_size: -1, ...(chunk < AI_CHUNK ? { wg_prefill_chunk: chunk } : {}), ...(gap ? { wg_prefill_gap: gap } : {}) } }] } : undefined;
   try {
-    const eng = await Promise.race([lib.CreateWebWorkerMLCEngine(worker, AI_MODEL, {
+    const eng = await Promise.race([lib.CreateWebWorkerMLCEngine(worker, id, {
       appConfig,
       initProgressCallback: p => {
         if (gen !== AI.gen) return;
@@ -216,24 +249,27 @@ async function aiStart(lib, gen) {
       }
     }), dead]);
     if (gen !== AI.gen) throw { code: 'cancelled' };
-    try { localStorage.setItem('wg-ai-ready', AI_MODEL); } catch (e) { }
-    AI.engine = eng;
+    try { localStorage.setItem('wg-ai-ready', id); } catch (e) { }
+    AI.engine = eng; AI.engineId = id;
     return eng;
   } catch (e) {
     if (AI.worker === worker) { AI.worker = null; try { worker.terminate(); } catch (x) { } }
     throw e;
   }
 }
-// 예전 이야기 AI(Gemma 3 1B, 약 0.7GB)를 받아 둔 휴대폰: 새 AI를 받기 전에 옛 모델을 브라우저 저장소에서 지워 공간을 비워요
+// 예전 이야기 AI(Gemma 3 1B, 약 0.7GB)나 이 기기가 이제 쓰지 않는 다른 Gemma 4 모델을 받아 둔 기기: 새 AI를 받기 전에 옛 모델을 브라우저 저장소에서 지워 공간을 비워요.
+// 지금 쓸 모델(aiModel)과 올라와 있는 모델은 지우지 않아요 (컴퓨터가 q4f32를 쓰면 q4f32는 그대로)
 async function aiDropOld(lib) {
   let old = '';
   try { old = localStorage.getItem('wg-ai-ready') || ''; } catch (e) { }
-  if (!old || old === AI_MODEL || !lib.deleteModelAllInfoInCache) return;
+  if (!old || old === aiModel() || old === AI.engineId || !lib.deleteModelAllInfoInCache) return;
+  // 이 기기의 모델을 아직 고르지 못했으면(그래픽 칩을 못 봄) 다른 Gemma 4 모델은 지우지 않아요
+  if (/^gemma-4-/.test(old) && !AI.model) return;
   try { await lib.deleteModelAllInfoInCache(old); } catch (e) { }
   try { localStorage.removeItem('wg-ai-ready'); } catch (e) { }
 }
 // 모델을 받는 데 필요한 브라우저 저장 공간 (모델 약 3GB + 여유, 약 3.3GB)
-const AI_NEED = 3400 * 1024 * 1024;
+const AI_NEED = AI_MODELS[AI_MODEL].need; // (q4f16 값. 지금 모델의 값은 aiStoreNeed)
 async function aiStorage() {
   try {
     const s = typeof navigator !== 'undefined' && navigator.storage;
@@ -251,11 +287,11 @@ function aiErrInfo(e) {
   const raw = aiMsgOf(e), ph = AI.phase || { step: 'init', pct: 0 };
   const where = ph.step === 'fetch' ? `AI를 받는 중(${ph.pct}%)에` : ph.step === 'load' ? `받은 AI를 그래픽 칩에 올리는 중(${ph.pct}%)에` : ph.step === 'shader' ? 'AI 준비를 마무리하는 중에' : 'AI 준비를 시작할 때';
   let why;
-  if ((e && e.code === 'quota') || /QuotaExceeded|quota/i.test(raw)) why = `브라우저 저장 공간이 모자라요${e && e.quota ? ` (이 사이트가 쓸 수 있는 공간 약 ${Math.round(e.quota / 1048576)}MB, 필요 약 ${Math.round(AI_NEED / 1048576)}MB)` : ''}. 휴대폰 저장 공간을 더 비운 뒤 다시 받아 주세요.`;
+  if ((e && e.code === 'quota') || /QuotaExceeded|quota/i.test(raw)) why = `브라우저 저장 공간이 모자라요${e && e.quota ? ` (이 사이트가 쓸 수 있는 공간 약 ${Math.round(e.quota / 1048576)}MB, 필요 약 ${Math.round(aiStoreNeed() / 1048576)}MB)` : ''}. ${aiDevWord()} 저장 공간을 더 비운 뒤 다시 받아 주세요.`;
   else if (aiNetErr(e)) why = '인터넷 연결이 끊겨서 다 받지 못했어요. 받은 부분은 저장돼 있어서 다시 받으면 이어서 받아요. 와이파이에서 화면을 켜 둔 채로 해 주세요.';
   else if (AI_GPU_LOST.test(raw) || /out of memory|OutOfMemory|Allocation|GPUOutOfMemory/i.test(raw)) why = '그래픽 메모리가 모자랐어요. 다른 앱을 닫고 다시 해 주세요.';
-  else if (/exceeds limit|maxStorage|maxBuffer|maxCompute|requestDevice|Cannot initialize runtime/i.test(raw)) why = '이 휴대폰 그래픽 칩의 한도가 이 AI에 모자라요.';
-  else if (/ShaderF16|FeatureSupport|shader-f16/i.test(raw)) why = '이 휴대폰의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.';
+  else if (/exceeds limit|maxStorage|maxBuffer|maxCompute|requestDevice|Cannot initialize runtime/i.test(raw)) why = `이 ${aiDevWord()} 그래픽 칩의 한도가 이 AI에 모자라요.`;
+  else if (/ShaderF16|FeatureSupport|shader-f16/i.test(raw)) why = `이 ${aiDevWord()}의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.`;
   else if (/WindowSize|AttentionSink|ConfigurationError|context_window_size|sliding_window_size/i.test(raw)) why = '앱의 AI 설정이 모델과 맞지 않았어요. 앱을 고쳐야 하는 문제라서 알려 주시면 고칠게요.';
   else if (/ai worker/i.test(raw)) why = 'AI를 돌리는 파일을 열지 못했어요. 페이지를 새로 고친 뒤 다시 해 주세요.';
   else why = '알 수 없는 오류가 났어요. 다시 받아 보고, 또 안 되면 이 화면을 캡처해서 알려 주세요.';
@@ -328,6 +364,7 @@ function aiEnvText() {
   try { const m = navigator.deviceMemory; if (m) out.push(`메모리 약 ${m}GB`); } catch (e) { }
   if (AI.gpuName) out.push(`그래픽 칩 ${AI.gpuName}`);
   if (AI.gpuBuf) out.push(`버퍼 한도 ${Math.round(AI.gpuBuf / 1048576)}MB`);
+  if (AI.model === AI_MODEL_F32) out.push('16비트 계산 없음 → q4f32 모델');
   return out.length ? `기기: ${out.join(' · ')}` : '';
 }
 
@@ -972,11 +1009,11 @@ async function aiBenchAsk(eng, prompt, out, st) {
 }
 // 진단하기: 단계를 차례로. 실패하면 거기서 멈춰요. onChange(b): 단계가 바뀌거나 그래픽 칩 소식·조각 시간이 올 때마다
 async function aiBenchRun(signal, onChange) {
-  const b = AI.bench = { v: 1, t0: Date.now(), state: 'run', env: aiEnvText(), dev: '', ua: aiUaText(), ckey: '', safe: 0, stages: AI_BENCH.map(s => Object.assign({ k: s.k, label: s.label, state: '' }, s.size ? { size: s.size } : {})) };
+  const b = AI.bench = { v: 1, model: aiModel(), t0: Date.now(), state: 'run', env: aiEnvText(), dev: '', ua: aiUaText(), ckey: '', safe: 0, stages: AI_BENCH.map(s => Object.assign({ k: s.k, label: s.label, state: '' }, s.size ? { size: s.size } : {})) };
   if (aiNeedsDownload()) b.stages[0].label = '1 받기·저장소에서 불러오기';
   // top: 이 크기부터는 재지 않아요 (한계에 가까웠던 크기)
   // lenRatio: 글 길이 재기 글을 만들 때 쓸 글자당 토큰 (실제 요청·길이 재기에서 읽은 토큰으로 맞춰요)
-  let cur = null, eng = null, perChar = 0, lenRatio = 0, long = '', mid = '', top = Infinity;
+  let cur = null, eng = null, perChar = 0, lenRatio = 0, long = '', mid = '', top = Infinity, phone = true;
   const put = () => { aiBenchSave(b); if (onChange) try { onChange(b); } catch (e) { } };
   AI.onGpu = ev => {
     if (AI.bench !== b) return;
@@ -1009,11 +1046,13 @@ async function aiBenchRun(signal, onChange) {
   put();
   try {
     const info = await Promise.race([aiGpuInfo(), stopped]);
-    b.ckey = aiChunkKey(info);
+    b.ckey = aiChunkKey(info); phone = aiIsPhone(info); b.desk = !phone;
     for (let i = 0; i < AI_BENCH.length; i++) {
       const def = AI_BENCH[i], st = b.stages[i];
       const maxMs = AI.benchMaxMs == null ? AI_BENCH_MAX_MS : AI.benchMaxMs; // AI.benchMaxMs: 시험용
       if (i > 0 && b.t1 && Date.now() - b.t1 >= maxMs) { st.state = 'skip'; st.note = `진단이 ${Math.round(maxMs / 60000)}분을 넘어서 건너뛰었어요`; b.late = true; put(); continue; }
+      // 컴퓨터는 조각 크기를 재지 않아요: 모델이 만들어진 512토큰 그대로 읽어요 (안 됐거나 너무 오래 걸린 크기가 있을 때만 작게)
+      if (def.k === 'sweep' && !phone) { st.state = 'skip'; st.note = '컴퓨터는 조각 크기를 재지 않고 모델이 만들어진 크기 그대로 읽어요'; put(); continue; }
       if (def.k === 'sweep') {
         // 처음 재기 전에 전에 찾은 안전한 크기를 지워요 (이번에 다시 찾아요). 전에 안 된 크기와 그보다 큰 크기, 한계에 가까웠던 크기부터는 건너뛰어요
         if (def === AI_BENCH.find(d => d.k === 'sweep')) aiChunkPut(b.ckey, r => { r.safe = 0; });
@@ -1048,6 +1087,8 @@ async function aiBenchRun(signal, onChange) {
           // 글자당 토큰을 실제로 읽은 토큰(usage.prompt_tokens)으로 맞춰요: 다음 길이 재기 글이 목표에 가깝게
           if ((def.k === 'long' || def.k === 'len') && st.tin > AI_TOK_TMPL) lenRatio = (st.tin - AI_TOK_TMPL) / prompt.length;
           if (def.k === 'len' && st.tin && Math.abs(st.tin - def.len) > 40) st.note = `목표와 ${st.tin - def.len}토큰 차이`;
+          // 컴퓨터: 실제 크기 요청에서 조각 하나가 너무 오래 걸렸으면 그 크기는 다음부터 쓰지 않아요 (그래픽 칩 한계에 가까워요. 반으로 줄여요)
+          if (!phone && def.k === 'long' && st.cmax > AI_CHUNK_SLOW_MS && st.size > 1) { aiChunkBad(b.ckey, st.size); st.note = `조각 하나가 ${(AI_CHUNK_SLOW_MS / 1000).toFixed(1)}초를 넘어서 다음부터 ${aiChunkPick(info)}토큰씩 읽어요`; }
           if (def.k === 'sweep') {
             if (!st.cn) st.note = '조각 시간을 받지 못해서 안전한 크기로 남기지 않았어요';
             else if (st.cmax > AI_CHUNK_SLOW_MS) { top = def.size; aiChunkBad(b.ckey, def.size); st.note = `조각 하나가 ${(AI_CHUNK_SLOW_MS / 1000).toFixed(1)}초를 넘어서 그래픽 칩 한계에 가까워요`; }
@@ -1072,7 +1113,7 @@ async function aiBenchRun(signal, onChange) {
     if (b.state === 'stop') { if (eng) try { eng.interruptGenerate(); } catch (x) { } if (!AI.engine) aiDrop(); }
     // 실패한 엔진은 다시 쓰지 않아요 (다음 단어장은 새로 불러와요)
     else aiDrop();
-  } finally { cur = null; b.end = Date.now(); if (AI.bench === b) { AI.onChunk = null; AI.onSample = null; } put(); }
+  } finally { cur = null; b.end = Date.now(); if (b.desk) b.chunk = aiChunkPick(AI.gpuInfo); if (AI.bench === b) { AI.onChunk = null; AI.onSample = null; } put(); }
   return b;
 }
 // 진단 중에 화면이 꺼지거나 다른 앱이 열리면 그 단계에 적어요
@@ -1086,7 +1127,7 @@ function aiBenchOnVis() {
 function aiBenchText(b) {
   if (!b) return '';
   const d = new Date(b.t0), two = n => String(n).padStart(2, '0');
-  const out = [`AI 진단 · ${AI_MODEL} · ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}${b.ua ? ' · ' + b.ua : ''}`];
+  const out = [`AI 진단 · ${b.model || AI_MODEL} · ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}${b.ua ? ' · ' + b.ua : ''}`];
   if (b.env) out.push(b.env);
   if (b.dev) out.push(b.dev);
   const ST = { ok: 'ok (성공)', fail: 'fail (실패)', crash: 'crashed (탭 꺼짐)', stop: '그만둠', run: '하는 중', skip: '건너뜀', '': '안 함' };
@@ -1112,6 +1153,8 @@ function aiBenchText(b) {
   }
   // 조각 크기를 재기 시작했으면: 이번에 찾은 안전한 크기 (이야기를 만들 때 이 크기로 읽어요)
   if (b.stages.some(s => s.k === 'sweep' && s.state && s.state !== 'skip')) out.push(b.safe ? `이 기기의 안전한 조각 크기: ${b.safe}토큰 (이야기를 만들 때 이 크기로 나눠 읽어요)` : '이 기기의 안전한 조각 크기: 아직 못 찾았어요');
+  // 컴퓨터: 쓸 조각 크기 (모델이 만들어진 512토큰, 안 됐거나 너무 오래 걸린 크기가 있으면 그보다 작게)
+  if (b.desk && b.chunk) out.push(`이 컴퓨터의 조각 크기: ${b.chunk}토큰 (${b.chunk < AI_CHUNK ? '안 됐거나 너무 오래 걸린 크기가 있어서 작게 읽어요' : '모델이 만들어진 크기 그대로'})`);
   const bad = b.stages.find(s => s.state === 'fail' || s.state === 'crash');
   out.push(b.state === 'run' ? '결과: 진단하는 중이에요. 화면을 켜 둔 채 기다려 주세요.' : b.state === 'done' ? (b.late ? '결과: 진단이 길어져서 남은 단계는 건너뛰었어요.' : '결과: 모든 단계를 마쳤어요.') : b.state === 'stop' ? '결과: 중간에 그만뒀어요.'
     : bad ? `결과: ${bad.label.split(' ')[0]}단계에서 멈췄어요${bad.state === 'crash' ? ' (진단 중에 탭이 꺼졌어요)' : ''}.` : '결과: 멈췄어요.');

@@ -24,7 +24,7 @@ function bindEvents() {
     const sb = e.target.closest('.seg button');
     if (sb) {
       const set = sb.parentElement.dataset.set;
-      SAVE[set] = set === 'sound' || set === 'narr' ? sb.dataset.v === 'true' : set === 'rate' ? parseFloat(sb.dataset.v) : sb.dataset.v;
+      SAVE[set] = set === 'sound' || set === 'narr' || set === 'netVoice' ? sb.dataset.v === 'true' : set === 'rate' ? parseFloat(sb.dataset.v) : sb.dataset.v;
       persist();
       if (set === 'sound' && SAVE.sound) { Sound.unlock(); Sound.play('know'); }
       if ((set === 'rate' || set === 'narr') && SAVE.narr) { Narr.unlock(); sayWord(SCENES[0].words[0], wordRate()).catch(() => { }); }
@@ -69,6 +69,7 @@ function bindEvents() {
       else if (act === 'start') { Sound.unlock(); startPlay(); }
       else if (act === 'vfull') { Sound.unlock(); Narr.unlock(); if (FS.on) exitFS(); else enterFS(); }
       else if (act === 'vfix') vFix();
+      else if (act === 'vnet') voiceNetOn();
       else if (act === 'vcopy') copyLink();
       else if (act === 'vout') openOutside();
       return;
@@ -277,6 +278,7 @@ function boot(data) {
   if (!DIFF[SAVE.diff]) SAVE.diff = 'normal';
   if (SAVE.dir !== 'en' && SAVE.dir !== 'ko') SAVE.dir = 'en';
   if (typeof SAVE.narr !== 'boolean') SAVE.narr = true;
+  if (typeof SAVE.netVoice !== 'boolean') SAVE.netVoice = false;
   if (!RATES.includes(SAVE.rate)) SAVE.rate = 1;
   for (const k of ['best', 'wrong', 'seen', 'decks']) if (!SAVE[k] || typeof SAVE[k] !== 'object' || Array.isArray(SAVE[k])) SAVE[k] = {};
   SAVE.sound = SAVE.sound !== false;
