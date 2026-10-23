@@ -761,5 +761,4 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mkwait.ocr p { flex: 1; min-width: 0; }
 .mkalt { display: grid; gap: 8px; margin-top: 10px; }
 .mkalt .btn { font-size: 15px; }
-
-
+.mkfail{margin:0 0 14px}.mkfail .btn{margin-top:8px}.mkgate{margin:10px 0}

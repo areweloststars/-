@@ -1,7 +1,7 @@
 /* ================= 사진으로 새 단어장 만들기 =================
    1) 단어장 사진 → 이 기기 안에서 글자 인식(OCR)으로 영어 단어와 뜻을 읽음 (API 없이)  2) 학생이 확인·수정
-   3) 바로 만들기: 단어를 에피소드로 나누고, 뜻을 보고 그림 칸(이모지·사람·동물)을 자동으로 골라 게임으로
-      (Claude를 쓸 수 있는 화면에서는 고르면 이야기·팁·예문까지 Claude가 써 줌) */
+   3) 만들기: 단어를 에피소드로 나누고, 앱이 줄거리 틀(인물·말썽 → 해결·뜻 그림 칸)을 만들면 이 기기의 이야기 AI(Gemma 4)가 단어 줄을 써요.
+      이야기 AI 없이는 단어장을 만들지 않아요 (mkGate·mkMake). (Claude를 쓸 수 있는 화면에서는 고르면 이야기·팁·예문까지 Claude가 써 줌) */
 const MK = { useAI: false, run: null, step: 'pick', images: [], rows: [], name: '', ctl: null, err: '', note: '', log: [], sample: null, caps: null, ready: false, deck: null, paste: '', pasteOpen: null };
 const MK_MIN = 4, MK_MAX = 80;
 const POS_KEYS = ['n', 'v', 'a', 'd', 'p', 'x'];
@@ -62,7 +62,8 @@ function renderMake() {
 function mkPickHTML() {
   const thumbs = MK.images.map((im, i) => `<div class="mkimg"><img src="${im.url}" alt="고른 사진 ${i + 1}"><button type="button" data-mk="rmimg" data-i="${i}" aria-label="사진 ${i + 1} 빼기">${ICON.close}</button></div>`).join('');
   return `
-    <ol class="mksteps"><li><b>사진</b> 단어장 쪽을 찍어요</li><li><b>확인</b> 읽은 단어와 뜻을 고쳐요</li><li><b>완성</b> 그림·미션이 바로 생겨요</li></ol>
+    <ol class="mksteps"><li><b>사진</b> 단어장 쪽을 찍어요</li><li><b>확인</b> 읽은 단어와 뜻을 고쳐요</li><li><b>완성</b> 이야기 AI가 이야기를 써요</li></ol>
+    <p class="mksmall mkneed">${esc(mkNeedText())}</p>
     <p class="mksmall mkcopy">사진과 읽은 단어는 이 기기에만 저장되고 어디에도 올리지 않아요. 교재 내용은 출판사의 저작물이라, 직접 가진 교재로 혼자 공부할 때만 쓰고 만든 단어장을 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
     <div class="mkpick">
       <label class="btn good mkbtn">${ICON.camera}<span>사진 찍기</span><input class="mkfile" type="file" accept="image/*" capture="environment" data-mkfile="1" aria-label="사진 찍기"></label>
@@ -89,15 +90,34 @@ function mkReviewHTML() {
   const rows = MK.rows.map((r, i) => `<div class="mkrow${r.flag ? ' flag' : ''}" data-i="${i}"><input class="mken" value="${esc(r.en)}" placeholder="영어" aria-label="${i + 1}번 영어" autocapitalize="off" autocorrect="off" spellcheck="false"><input class="mkko" value="${esc(r.ko)}" placeholder="뜻 (쉼표로 여러 개)" aria-label="${i + 1}번 뜻"><button type="button" data-mk="rmrow" data-i="${i}" aria-label="${i + 1}번 지우기">${ICON.close}</button>${r.snip ? `<img class="mksnip" src="${r.snip}" alt="${i + 1}번 줄의 사진 속 원래 모습">` : ''}${r.flag && OCR_FLAG[r.flag] ? `<span class="mkguess bad">⚠ ${OCR_FLAG[r.flag]}</span>` : ''}${r.guess ? '<span class="mkguess">사진에 뜻이 없어 Claude가 채운 뜻</span>' : ''}${r.ko && !mkAnsFrom(null, mkCleanKo(r.ko)).length ? '<span class="mkguess">뜻을 한글이나 영어 글자로 써 주세요</span>' : ''}</div>`).join('');
   const ok = n >= MK_MIN && n <= MK_MAX;
   return `
+    ${MK.fail && MK.err ? `<div class="mkfail">${mkDiagHTML()}<button type="button" class="btn good" data-mk="retry">${ICON.play}다시 해 보기</button></div>` : ''}
     ${MK.note ? `<p class="mknote">${esc(MK.note)}</p>` : ''}
     <p class="mksmall">잘못 읽은 글자가 있으면 고쳐 주세요. <b>뜻이 여러 개면 쉼표로</b> 나눠요. 게임에서는 쉼표로 나눈 뜻을 <b>모두</b> 써야 정답이에요.${MK.rows.some(r => r.snip) ? ' 줄마다 아래에 사진 속 원래 줄을 함께 보여 줘요(이 화면에만 보이고 저장하지 않아요).' : ''}</p>
     <label class="mklab">단어장 이름<input id="mkname" value="${esc(MK.name)}" maxlength="24" placeholder="예) Day 03 단어"></label>
     <div class="mkrows">${rows}</div>
     <button type="button" class="linkbtn" data-mk="addrow">＋ 단어 추가</button>
     <p class="mkcount">${n}단어${n < MK_MIN ? ` · ${MK_MIN}단어 이상 필요해요` : n > MK_MAX ? ` · ${MK_MAX}단어까지만 만들 수 있어요` : ` · 에피소드 약 ${Math.max(1, Math.round(n / 6))}개`}</p>
-    <button type="button" class="startbtn" data-mk="make"${ok ? '' : ' disabled'}>${ICON.play}${MK.redo ? '이 단어장 이야기 새로 만들기' : 'AI 이야기로 게임 만들기'}</button>
+    ${mkGateHTML()}
+    <button type="button" class="startbtn" data-mk="make"${ok && !MK.aiWhy ? '' : ' disabled'}>${ICON.play}${MK.redo ? '이 단어장 이야기 새로 만들기' : 'AI 이야기로 게임 만들기'}</button>
     ${mkAiHTML()}
     <button type="button" class="linkbtn" data-mk="restart">처음으로</button>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`;
+}
+// 새 단어장은 이 기기의 이야기 AI가 이야기를 써야 만들어요: 누가 쓰는지와 필요한 것 (홈 카드·만들기 화면)
+const mkNeedText = () => `이 기기의 이야기 AI(Gemma 4)가 이야기를 써서 새 단어장을 만들어요. 이야기 AI가 돌아가는 크롬과, 처음 한 번 와이파이로 받을 이야기 AI(${AI_SIZE})가 필요해요. 기본 단어장은 어느 기기에서나 할 수 있어요.`;
+// 이야기 AI를 못 돌리는 기기(aiWhyNot의 까닭)와 할 일
+const mkNoAiText = why => `이 기기(브라우저)에서는 이야기 AI가 돌아가지 않아서 새 단어장을 만들 수 없어요. ${why} 이야기 AI가 돌아가는 휴대폰·컴퓨터의 크롬에서 만들어 주세요. 입력한 단어는 이 화면에 그대로 있어요.`;
+// 아직 안 받았는데 모바일 데이터(데이터 절약 모드)면: 3GB를 저절로 받지 않고, 와이파이에서 준비하기 단추로 받으라고 해요
+const mkDataText = () => `지금은 모바일 데이터로 연결돼 있고 이야기 AI(${AI_SIZE})를 아직 받지 않았어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 이야기 AI를 먼저 받아야 단어장을 만들 수 있어요. 입력한 단어는 이 화면에 그대로 있어요.`;
+// 지금 단어장을 만들 수 없으면 그 까닭과 할 일 ('' = 만들 수 있어요. 이야기 AI를 쓸 수 있는지 아직 확인 중이어도 '': mkMake가 다시 확인해요)
+function mkGate() {
+  if (MK.aiWhy) return mkNoAiText(MK.aiWhy);
+  if (aiNeedsDownload() && aiMobileData()) return mkDataText();
+  return '';
+}
+// 확인 화면의 만들기 단추 위 안내 (같은 말이 맨 위 오류 칸에 이미 있으면 숨겨요)
+function mkGateHTML() {
+  const t = mkGate();
+  return t && t !== MK.err ? `<p class="mknote mkgate" id="mkgate" role="status">⚠ ${esc(t)}</p>` : '<p class="mkgate" id="mkgate" hidden></p>';
 }
 // 인터넷 없이 쓰게 준비하기 (사진 고르기·확인 화면에 보여 줘요)
 // 1) 이야기 AI를 이 브라우저에서 쓸 수 있는지. 못 쓰면 까닭과 크롬으로 여는 방법
@@ -116,16 +136,16 @@ function mkAiHTML() {
   if (MK.aiWhy == null) return '<div class="mknote mkai" id="mkai">이야기 AI를 이 기기에서 쓸 수 있는지 확인하는 중…</div>';
   const dl = MK.aiDl || {}, ai = !MK.aiWhy, aiReady = ai && !!(AI.engine || aiReadyBefore()), files = MK.offline === 'ok' || MK.offline === 'nosw';
   const done = files && (!ai || aiReady);
-  const aiPart = !ai ? `<b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>이대로 만들면 앱이 줄거리에 맞춘 기본 문장으로 이야기를 만들어요.`
-    : aiReady ? '<b>✓ 이야기 AI(Gemma 4)를 이 기기에 받아 두었어요.</b> 인터넷 없이도 줄거리에 맞게 문장을 다듬어요. 에피소드마다 30초~1분쯤 걸려요.'
+  const aiPart = !ai ? `<b>⚠ 이야기 AI를 쓸 수 없어요.</b> ${esc(MK.aiWhy)}<br>새 단어장은 이야기 AI가 이야기를 써야 만들 수 있어요. 이야기 AI가 돌아가는 휴대폰·컴퓨터의 크롬에서 만들어 주세요. 기본 단어장 게임은 그대로 할 수 있어요.`
+    : aiReady ? '<b>✓ 이야기 AI(Gemma 4)를 이 기기에 받아 두었어요.</b> 인터넷 없이도 이 기기에서 이야기를 써요. 에피소드마다 30초~1분쯤 걸려요.'
       : `<b>✓ 이 기기에서 이야기 AI(Gemma 4)를 쓸 수 있어요.</b> 처음 한 번 AI(${AI_SIZE})를 받아요.`;
-  const filePart = MK.offline === 'ok' ? (ai ? '✓ 사진 읽기·목소리 파일도 이 기기에 받아 두었어요.' : '✓ 사진 읽기·목소리 파일은 이 기기에 받아 두었어요. 인터넷 없이도 단어장을 만들고 게임을 해요.')
+  const filePart = MK.offline === 'ok' ? (ai ? '✓ 사진 읽기·목소리 파일도 이 기기에 받아 두었어요.' : '✓ 사진 읽기·목소리 파일은 이 기기에 받아 두었어요. 인터넷 없이도 게임을 해요.')
     : MK.offline === 'nosw' ? '이 브라우저는 게임 파일을 저장해 두지 못해서 인터넷 없이는 열리지 않아요. 크롬이나 삼성 인터넷으로 열어 주세요.'
       : `게임 파일(사진 읽기·목소리 등, 약 ${offlineMB()}MB)${ai ? '도' : '을'} 받아 두면 인터넷 없이 써요.`;
   let act = '';
   if (dl.state === 'run') act = `<b>인터넷 없이 쓰게 준비하는 중</b><br>${esc(dl.text || '')}<div class="ocrbar" aria-hidden="true"><i style="width:${Math.round((dl.p || 0) * 100)}%"></i></div><button type="button" class="linkbtn" data-mk="aidlstop">그만 받기</button>`;
   else if (dl.state === 'fail') act = `<b>⚠ 다 받지 못했어요.</b> ${esc(dl.text || '')}<br><button type="button" class="btn" data-mk="aidl">다시 받기</button>`;
-  else if (!done) act = `${ai && !aiReady && aiMobileData() ? '<b>지금은 모바일 데이터로 연결돼 있어요.</b> ' : ''}<b>와이파이</b>에서 화면을 켜 둔 채로 받아 주세요. 한 번만 받으면 그다음부터는 인터넷 없이(비행기 모드에서도) 써요.<br><button type="button" class="btn" data-mk="aidl">인터넷 없이 쓰게 준비하기</button>${ai && !aiReady ? ' <small>(안 받아 두면 ‘게임 만들기’를 누를 때 이야기 AI만 받아요)</small>' : ''}`;
+  else if (!done) act = `${ai && !aiReady && aiMobileData() ? '<b>지금은 모바일 데이터로 연결돼 있어요.</b> ' : ''}<b>와이파이</b>에서 화면을 켜 둔 채로 받아 주세요. 한 번만 받으면 그다음부터는 인터넷 없이(비행기 모드에서도) 써요.<br><button type="button" class="btn" data-mk="aidl">인터넷 없이 쓰게 준비하기</button>${ai && !aiReady && !aiMobileData() ? ' <small>(안 받아 두면 ‘게임 만들기’를 누를 때 이야기 AI만 받아요)</small>' : ''}`;
   const head = ai && done && MK.offline === 'ok' && dl.state !== 'fail' ? '<b>✓ 인터넷 없이 쓸 준비가 됐어요.</b><br>' : '';
   return `<div class="mknote mkai ${ai && dl.state !== 'fail' ? 'ok' : 'bad'}" id="mkai">${head}${aiPart}<br>${filePart}${act ? `<br>${act}` : ''}${ai ? mkBenchHTML() : ''}</div>`;
 }
@@ -136,7 +156,12 @@ function mkBenchHTML() {
     <p class="mksmall">휴대폰 그래픽 칩이 어느 단계에서 멈추는지 알아보고, 글을 나눠 읽을 안전한 조각 크기를 찾아요. 결과는 이 휴대폰에만 남고 어디로도 보내지 않아요.</p>${b ? `<pre id="mkbenchout">${esc(aiBenchText(b))}</pre>${run ? '' : '<button type="button" class="btn" data-mk="benchcopy">결과 복사</button>'}` : ''}</div>`;
 }
 // 상자만 다시 그려요 (입력 중인 단어 칸은 그대로)
-function mkAiPut() { const el = document.getElementById('mkai'); if (el) el.outerHTML = mkAiHTML(); }
+// 확인 화면이면 만들기 단추 위 안내와 단추도 (이야기 AI를 쓸 수 있는지 알게 됐거나 받기를 마쳤을 때)
+function mkAiPut() {
+  const el = document.getElementById('mkai'); if (el) el.outerHTML = mkAiHTML();
+  const g = document.getElementById('mkgate'); if (g) g.outerHTML = mkGateHTML();
+  if (MK.step === 'review') mkCountOnly();
+}
 // 받기 진행 글: 단계마다 0→100이 다시 시작돼요 (받기 → 그래픽 칩에 올리기 → 마무리)
 function mkAiProgText(p, t, lab) {
   const step = /^Loading model from cache/.test(t) ? '그래픽 칩에 올리는 중' : /^Loading GPU shader/.test(t) ? '마무리하는 중' : '';
@@ -189,10 +214,14 @@ function mkDoneHTML() {
     <p><b>${esc(d.name)}</b> — ${n}단어, 에피소드 ${d.scenes.length}개</p>
     <div class="mkthumbs">${d.scenes.map(s => `<div><img src="${'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">${genScene(d.panels[s.key] || [])}</svg>`)}" alt=""><span>${esc(s.title)}</span></div>`).join('')}</div>
     ${MK.aiNote ? `<p class="mknote">${esc(MK.aiNote)}</p>` : ''}
-    ${MK.aiDiag && MK.aiDiag.length ? `<details class="mkdiag"><summary>AI가 쓴 글 보기 (문제 찾기용)</summary>${MK.aiEnv ? `<p><small>${esc(MK.aiEnv).replace(/\n/g, '<br>')}</small></p>` : ''}${MK.aiDiag.map(d => `<p><b>${esc(d.title)}</b>${d.info ? `<br><small>${esc(d.info)}</small>` : ''}${(d.more || []).length ? `<br><small>${d.more.map(esc).join('<br>')}</small>` : ''}<br>${d.why.map(esc).join('<br>')}${(d.gpu || []).length ? `<br><small>${d.gpu.map(esc).join('<br>')}</small>` : ''}</p><pre>${esc(d.raw || '(빈 답)')}</pre>`).join('')}</details>` : ''}
+    ${mkDiagHTML()}
     ${MK.saveNote ? `<p class="mksmall">${esc(MK.saveNote)}</p>` : ''}
     <p class="mksmall">교재로 만든 단어장은 개인 공부용으로만 써 주세요. 다른 사람과 나누거나 인터넷에 올리지 마세요.</p>
     <button type="button" class="startbtn" data-mk="play">${ICON.play}이 단어장으로 게임 시작</button></div>`;
+}
+// 'AI가 쓴 글 보기' (문제 찾기용): 완성 화면, 그리고 이야기 AI가 멈춰서 만들지 못했을 때 확인 화면에
+function mkDiagHTML() {
+  return MK.aiDiag && MK.aiDiag.length ? `<details class="mkdiag"><summary>AI가 쓴 글 보기 (문제 찾기용)</summary>${MK.aiEnv ? `<p><small>${esc(MK.aiEnv).replace(/\n/g, '<br>')}</small></p>` : ''}${MK.aiDiag.map(d => `<p><b>${esc(d.title)}</b>${d.info ? `<br><small>${esc(d.info)}</small>` : ''}${(d.more || []).length ? `<br><small>${d.more.map(esc).join('<br>')}</small>` : ''}<br>${d.why.map(esc).join('<br>')}${(d.gpu || []).length ? `<br><small>${d.gpu.map(esc).join('<br>')}</small>` : ''}</p><pre>${esc(d.raw || '(빈 답)')}</pre>`).join('')}</details>` : '';
 }
 function mkLog(text, state = 'run') { MK.log.push({ text, state }); if (!$('#make').hidden) renderMake(); return MK.log.length - 1; }
 function mkLogSet(i, state, text) { if (MK.log[i]) { MK.log[i].state = state; if (text) MK.log[i].text = text; } if (!$('#make').hidden) renderMake(); }
@@ -209,7 +238,7 @@ function mkCountOnly() {
   const n = mkValidRows().length, c = $('#make .mkcount'), b = $('#make [data-mk="make"]'), b2 = $('#make [data-mk="makeai"]');
   if (b2) b2.disabled = !(n >= MK_MIN && n <= MK_MAX);
   if (c) c.textContent = `${n}단어${n < MK_MIN ? ` · ${MK_MIN}단어 이상 필요해요` : n > MK_MAX ? ` · ${MK_MAX}단어까지만 만들 수 있어요` : ` · 에피소드 약 ${Math.max(1, Math.round(n / 6))}개`}`;
-  if (b) b.disabled = !(n >= MK_MIN && n <= MK_MAX);
+  if (b) b.disabled = !(n >= MK_MIN && n <= MK_MAX) || !!MK.aiWhy; // 이야기 AI를 못 돌리는 기기는 꺼 둬요 (mkGate)
 }
 // "영어 - 뜻" 줄들을 단어 목록으로. 번호·글머리표·품사·표(탭) 칸도 정리하고, 못 읽은 줄 수도 셈
 const HANGUL = /[가-힣]/, LATIN = /[A-Za-z]/;

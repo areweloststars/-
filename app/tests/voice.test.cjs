@@ -1,7 +1,7 @@
 // 이야기 목소리: 소리가 시작하지 않으면 알려 주고 다시 준비하기, 게임을 열 때 이야기 AI 내려놓기
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { bootPage } = require('./page.cjs');
+const { bootPage, FAKE_AI } = require('./page.cjs');
 const vm = require('node:vm');
 // 화면이 바뀔 때까지 기다려요 (정해진 짧은 시간만 기다리면 컴퓨터가 바쁠 때 실패해요)
 const until = async (ok, ms = 3000) => { const t = Date.now(); while (!ok() && Date.now() - t < ms) await new Promise(r => setTimeout(r, 15)); };
@@ -209,8 +209,9 @@ test('story AI: put down when the make screen is left or a deck finishes while e
     assert.equal(p.json('!!AI.engine'), true, '만드는 중에는 그대로');
     p.run('MK.step = "pick"; showScreen("make"); goHome()');
     assert.equal(p.json('!!AI.engine'), false, '만들기 화면을 나가면 내려놓아요');
-    // 다른 화면에 있는 동안 다 만들면 그때 내려놓아요
+    // 다른 화면에 있는 동안 다 만들면 그때 내려놓아요 (이야기 AI가 써요: 가짜 AI)
     load();
+    p.run(`AI.gpu = true; AI.engine = ${FAKE_AI}; AI.loading = Promise.resolve(AI.engine);`);
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
     assert.equal(p.json('MK.step'), 'done', p.json('MK.err'));

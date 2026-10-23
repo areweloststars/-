@@ -4,7 +4,9 @@
    이야기 틀·인물·단어 순서(말썽 → 해결)는 앱이 정하고(mkStory), AI는 앱이 쓴 이야기 전체를 보고
    번호 붙은 단어 줄만 더 재미있게 고쳐 써요 (그 줄의 인물은 그대로: 그림도 그 인물로 그려져 있어요).
    AI는 단어 뜻을 다시 쓰지 않아요: 앱이 단어 뜻 자리를 ★로 바꿔 보내고, AI는 ★ 앞뒤만 써요.
-   앱이 ★ 자리에 단어 뜻을 그대로 되돌려 넣어요. ★가 없거나 두 번이거나 문장과 맞지 않으면 그 줄은 앱 문장을 그대로 둬요.
+   앱이 ★ 자리에 단어 뜻을 그대로 되돌려 넣어요. ★가 없거나 두 번이거나 문장과 맞지 않은 줄은 그 줄들만 담아 한 번 더 물어요.
+   그 뒤 AI가 에피소드 단어 줄의 2/3(AI_MIN_SHARE, 올림) 이상을 써야 단어장을 만들어요 (남은 줄은 줄거리 틀 문장 그대로, 단어마다 칩이 있게).
+   이야기 AI를 못 돌리거나 준비·쓰기에 실패하면 단어장을 만들지 않아요 (mkMake).
    모델 파일은 저장소에 없어요: word-game/llm/NOTICE.txt (Gemma 4: Apache 2.0) */
 const AI_MODEL = 'gemma-4-E2B-it-q4f16_1-MLC';
 const AI_SIZE = '약 3GB';
@@ -49,7 +51,7 @@ const AI_INAPP = [[/KAKAOTALK/i, '카카오톡'], [/NAVER\(inapp|NAVER/, '네이
 async function aiWhyNot() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '', app = (AI_INAPP.find(([re]) => re.test(ua)) || [])[1];
   if (await aiGpuOk()) return '';
-  if (AI.gpuWhy === 'mem') return `이 휴대폰은 메모리(RAM)가 작아서 이야기 AI를 돌릴 수 없어요 (크롬이 알려 준 메모리 약 ${AI.gpuMem}GB, 이야기 AI는 ${AI_MEM}GB 필요). 게임은 앱이 쓴 문장으로 그대로 할 수 있어요.`;
+  if (AI.gpuWhy === 'mem') return `이 휴대폰은 메모리(RAM)가 작아서 이야기 AI를 돌릴 수 없어요 (크롬이 알려 준 메모리 약 ${AI.gpuMem}GB, 이야기 AI는 ${AI_MEM}GB 필요).`;
   if (app) return `${app} 안에서 열린 화면이에요. 오른쪽 위 ⋮ 메뉴에서 ‘다른 브라우저로 열기’를 눌러 크롬으로 열어 주세요.`;
   if (AI.gpuWhy === 'nogpu') return '이 브라우저에는 AI 계산 기능(WebGPU)이 없어요. 휴대폰의 최신 크롬으로 열어 주세요.';
   if (AI.gpuWhy === 'nof16') return '이 휴대폰의 그래픽 칩이 이야기 AI에 필요한 기능(16비트 계산)을 지원하지 않아요.';
@@ -488,7 +490,7 @@ function aiClean(s) {
 }
 // 줄 전체를 감싼 따옴표만 떼요 (속에 다른 따옴표가 있으면 대사라서 그대로)
 const aiUnquote = t => /^["“‘']/.test(t) && /["”’']$/.test(t) && !/["“”‘’']/.test(t.slice(1, -1)) ? t.slice(1, -1).trim() : t;
-// 어린이·청소년이 읽어요: 욕, 성적인 말, 약물, 자해, 끔찍한 폭력, 혐오 표현이 든 AI 문장은 버리고 앱 문장을 써요.
+// 어린이·청소년이 읽어요: 욕, 성적인 말, 약물, 자해, 끔찍한 폭력, 혐오 표현이 든 AI 문장은 버려요 (단어장 만들기에서는 그 줄만 한 번 더 물어요).
 // 너무 넓게 잡지 않게 낱말을 골랐어요 ('새끼 고양이', '불이 꺼져서', '시발점'은 괜찮아요)
 const AI_BLOCK = /씨발|시발(?!점)|씨바|ㅅㅂ|ㅆㅂ|개새끼|병신|존나|좆|지랄|닥쳐|썅|미친놈|미친년|섹스|성관계|야동|음란|알몸|나체|포르노|마약|대마초|필로폰|코카인|헤로인|마리화나|자살|자해|피투성이|피범벅|시체|살해|살인|죽여|죽였|짱깨|쪽바리|깜둥이|\b(?:fuck\w*|shit\w*|bitch\w*|porn\w*|sex\w*|nude|naked|cocaine|heroin|suicide|kill\w*|corpse)\b/i;
 // AI 문장이 쓸 만한지: 못 쓰면 까닭(짧게), 쓸 만하면 ''
@@ -560,7 +562,7 @@ function aiParts(story, first, budget = AI_BUDGET) {
     for (let j = 0; j < k; j++) {
       const a = Math.round(j * at.length / k), b = Math.round((j + 1) * at.length / k), from = a ? at[a - 1] + 1 : 0;
       // 번호는 요청마다 1부터. 앞 묶음 뒤의 줄부터 이 묶음 마지막 번호 줄까지 (나눈 요청은 이야기 첫 줄을 앞에)
-      const st = (from ? [{ n: 0, text: first }] : []).concat(story.slice(from, at[b - 1] + 1).map(s => (s.n ? Object.assign({}, s, { n: s.n - a }) : s)));
+      const st = (from && first ? [{ n: 0, text: first }] : []).concat(story.slice(from, at[b - 1] + 1).map(s => (s.n ? Object.assign({}, s, { n: s.n - a }) : s)));
       const prompt = aiPrompt(st);
       parts.push({ items: Array.from({ length: b - a }, (_, i) => a + i), prompt, est: aiTokEst(prompt) });
     }
@@ -754,11 +756,24 @@ function aiReq(res, rows, n, budget = AI_BUDGET) {
   const parts = items.length ? aiParts(story, plainOf(lines[0] || ''), budget) : [];
   return { f, lines, plainOf, idx, items, story, text: lines.map(plainOf).join('\n'), parts, prompt: parts.length ? parts[0].prompt : '' };
 }
-// 앱이 만든 이야기(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요.
-// 요청이 여럿으로 나뉘면(aiParts) 차례로 묻고, 다 끝난 뒤에 한꺼번에 바꿔요 (중간에 오류가 나면 이 에피소드는 앱 문장 그대로)
+// 단어장에 쓰려면 이야기 AI가 에피소드 단어 줄의 이만큼(2/3, 올림) 이상을 써야 해요. 모자라면 단어장을 만들지 않아요 (mkMake)
+const AI_MIN_SHARE = 2 / 3;
+const aiNeed = n => Math.ceil(n * AI_MIN_SHARE - 1e-9);
+// 이야기(res)의 단어 줄 수 (AI가 쓸 번호 줄: aiReq와 같은 방법으로 셈)
+const aiWordLines = (res, rows) => res.lines.filter(l => { const m = l.match(/\{([^|}]+)\|([^}]+)\}/); return !!(m && rows[m[1]]); }).length;
+// 다시 묻기 요청: 버린 번호 줄(miss: 이야기 전체의 번호 줄 차례)만 담아요. 이야기 첫 줄(단어 없는 줄)을 앞에 두고 번호는 1부터,
+// 같은 ★ 꼴과 길이 한도(aiParts). at: 'AI가 쓴 글 보기'에 이야기 전체의 번호로 적으려고
+function aiReqAgain(req, miss, budget) {
+  const items = miss.map(k => req.items[k]), head = req.story[0] && !req.story[0].n ? [req.story[0]] : [];
+  const story = head.concat(items.map((x, i) => ({ n: i + 1, core: x.core, hint: x.hint, text: x.star })));
+  return Object.assign({}, req, { items, story, at: miss, again: true, parts: aiParts(story, head.length ? head[0].text : '', budget) });
+}
+// 앱이 만든 줄거리 틀(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요.
+// 요청이 여럿으로 나뉘면(aiParts) 차례로 묻고, 다 끝난 뒤에 한꺼번에 바꿔요 (중간에 오류가 나면 아무 줄도 바꾸지 않고 오류를 넘겨요)
+// again(단어장 만들기): 규칙에 맞지 않아 버린 번호 줄만 담아 한 번 더 물어요. 다시 묻기는 한 번뿐이에요
 const AI_DIAG_N = 12;
-async function aiRewrite(eng, res, rows, n, signal) {
-  const req = aiReq(res, rows, n, aiBudget()), { lines, plainOf, idx, items, parts } = req;
+async function aiRewrite(eng, res, rows, n, signal, again) {
+  const budget = aiBudget(), req = aiReq(res, rows, n, budget), { lines, plainOf, idx, items, parts } = req;
   if (!items.length) return 0;
   const stop = () => { try { eng.interruptGenerate(); } catch (e) { } };
   if (signal) { if (signal.aborted) throw { code: 'cancelled' }; signal.addEventListener('abort', stop, { once: true }); }
@@ -767,6 +782,12 @@ async function aiRewrite(eng, res, rows, n, signal) {
   const fits = items.map(() => null);
   try {
     for (let j = 0; j < parts.length; j++) await aiAsk(eng, req, parts[j], j, parts.length, fits, signal);
+    const miss = again ? items.map((x, k) => k).filter(k => !fits[k]) : [];
+    if (miss.length) {
+      const re = aiReqAgain(req, miss, budget), got = miss.map(() => null);
+      for (let j = 0; j < re.parts.length; j++) await aiAsk(eng, re, re.parts[j], j, re.parts.length, got, signal);
+      miss.forEach((k, i) => { if (got[i]) fits[k] = got[i]; });
+    }
   } finally { if (signal) signal.removeEventListener('abort', stop); }
   let changed = 0;
   items.forEach((x, k) => {
@@ -785,7 +806,7 @@ async function aiRewrite(eng, res, rows, n, signal) {
 // 답의 번호는 요청마다 1부터예요. 'AI가 쓴 글 보기' 기록도 요청마다 남겨요
 async function aiAsk(eng, req, part, j, of, fits, signal) {
   const f = req.f, mine = part.items.map(k => req.items[k]), sub = Object.assign({}, req, { items: mine });
-  const title = of > 1 ? `${f.title} · 요청 ${j + 1}/${of}` : f.title;
+  const title = (req.again ? `${f.title} · 다시 묻기` : f.title) + (of > 1 ? ` · 요청 ${j + 1}/${of}` : '');
   let text = '';
   // 글을 조금씩 받아요(stream): 이야기를 다 읽었는지(첫 토큰), 토큰을 몇 개 썼는지 알 수 있어요. 멈추면 그 기록을 남겨요
   // (stream이 아닌 답이 와도 읽어요: 시험용 가짜 AI). 묻기 전에 다른 무거운 일꾼을 멈추고 돌던 일꾼을 적어요
@@ -836,7 +857,7 @@ async function aiAsk(eng, req, part, j, of, fits, signal) {
     if (r.line) got[mv.to] = Object.assign(r, { from: mv.from });
   }
   // 기록의 번호는 이야기 전체의 번호 줄 차례 (요청을 나눴어도 단어 줄 순서대로)
-  const num = k => part.items[k] + 1;
+  const num = k => (req.at ? req.at[part.items[k]] : part.items[k]) + 1;
   mine.forEach((x, k) => {
     const fit = got[k];
     diag.why.push(`${num(k)}. ${x.id}: ${!fit ? whys[k] : fit.how ? `씀 (★ 없이 ${fit.how})` : fit.from != null ? `씀 (${num(fit.from)}번 답을 옮겨 씀)` : '씀'}`);

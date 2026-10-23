@@ -123,13 +123,23 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     // ★ 자리에는 앱 문장의 단어 표시가 그대로 돌아와요
     for (const l of wordLines.filter(l => /깜짝 놀라/.test(l))) assert.ok(r.before.includes(l.replace('모두가 깜짝 놀라 지켜보는 가운데, ', '')), l);
 
-    // 단어장 만들기 전체: AI 준비 → 에피소드마다 AI → 저장 안내
-    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; AI.engine.calls = 0; showScreen('make');`);
+    // 단어장 만들기 전체: AI 준비 → 에피소드마다 한 번 묻고, 버린 줄(2·4·6번)만 담아 한 번 더 → 6줄 가운데 5줄을 AI가 써서 저장 (4번 줄은 줄거리 틀 그대로)
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; AI.engine.calls = 0; AI.engine.prompts = []; showScreen('make');`);
     await p.run('mkMake()');
-    const made = p.json('({ step: MK.step, err: MK.err, note: MK.aiNote, calls: AI.engine.calls, scenes: MK.deck.scenes.length, log: MK.log.map(l => l.text) })');
+    const made = p.json('({ step: MK.step, err: MK.err, note: MK.aiNote, calls: AI.engine.calls, prompts: AI.engine.prompts, scenes: MK.deck.scenes.length, lines: MK.deck.scenes[0].lines, words: MK.deck.scenes[0].words, saved: DeckStore.list().length, diag: MK.aiDiag.map(d => d.title), log: MK.log.map(l => l.text) })');
     assert.equal(made.step, 'done', made.err);
-    assert.equal(made.calls, made.scenes);
-    assert.match(made.note, /이야기 AI\(Gemma 4\)가 단어 문장 \d+줄 가운데 [1-9]\d*줄을 다듬었어요/);
+    assert.equal(made.scenes, 1);
+    assert.equal(made.calls, 2, '한 번 묻고, 버린 줄만 한 번 더 (또 버린 줄은 다시 묻지 않아요)');
+    const nums = t => t.split('\n').filter(l => /^\d+\. /.test(l)), body = l => l.replace(/^\d+\. /, '');
+    assert.equal(nums(made.prompts[0]).length, 6);
+    assert.deepEqual(nums(made.prompts[1]).map(body), nums(made.prompts[0]).filter((_, i) => i % 2).map(body), '다시 묻기에는 버린 줄만, 같은 ★ 꼴로');
+    assert.deepEqual(nums(made.prompts[1]).map(l => l.match(/^\d+/)[0]), ['1', '2', '3']);
+    assert.match(made.diag[1], / · 다시 묻기$/);
+    const wl = made.lines.filter(l => /\{[^|}]+\|/.test(l));
+    assert.deepEqual(wl.map(l => /깜짝 놀라/.test(l)), [true, true, true, false, true, true]);
+    assert.deepEqual(wl.map(l => l.match(/\{([^|}]+)\|/)[1]).sort(), made.words.slice().sort(), '단어마다 칩이 하나씩');
+    assert.equal(made.note, '이야기 AI(Gemma 4)가 이 기기에서 단어 문장 6줄 가운데 5줄을 썼어요.');
+    assert.equal(made.saved, 1);
     assert.ok(made.log.some(t => /이야기 AI 준비 완료/.test(t)), made.log.join('\n'));
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
@@ -150,9 +160,14 @@ test('AI loading: a worker that cannot start ends the wait, and the next deck tr
     p.run(FAKE_LIB(true));
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
-    const a = p.json('({ step: MK.step, note: MK.aiNote, loading: !!AI.loading, workers: __workers.length, dead: __workers.map(w => w.dead), f16: __cfg.appConfig.model_list[0].required_features })');
-    assert.equal(a.step, 'done');
-    assert.match(a.note, /이야기 AI를 쓰지 못했어요\. AI를 받는 중\(12%\)에 멈췄어요\. AI를 돌리는 파일을 열지 못했어요.*\(오류: ai worker: no worker file\)/);
+    const a = p.json('({ step: MK.step, err: MK.err, fail: MK.fail, deck: MK.deck, saved: DeckStore.list().length, rows: MK.rows.length, loading: !!AI.loading, workers: __workers.length, dead: __workers.map(w => w.dead), f16: __cfg.appConfig.model_list[0].required_features })');
+    // AI를 준비하지 못하면 단어장을 만들지 않아요: 까닭과 'AI가 쓴 글 보기', '다시 해 보기'. 입력한 단어는 그대로
+    assert.equal(a.step, 'review');
+    assert.deepEqual([a.deck, a.saved, a.rows, a.fail], [null, 0, ROWS.length, true]);
+    assert.match(a.err, /^이야기 AI를 준비하지 못해서 단어장을 만들지 않았어요\. AI를 받는 중\(12%\)에 멈췄어요\. AI를 돌리는 파일을 열지 못했어요.*\(오류: ai worker: no worker file\).* 입력한 단어는 그대로 있어요\. ‘다시 해 보기’를 누르면 처음부터 다시 만들어요\.$/);
+    p.run("showScreen('make'); renderMake()");
+    assert.ok(p.document.querySelector('#make [data-mk="retry"]'), '다시 해 보기');
+    assert.match(p.document.querySelector('#make .mkdiag').textContent, /AI가 쓴 글 보기.*이야기 AI 준비/);
     assert.equal(a.loading, false);
     assert.deepEqual(a.dead, [true]);
     assert.deepEqual(a.f16, ['shader-f16'], 'f16이 없는 기기는 다 받기 전에 거절되게');
@@ -198,10 +213,11 @@ test('AI loading: a dropped connection is retried and the download continues; th
     p.run(PLAN_LIB([{ at: 0.16, err: 'Failed to fetch' }, { at: 0.2, err: 'Failed to fetch' }, { at: 0.25, err: 'Failed to fetch' }]));
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
-    const a = p.json('({ step: MK.step, note: MK.aiNote, log: MK.log.map(l => l.text), n: __workers.length })');
-    assert.equal(a.step, 'done');
+    const a = p.json('({ step: MK.step, err: MK.err, deck: MK.deck, log: MK.log.map(l => l.text), n: __workers.length })');
+    assert.equal(a.step, 'review');
+    assert.equal(a.deck, null);
     assert.equal(a.n, 3);
-    assert.match(a.note, /AI를 받는 중\(25%\)에 멈췄어요\. 인터넷 연결이 끊겨서 다 받지 못했어요.*\(오류: (?:TypeError: )?Failed to fetch\)/);
+    assert.match(a.err, /AI를 받는 중\(25%\)에 멈췄어요\. 인터넷 연결이 끊겨서 다 받지 못했어요.*\(오류: (?:TypeError: )?Failed to fetch\)/);
     assert.ok(a.log.some(t => /이어 받는 중 \(2\/3번째\)/.test(t)) && a.log.some(t => /이어 받는 중 \(3\/3번째\)/.test(t)), a.log.join('\n'));
     // 그래픽 칩에 올리다 기기를 잃으면 다시 받지 않고 바로 까닭을 알려요
     p.run('aiDrop()');
@@ -260,20 +276,22 @@ test('make screen: the story AI can be downloaded before making a deck, and a fa
   } finally { p.close(); }
 });
 
-test('mobile data: making a deck does not start the 3GB AI download, and says to use the get-ready button on Wi-Fi', async () => {
+test('mobile data without the story AI: no deck is made and no 3GB download starts; the words stay and it says to get the AI ready on Wi-Fi', async () => {
   const p = bootPage();
   try {
     const conn = c => Object.defineProperty(p.window.navigator, 'connection', { configurable: true, value: c });
     for (const c of [{ type: 'cellular' }, { type: 'wifi', saveData: true }]) {
       conn(c);
       p.run(PLAN_LIB([{ ok: true }]));
-      p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+      p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.name = '시험 단어'; MK.useAI = false; MK.aiWhy = ''; MK.err = ''; MK.step = 'review'; showScreen('make'); renderMake();`);
+      // 확인 화면에 미리 알려요
+      assert.match(p.document.getElementById('mkgate').textContent, /모바일 데이터로 연결돼 있고 이야기 AI\(약 3GB\)를 아직 받지 않았어요/);
       await p.run('mkMake()');
-      const a = p.json('({ step: MK.step, note: MK.aiNote, log: MK.log.map(l => l.text), n: __workers.length })');
-      assert.equal(a.step, 'done');
+      const a = p.json('({ step: MK.step, err: MK.err, deck: MK.deck, saved: DeckStore.list().length, rows: MK.rows.length, name: MK.name, n: __workers.length })');
+      assert.equal(a.step, 'review');
       assert.equal(a.n, 0, '받기를 시작하지 않아요');
-      assert.match(a.note, /모바일 데이터로 연결돼 있어서 이야기 AI\(약 3GB\)는 받지 않았어요.*기본 문장.*와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추/);
-      assert.ok(a.log.some(t => /모바일 데이터라서 이야기 AI\(약 3GB\)는 받지 않고/.test(t)), a.log.join('\n'));
+      assert.deepEqual([a.deck, a.saved, a.rows, a.name], [null, 0, ROWS.length, '시험 단어'], '단어장을 만들지 않고 입력한 단어는 그대로');
+      assert.equal(a.err, '지금은 모바일 데이터로 연결돼 있고 이야기 AI(약 3GB)를 아직 받지 않았어요. 와이파이에서 ‘인터넷 없이 쓰게 준비하기’ 단추로 이야기 AI를 먼저 받아야 단어장을 만들 수 있어요. 입력한 단어는 이 화면에 그대로 있어요.');
     }
     // 와이파이·유선이거나 종류를 모르면 지금처럼 받아요
     for (const c of [{ type: 'wifi' }, { type: 'ethernet', saveData: false }, { type: 'unknown' }, undefined]) {
@@ -283,7 +301,7 @@ test('mobile data: making a deck does not start the 3GB AI download, and says to
       p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
       await p.run('mkMake()');
       assert.equal(p.json('__workers.length'), 1, JSON.stringify(c));
-      assert.doesNotMatch(p.json('MK.aiNote'), /모바일 데이터/);
+      assert.doesNotMatch(p.json('MK.err'), /모바일 데이터/);
     }
     // 이미 받아 둔 AI는 모바일 데이터여도 써요 (더 받지 않아요)
     conn({ type: 'cellular' });
@@ -318,9 +336,10 @@ test('mobile data: the get-ready button asks once more in the page (about 3GB, u
   } finally { p.close(); }
 });
 
-test('deck list: a made deck can get new stories and pictures, keeping its words, episodes, id and progress key', async () => {
-  const p = bootPage();
+test('deck list: a made deck can get new stories and pictures, keeping its words, episodes, id and progress key; with no story AI the redo is off and the deck stays', async () => {
+  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
   try {
+    p.run(`AI.gpu = true; AI.engine = ${FAKE};`);
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
     await p.run('mkMake()');
     const before = p.json('(() => { const d = MK.deck; return { id: d.id, created: d.created, updated: d.updated, eps: d.scenes.map(s => s.words.slice().sort()), keys: d.scenes.map(s => s.key), n: DeckStore.list().length }; })()');
@@ -336,6 +355,7 @@ test('deck list: a made deck can get new stories and pictures, keeping its words
     assert.match(rv.label, /이 단어장 이야기 새로 만들기/);
     assert.match(rv.note, /단어·뜻·에피소드 묶음과 진행 기록은 그대로/);
     await new Promise(r => setTimeout(r, 5));
+    p.run(`AI.engine = ${FAKE};`);
     await p.run('mkMake()');
     const after = p.json('(() => { const d = DeckStore.get(MK.deck.id); return { id: d.id, created: d.created, updated: d.updated, eps: d.scenes.map(s => s.words.slice().sort()), keys: d.scenes.map(s => s.key), n: DeckStore.list().length, line0: d.scenes[0].lines.join(" "), cur: DECK.id, redo: MK.redo }; })()');
     assert.equal(after.id, before.id);
@@ -347,22 +367,76 @@ test('deck list: a made deck can get new stories and pictures, keeping its words
     assert.doesNotMatch(after.line0, /옛 이야기/);
     assert.equal(after.cur, before.id);
     assert.equal(after.redo, null);
+    // 이야기 AI를 못 돌리는 기기: 새 이야기도 만들지 않아요 (단추가 꺼지고 까닭이 보여요. 단어장과 단어는 그대로)
+    p.run('aiDrop(); AI.gpu = false; AI.gpuWhy = "nogpu"; MK.aiWhy = undefined; MK.step = "pick"; MK.deck = null; openDecks()');
+    p.document.querySelector(`[data-deckredo="${before.id}"]`).click();
+    await until(() => !!p.json('MK.aiWhy || ""'));
+    const off = p.json('({ step: MK.step, rows: MK.rows.length, redo: !!MK.redo, dis: document.querySelector("#make [data-mk=make]").disabled, gate: document.getElementById("mkgate").textContent })');
+    assert.deepEqual([off.step, off.rows, off.redo, off.dis], ['review', ROWS.length, true, true]);
+    assert.match(off.gate, /이야기 AI가 돌아가지 않아서 새 단어장을 만들 수 없어요.*WebGPU/);
+    await p.run('mkMake()');
+    const kept = p.json(`({ step: MK.step, err: MK.err, redo: !!MK.redo, rows: MK.rows.length, updated: DeckStore.get(${JSON.stringify(before.id)}).updated, n: DeckStore.list().length })`);
+    assert.deepEqual([kept.step, kept.redo, kept.rows, kept.updated, kept.n], ['review', true, ROWS.length, after.updated, before.n]);
+    assert.match(kept.err, /WebGPU/);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
 
-test('AI story: an error while the AI writes is shown on the finished screen with its text', async () => {
+test('AI error while writing: no deck is saved, the reason and the AI diagnostics show, the words stay, and ‘다시 해 보기’ makes it again', async () => {
   const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
   try {
     p.run(`AI.gpu = true; AI.engine = { chat: { completions: { create: async () => { throw new Error('Prompt tokens exceed context window size'); } } } };`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.name = '시험 단어'; MK.useAI = false; showScreen('make');`);
+    await p.run('mkMake()');
+    const a = p.json('({ step: MK.step, err: MK.err, fail: MK.fail, deck: MK.deck, saved: DeckStore.list().length, rows: MK.rows.length, name: MK.name, diag: MK.aiDiag, log: MK.log.map(l => l.text) })');
+    assert.equal(a.step, 'review');
+    assert.deepEqual([a.deck, a.saved, a.rows, a.name, a.fail], [null, 0, ROWS.length, '시험 단어', true]);
+    assert.match(a.err, /^에피소드 1 ‘[^’]+’에서 이야기 AI가 쓰다가 오류가 나서 단어장을 만들지 않았어요 \(오류: Prompt tokens exceed context window size\)\. 아래 ‘AI가 쓴 글 보기’를 캡처해서 알려 주세요\. 입력한 단어는 그대로 있어요\. ‘다시 해 보기’를 누르면 처음부터 다시 만들어요\.$/);
+    assert.ok(a.diag.length >= 1 && /오류가 났어요: Prompt tokens exceed/.test(a.diag[0].why[0]), JSON.stringify(a.diag));
+    assert.ok(a.log.some(t => /AI가 쓰다가 오류가 났어요 \(Prompt tokens/.test(t)), a.log.join('\n'));
+    // 확인 화면: 까닭, 'AI가 쓴 글 보기', '다시 해 보기', 입력한 단어
+    assert.match(p.document.querySelector('#make .mkerr').textContent, /오류가 나서 단어장을 만들지 않았어요/);
+    assert.match(p.document.querySelector('#make .mkdiag').textContent, /AI가 쓴 글 보기.*Prompt tokens exceed/);
+    assert.equal(p.document.querySelectorAll('#make .mkrow').length, ROWS.length);
+    // 다시 해 보기: 이번에는 AI가 써요
+    p.run(`AI.engine = ${FAKE};`);
+    p.document.querySelector('#make [data-mk="retry"]').click();
+    await until(() => p.json('MK.step') === 'done');
+    assert.deepEqual(p.json('({ step: MK.step, err: MK.err, fail: MK.fail, saved: DeckStore.list().length, name: MK.deck.name })'), { step: 'done', err: '', fail: false, saved: 1, name: '시험 단어' });
+    assert.equal(p.document.querySelector('#make [data-mk="retry"]'), null);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('an episode where the AI wrote under two thirds of the word lines (after asking again once) stops the make; at two thirds the deck is saved with the rest as story-frame lines', async () => {
+  const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
+  try {
+    // 요청마다 앞의 k줄만 고쳐 쓰고 나머지는 받은 줄을 그대로 베껴요 (베낀 줄은 버려요)
+    const firstK = k => `{ interruptGenerate() {}, chat: { completions: { create: async req => { __asks.push(req.messages[0].content); return { choices: [{ message: { content: (${STAR_LINES})(req).map((m, i) => m[1] + '. ' + (i < ${k} ? '모두가 깜짝 놀라 지켜보는 가운데, ' + m[2] : m[2])).join('\\n') } }] }; } } } }`;
+    p.run(`window.__asks = []; AI.gpu = true; AI.engine = ${firstK(1)};`);
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
     await p.run('mkMake()');
-    const a = p.json('({ step: MK.step, note: MK.aiNote, diag: MK.aiDiag, log: MK.log.map(l => l.text) })');
-    assert.equal(a.step, 'done');
-    assert.match(a.note, /문장을 쓰다가 오류가 났어요 \(오류: Prompt tokens exceed context window size\)/);
-    assert.ok(a.diag.length >= 1 && /오류가 났어요: Prompt tokens exceed/.test(a.diag[0].why[0]), JSON.stringify(a.diag));
-    assert.ok(a.log.some(t => /AI가 쓰다가 오류가 나서 기본 문장으로 \(Prompt tokens/.test(t)), a.log.join('\n'));
-    assert.match(p.document.querySelector('#make .mkdiag').textContent, /AI가 쓴 글 보기.*Prompt tokens exceed/);
+    const a = p.json('({ step: MK.step, err: MK.err, fail: MK.fail, deck: MK.deck, saved: DeckStore.list().length, rows: MK.rows.length, asks: __asks.length, diag: MK.aiDiag.map(d => d.title) })');
+    // 6줄 가운데 첫 요청 1줄 + 다시 물어 1줄 = 2줄 (4줄 필요): 멈춰요. 다시 묻기는 한 번뿐
+    assert.equal(a.step, 'review');
+    assert.equal(a.asks, 2);
+    assert.deepEqual([a.deck, a.saved, a.rows, a.fail], [null, 0, ROWS.length, true]);
+    assert.match(a.err, /^에피소드 1 ‘[^’]+’에서 이야기 AI가 단어 문장 6줄 가운데 2줄만 규칙\(단어 자리·뜻\)에 맞게 썼어요\. 4줄 이상 써야 해서 단어장을 만들지 않았어요\. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요\. 입력한 단어는 그대로 있어요\./);
+    assert.equal(a.diag.length, 2);
+    assert.match(a.diag[1], / · 다시 묻기$/);
+    assert.match(p.document.querySelector('#make .mkdiag').textContent, /다시 묻기/);
+    // 앞의 2줄씩: 첫 요청 2줄 + 다시 물어 2줄 = 4줄 (딱 2/3): 저장하고, 남은 2줄은 줄거리 틀 문장 그대로 (단어마다 칩)
+    p.run(`__asks = []; AI.engine = ${firstK(2)};`);
+    p.document.querySelector('#make [data-mk="retry"]').click();
+    await until(() => p.json('MK.step') === 'done');
+    const b = p.json('({ asks: __asks.length, note: MK.aiNote, lines: MK.deck.scenes[0].lines, words: MK.deck.scenes[0].words, saved: DeckStore.list().length })');
+    assert.equal(b.asks, 2);
+    assert.equal(b.saved, 1);
+    const wl = b.lines.filter(l => /\{[^|}]+\|/.test(l));
+    assert.deepEqual(wl.map(l => /깜짝 놀라/.test(l)), [true, true, true, true, false, false]);
+    assert.deepEqual(wl.map(l => l.match(/\{([^|}]+)\|/)[1]).sort(), b.words.slice().sort());
+    assert.equal(b.note, '이야기 AI(Gemma 4)가 이 기기에서 단어 문장 6줄 가운데 4줄을 썼어요.');
+    assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
 
@@ -405,7 +479,7 @@ test('AI story: the lost-graphics-chip error (mapAsync, unmapped) is classed as 
     assert.deepEqual(a.calls, [0, 1], '다시 준비한 엔진이 같은 에피소드를 한 번 더 써요');
     assert.deepEqual(a.dead, [true, false], '잃은 엔진의 일꾼은 멈춰요');
     assert.ok(a.lines.some(l => /깜짝 놀라/.test(l)), a.lines.join('\n'));
-    assert.match(a.note, /단어 문장 6줄 가운데 6줄을 다듬었어요\. 쓰는 중에 그래픽 칩 연결이 한 번 끊겨서.*AI를 다시 준비해 그 에피소드를 다시 썼어요/);
+    assert.match(a.note, /단어 문장 6줄 가운데 6줄을 썼어요\. 쓰는 중에 그래픽 칩 연결이 한 번 끊겨서.*AI를 다시 준비해 그 에피소드를 다시 썼어요/);
     assert.ok(a.log.some(t => /쓰는 중에 그래픽 칩 연결이 끊겼어요\. AI를 다시 준비해서 한 번 더 써요/.test(t)), a.log.join('\n'));
     assert.ok(a.log.some(t => /완성 \(AI 문장 6줄\)/.test(t)), a.log.join('\n'));
     // 'AI가 쓴 글 보기': 어느 단계에서 몇 초 만에 토큰 몇 개를 쓰고 멈췄는지, 그때까지 쓴 글
@@ -424,13 +498,15 @@ test('AI story: losing the graphics chip again after the reload does not loop; t
     p.run(ENGINES_LIB(['lost', 'lost', 'write']));
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
     await p.run('mkMake()');
-    const a = p.json('({ step: MK.step, note: MK.aiNote, calls: __calls, dead: __workers.map(w => w.dead), eng: !!AI.engine, diag: MK.aiDiag, lines: MK.deck.scenes[0].lines })');
-    assert.equal(a.step, 'done');
+    const a = p.json('({ step: MK.step, err: MK.err, fail: MK.fail, deck: MK.deck, saved: DeckStore.list().length, rows: MK.rows.length, calls: __calls, dead: __workers.map(w => w.dead), eng: !!AI.engine, diag: MK.aiDiag })');
+    assert.equal(a.step, 'review');
     assert.deepEqual(a.calls, [0, 1], '한 번만 다시 써요');
     assert.deepEqual(a.dead, [true, true], '엔진은 한 번만 다시 준비하고, 또 잃으면 버려요');
     assert.equal(a.eng, false, '죽은 엔진을 다음 단어장에 쓰지 않아요');
-    assert.ok(!a.lines.some(l => /깜짝 놀라/.test(l)), '앱의 기본 문장으로');
-    assert.match(a.note, /문장을 쓰다가 오류가 났어요 \(오류: AbortError: Failed to execute 'mapAsync'.*AI를 다시 준비해서 한 번 더 써 봤지만 또 끊겨서, 남은 이야기는 기본 문장으로 만들었어요\. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 두세요\./);
+    // 단어장은 저장하지 않아요. 까닭과 '다시 해 보기', 입력한 단어는 그대로
+    assert.deepEqual([a.deck, a.saved, a.rows, a.fail], [null, 0, ROWS.length, true]);
+    assert.match(a.err, /^에피소드 1 ‘[^’]+’에서 이야기 AI가 쓰는 중에 그래픽 칩 연결이 끊겼어요\(휴대폰이 AI의 그래픽 작업을 멈췄어요\)\. AI를 다시 준비해서 한 번 더 써 봤지만 또 끊겨서 단어장을 만들지 않았어요\. 다른 앱을 닫고, 다 만들 때까지 화면을 켜 둔 채로 다시 해 보세요\. 입력한 단어는 그대로 있어요\./);
+    assert.ok(p.document.querySelector('#make [data-mk="retry"]'));
     assert.equal(a.diag.length, 2);
     for (const d of a.diag) assert.match(d.info, /^멈춘 단계: 이야기를 읽고 쓰는 중 · 시작하고 \d+\.\d초 뒤 · 읽기 조각 512토큰$/);
     // 다음 단어장: 새 엔진을 준비해서 써요
@@ -438,7 +514,7 @@ test('AI story: losing the graphics chip again after the reload does not loop; t
     await p.run('mkMake()');
     assert.deepEqual(p.json('__calls'), [0, 1, 2]);
     assert.equal(p.json('__workers.length'), 3);
-    assert.match(p.json('MK.aiNote'), /다듬었어요\.$/);
+    assert.match(p.json('MK.aiNote'), /썼어요\.$/);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
@@ -470,7 +546,7 @@ test('making a deck keeps the screen awake, asks again after the page comes back
     assert.equal(a.held, 0); assert.equal(a.lock, false);
     // 돌아오면 무슨 일인지 기록에, 다 만들면 안내 글에
     assert.ok(a.log.slice(a.wl.hiddenLog).some(t => t === '만드는 중에 화면이 꺼지거나 다른 앱이 열렸어요. 이러면 크롬이 AI의 그래픽 작업을 멈출 수 있어요. 다 만들 때까지 이 화면을 켜 두세요.'), a.log.join('\n'));
-    assert.match(a.note, /다듬었어요\. 만드는 중에 화면이 꺼지거나 다른 앱이 열렸어요\. 이러면 크롬이 AI의 그래픽 작업을 멈출 수 있어요\. 다음에는 다 만들 때까지 이 화면을 켜 두세요\.$/);
+    assert.match(a.note, /썼어요\. 만드는 중에 화면이 꺼지거나 다른 앱이 열렸어요\. 이러면 크롬이 AI의 그래픽 작업을 멈출 수 있어요\. 다음에는 다 만들 때까지 이 화면을 켜 두세요\.$/);
     // 끝까지 쓴 글의 기록: 걸린 시간, 읽은·쓴 토큰 수, 가려진 횟수
     assert.match(a.diag[0].info, /^걸린 시간 \d+\.\d초 · 이야기 읽기 \d+\.\d초 · 읽은 토큰 321개 · 쓴 토큰 42개 · 읽기 조각 512토큰 · 그동안 화면 꺼짐·다른 앱 1번$/);
     assert.match(a.diag[0].why.join(' '), /: 씀/);
@@ -503,19 +579,26 @@ test('AI loading: stopping during the first download stops the worker and the pr
   } finally { p.close(); }
 });
 
-test('AI story: a phone that cannot run the AI still gets a deck, and is told why', async () => {
+test('no story AI on this device: no deck is made; the make button is off with the reason and what to do; the words stay', async () => {
   const p = bootPage();
   try {
-    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.name = '시험 단어'; MK.useAI = false; showScreen('make');`);
     await p.run('mkMake()');
-    const made = p.json('({ step: MK.step, note: MK.aiNote, log: MK.log.map(l => l.text) })');
-    assert.equal(made.step, 'done');
-    assert.match(made.note, /AI 계산 기능\(WebGPU\)이 없어요/);
-    assert.ok(made.log.some(t => /이야기 AI를 쓸 수 없어서/.test(t)), made.log.join('\n'));
-    // 만들기 전 화면에도 까닭이 보여요
-    p.run('MK.step = "review"; MK.aiWhy = undefined; renderMake()');
-    await until(() => /이야기 AI를 쓸 수 없어요/.test(p.document.getElementById('mkai').textContent));
-    assert.match(p.document.getElementById('mkai').textContent, /이야기 AI를 쓸 수 없어요.*WebGPU/);
+    const a = p.json('({ step: MK.step, err: MK.err, fail: MK.fail, deck: MK.deck, saved: DeckStore.list().length, rows: MK.rows.length, name: MK.name })');
+    assert.deepEqual([a.step, a.deck, a.saved, a.rows, a.name, a.fail], ['review', null, 0, ROWS.length, '시험 단어', false]);
+    assert.match(a.err, /^이 기기\(브라우저\)에서는 이야기 AI가 돌아가지 않아서 새 단어장을 만들 수 없어요\. 이 브라우저에는 AI 계산 기능\(WebGPU\)이 없어요\..*이야기 AI가 돌아가는 휴대폰·컴퓨터의 크롬에서 만들어 주세요\. 입력한 단어는 이 화면에 그대로 있어요\.$/);
+    assert.equal(p.document.querySelector('#make [data-mk="retry"]'), null, '다시 해 보기 대신 할 일');
+    // 확인 화면: 만들기 단추는 꺼지고 까닭이 보여요. 단어를 고쳐도 다시 켜지지 않아요
+    p.run('MK.err = ""; renderMake()');
+    const btn = () => p.document.querySelector('#make [data-mk="make"]');
+    assert.equal(btn().disabled, true);
+    assert.match(p.document.getElementById('mkgate').textContent, /이야기 AI가 돌아가지 않아서 새 단어장을 만들 수 없어요.*WebGPU.*크롬.*입력한 단어는 이 화면에 그대로 있어요/);
+    const inp = p.document.querySelector('#make .mkko');
+    inp.value = '빌리다, 꾸다'; inp.dispatchEvent(new p.window.Event('input', { bubbles: true }));
+    assert.equal(btn().disabled, true);
+    assert.equal(p.document.querySelectorAll('#make .mkrow').length, ROWS.length);
+    assert.match(p.document.getElementById('mkai').textContent, /이야기 AI를 쓸 수 없어요.*WebGPU.*새 단어장은 이야기 AI가 이야기를 써야 만들 수 있어요.*기본 단어장 게임은 그대로/);
+    assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
 
@@ -538,7 +621,7 @@ test('AI check: low phone memory, a small GPU buffer limit and missing f16 each 
     gpu(true, 2 ** 30);
     for (const mem of [2, 4]) {
       Object.defineProperty(nav, 'deviceMemory', { configurable: true, value: mem });
-      assert.match(await why(), new RegExp(`메모리\\(RAM\\)가 작아서 이야기 AI를 돌릴 수 없어요 \\(크롬이 알려 준 메모리 약 ${mem}GB, 이야기 AI는 8GB 필요\\).*게임은 앱이 쓴 문장으로 그대로 할 수 있어요`));
+      assert.match(await why(), new RegExp(`메모리\\(RAM\\)가 작아서 이야기 AI를 돌릴 수 없어요 \\(크롬이 알려 준 메모리 약 ${mem}GB, 이야기 AI는 8GB 필요\\)\\.$`));
       assert.equal(p.json('AI.gpu'), false);
     }
     Object.defineProperty(nav, 'deviceMemory', { configurable: true, value: 8 });
@@ -940,6 +1023,8 @@ const BENCH_LIB = kind => `(() => {
       setTimeout(() => __gpuSend({ kind: 'lost', n: 1, reason: 'unknown', msg: 'Device lost: the GPU process was killed.' }), 60);
       throw new DOMException("Failed to execute 'mapAsync' on 'GPUBuffer': Buffer was unmapped before mapping was resolved.", 'AbortError');
     }
+    // 단어장 만들기의 요청(번호 ★ 줄)은 줄마다 고쳐 써요 (진단 단계는 '가'를 길게 써요)
+    if (WAKE.tags.has('make')) { chunks(tokens); const out = (${STAR_LINES})(req).map(m => m[1] + '. 모두가 깜짝 놀라 지켜보는 가운데, ' + m[2]).join('\\n'); return (async function* () { yield { choices: [{ delta: { content: out } }] }; yield { choices: [], usage: { prompt_tokens: tokens, completion_tokens: 40, extra: { prefill_tokens_per_s: 150.5, decode_tokens_per_s: 12.4 } } }; })(); }
     chunks(tokens);
     return (async function* () {
       for (let i = 0; i < req.max_tokens; i++) yield { choices: [{ delta: { content: '가' } }] };

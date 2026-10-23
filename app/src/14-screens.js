@@ -88,7 +88,7 @@ function renderHome() {
     <button type="button" class="deckchip" data-decks="1">${ICON.book}<span>${esc(DECK.name)}</span><small>${totalWords()}단어</small>${ICON.down}</button>
     <h1>그림 스토리 <em>단어 미션</em></h1>
     <p class="lede">${totalWords()}단어를 이야기 ${epN()}편에 담았어요. 스토리 영상을 보고, 단어 뜻을 직접 입력해 맞혀요. 빨리 맞힐수록 남은 시간이 모여서 어려운 단어에서 쓸 수 있어요.</p>
-    <button type="button" class="makecta" data-make="1">${ICON.camera}<span><b>사진 찍어 새 단어장 만들기</b><br><small>단어장 사진을 찍으면 이 기기 안에서 단어를 읽고 그림·미션을 바로 만들어요</small></span></button>
+    <button type="button" class="makecta" data-make="1">${ICON.camera}<span><b>사진 찍어 새 단어장 만들기</b><br><small>${esc(mkNeedText())}</small></span></button>
     ${SAVE.done ? `<div class="trophy">${ICON.play}<span><b>단어 암기 프로젝트 완료!</b> 보스까지 모두 깼어요${SAVE.done > 1 ? ` · ${SAVE.done}번째` : ''}</span></div>` : ''}
     <div class="statrow">
       <span class="stat lifestat" role="img" aria-label="목숨 ${SAVE.lives}개">목숨 <span class="lives">${livesHTML()}</span></span>

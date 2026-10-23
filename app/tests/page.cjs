@@ -46,4 +46,8 @@ function bootPage(store = {}, before = '') {
   };
 }
 
-module.exports = { bootPage };
+// 시험용 가짜 이야기 AI: 요청 글의 번호 줄('N. ★가 든 줄 (★ = 뜻)')을 모두 고쳐 써요(앞에 까닭을 붙여요). 페이지 안에서 AI.engine = FAKE_AI
+// (새 단어장은 이야기 AI가 써야 만들어져요: 단어장을 만드는 시험에 써요)
+const FAKE_AI = `{ interruptGenerate() {}, chat: { completions: { create: async req => ({ choices: [{ message: { content: req.messages[0].content.split('\\n').map(l => l.match(/^(\\d+)\\. (.+) \\(★ = [^)]+\\)$/)).filter(Boolean).map(m => m[1] + '. 모두가 깜짝 놀라 지켜보는 가운데, ' + m[2]).join('\\n') } }] }) } } }`;
+
+module.exports = { bootPage, FAKE_AI };
