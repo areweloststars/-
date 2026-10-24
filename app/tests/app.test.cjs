@@ -355,6 +355,45 @@ test('OCR word-list pages: example-line heads, two columns, two words on a slant
   } finally { p.close(); }
 });
 
+test('OCR fixes for common photo problems: lost bold words, first syllables, dashes, icons, extra rows', () => {
+  const p = bootPage();
+  try {
+    p.window.__lex = fs.readFileSync(require('node:path').join(__dirname, '../../word-game/ocr/ko-lex.txt'), 'utf8');
+    p.run('window.__L = new Set(window.__lex.split("\\n").filter(Boolean)); window.__lex = ""; OCR.low = new Set();');
+    const W = (t, x, y, c = 95, w = t.length * 20, h = 40) => ({ t, x0: x, y0: y, x1: x + w, y1: y + h, c });
+    const D = ws => `new Map(${JSON.stringify(ws.map(w => [w, 1]))})`;
+    const pairs = (words, dict) => p.json(`ocrPairs(${JSON.stringify(words)}, ${D(dict)}, 0, window.__L).map(l => l.replace(OCR_SPACED, ''))`);
+    // 다크 모드 채팅 화면: 굵은 흰 영어를 영어 읽기는 맞게 읽고 신뢰도 0, 한국어 읽기는 숫자·기호 섞인 조각 → 영어 단어로
+    const A = [W('2.', 60, 100, 91, 40), W('삐타900', 160, 100, 21, 190), W('합병', 450, 100, 92, 90)];
+    const E = [W('2', 60, 100, 97, 30), W('Merger', 160, 100, 0, 190), W('Et4', 450, 100, 0, 90)];
+    assert.deepEqual(p.json(`ocrMerge(${JSON.stringify(A)}, ${JSON.stringify(E)}, ${D(['merger'])}).map(w => w.t).sort()`), ['2.', 'Merger', '합병'].sort());
+    // 그 자리에 또렷한 한글 낱말이 있으면 신뢰도 0인 영어로 바꾸지 않음
+    assert.deepEqual(p.json(`ocrMerge(${JSON.stringify([W('정원', 160, 100, 93, 90), W('가꾸다', 300, 100, 93)])}, ${JSON.stringify([W('Pass', 160, 100, 0, 90)])}, ${D(['pass'])}).map(w => w.t)`), ['정원', '가꾸다']);
+    // 낱말 첫 글자가 따로 읽힌 '부 / 정직한'은 남기고(반대 뜻이 되지 않게), 품사 표시 '명'은 뺌.
+    // 띄어 쓴 줄표는 구분 기호(뜻에 넣지 않음), 뒤 글자에 붙은 '-하는'의 '-'는 뜻의 일부
+    const rows = [W('dishonest', 100, 100), W('부', 400, 100, 90, 30), W('정직한,', 434, 100, 95, 120), W('거짓된', 574, 100),
+      W('garden', 100, 200), W('명', 400, 200, 90, 30), W('정원', 452, 200),
+      W('rebuild', 100, 300), W('-', 300, 300, 80, 14), W('다시', 334, 300), W('짓다', 400, 300),
+      W('avoid', 100, 400), W('-', 300, 400, 80, 14), W('하는', 316, 400), W('것을', 380, 400), W('피하다', 444, 400)];
+    assert.deepEqual(pairs(rows, ['dishonest', 'garden', 'rebuild', 'avoid']), ['dishonest - 부정직한, 거짓된', 'garden - 정원', 'rebuild - 다시 짓다', 'avoid - -하는 것을 피하다']);
+    // 영어를 못 읽은 번호 줄의 뜻은 윗줄 뜻에 붙이지 않음, 단어 옆 아이콘(한 글자 '때')보다 아래 줄 뜻, 단어 오른쪽 품사 칸('noun')은 단어가 아님
+    const more = [W('12.', 40, 100, 93, 50), W('clause', 160, 100), W('조항', 450, 100), W('13.', 40, 160, 93, 50), W('시행하다', 450, 160),
+      W('giant', 160, 300), W('때', 900, 300, 60, 30), W('거인', 160, 350), W('river', 160, 450), W('noun', 420, 450), W('강', 600, 450, 95, 30)];
+    assert.deepEqual(pairs(more, ['clause', 'giant', 'river', 'noun']), ['clause - 조항', 'giant - 거인', 'river - 강']);
+    // 단어 칸과 줄이 맞지 않는 맨 위 머리말 줄(제목 상자)은 단어 줄이 아님
+    const list = ['brave', 'animal', 'east', 'clear', 'kitchen', 'awful'].map((t, i) => [W(t, 100, 300 + i * 60), W(['용감한', '동물', '동쪽', '명확한', '부엌', '형편없는'][i], 400, 300 + i * 60)]).flat();
+    assert.deepEqual(pairs([W('day', 700, 100), W('이름', 900, 100), ...list], ['brave', 'animal', 'east', 'clear', 'kitchen', 'awful', 'day']).map(l => l.split(' - ')[0]), ['brave', 'animal', 'east', 'clear', 'kitchen', 'awful']);
+    // 밑줄·점·낱자모 조각 지우기 ('~'는 남김), 이음 어미가 붙은 말('먹지', '가며')은 낱말로 봄
+    assert.deepEqual(p.json(`['친절한 ㅇ', '용감한._', '(외국 여행용) 여권 _ㅎ', '많은 ~', '짐을 싸다_'].map(ocrKo)`), ['친절한', '용감한', '(외국 여행용) 여권', '많은 ~', '짐을 싸다']);
+    assert.deepEqual(p.json(`['먹지', '가며', '갈지'].map(w => koWordOk(w, window.__L))`), [true, true, true]);
+    assert.deepEqual(p.json(`(() => { const r = ocrCheckRow({ en: 'skip', ko: '먹지 않다' }, ${D(['skip'])}, window.__L); return [r.ko, r.flag]; })()`), ['먹지 않다', '']);
+    // 제목 줄('Review Test')의 큰 낱말은 사전식 쪽의 표제어가 아님
+    const T = (t, x, y, h) => ({ t, x0: x, y0: y, x1: x + Math.round(t.length * h * 0.6), y1: y + h, c: 95 });
+    const page = [T('Review', 100, 50, 46), T('Test', 300, 52, 42), ...['rough', 'journey', 'chase', 'riddle', 'strict', 'measure'].map((t, i) => T(t, 100, 200 + i * 60, 29))];
+    assert.deepEqual(p.json(`ocrHeadwords(${JSON.stringify(page)}, ${D(['review', 'test', 'rough', 'journey', 'chase', 'riddle', 'strict', 'measure'])}, 1000).map(h => h.t)`), []);
+  } finally { p.close(); }
+});
+
 test('typed list parser reads numbered, colon, tab and Korean-first lines', () => {
   const p = bootPage();
   try {
