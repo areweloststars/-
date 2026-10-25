@@ -1,6 +1,7 @@
 // 사진 읽기 점검용 합성 사진: 단어 목록을 찍거나 캡처한 흔한 모양을 직접 만들어요.
 // 다크 모드 채팅 답(공유 창·입력 칸·스크롤 단추), 어두운 책상 위 기운 두 단 목록, 옆으로 찍은 칸 표,
-// 단어 옆에 아이콘이 있고 뜻이 아랫줄인 휴대폰 단어장, 품사 칸이 있는 컴퓨터 표.
+// 단어 옆에 아이콘이 있고 뜻이 아랫줄인 휴대폰 단어장, 품사 칸이 있는 컴퓨터 표,
+// '단어 뜻 · 단어 뜻 · …'을 이어 쓴 다크 모드 채팅 답(줄 끝 단어의 뜻이 다음 줄 맨 앞으로 넘어감).
 // 낱말은 일반 사전 낱말이고 뜻은 직접 썼어요. 교재·문제지의 사진이나 내용·꾸밈은 흉내 내지 않아요.
 // 단독 실행: node app/tests/photo-looks.cjs [--all] [--save 폴더]   (Playwright Chromium이 있어야 해요)
 'use strict';
@@ -28,6 +29,12 @@ const TABLE = [['animal', '동물'], ['east', '동쪽'], ['clear', '명확한, �
 // 휴대폰 단어장·컴퓨터 표
 const APP = [['forest', '숲'], ['decide', '결정하다'], ['danger', '위험'], ['invite', '초대하다'], ['curious', '호기심이 많은'], ['collect', '모으다, 수집하다'], ['repair', '수리하다, 고치다'],
   ['delicious', '맛있는'], ['neighbor', '이웃'], ['arrive', '도착하다'], ['ancient', '고대의'], ['whisper', '속삭이다']];
+// 이어 쓴 목록 (채팅 답)
+const INLINE = [
+  { t: '1장 · 집과 생활', items: [['blanket', '담요'], ['ladder', '사다리'], ['kettle', '주전자'], ['drawer', '서랍'], ['ceiling', '천장'], ['laundry', '빨래'], ['neighbor', '이웃'], ['staircase', '계단'], ['curtain', '커튼'], ['doorbell', '초인종']] },
+  { t: '2장 · 자연', items: [['valley', '골짜기, 계곡'], ['meadow', '풀밭'], ['thunder', '천둥'], ['glacier', '빙하'], ['puddle', '물웅덩이'], ['pebble', '조약돌'], ['breeze', '산들바람'], ['cliff', '절벽'], ['harvest', '수확, 추수'], ['swamp', '늪']] },
+  { t: '3장 · 마음과 행동', items: [['hesitate', '망설이다'], ['whisper', '속삭이다'], ['tremble', '떨다'], ['gather', '모으다'], ['admire', '감탄하다'], ['ignore', '무시하다'], ['borrow', '빌리다'], ['scatter', '흩뿌리다'], ['forgive', '용서하다'], ['wander', '돌아다니다']] },
+];
 const POSW = ['noun', 'verb', 'noun', 'verb', 'adjective', 'verb', 'verb', 'adjective', 'noun', 'verb', 'adjective', 'verb'];
 
 /* ---------- 화면 캡처 모양 ---------- */
@@ -120,12 +127,27 @@ function camHTML(c) {
 
 /* ---------- 모양 목록: quick = npm test에서 늘 보는 것, min = 맞아야 하는 단어 수 (지금 코드가 맞히는 수보다 조금 낮게) ---------- */
 const chatTruth = () => CHAT.flatMap(s => s.items);
+// 이어 쓴 목록 채팅 답: 영어는 바탕체, 쌍 사이는 가운뎃점. 아래에 사용량 안내 카드와 모델 이름표('Lite 3.5 빠름')가 있는 입력 칸
+function inlineHTML() {
+  let n = 0;
+  const body = ['<div class=me>집·자연·마음 낱말 10개씩 3장</div><p class=st>낱말 묶음을 정리하는 중 ›</p>'];
+  for (const s of INLINE) body.push(`<h3>${esc(s.t)}</h3><p>` + s.items.map(([en, ko]) => `<span data-i=${n++}><i>${esc(en)}</i> ${esc(ko)}</span>`).join(' · ') + '</p>');
+  const css = `*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#1f1e1d;color:#f0eee9;font-family:${KO}}
+.ct{position:relative;top:84px;padding:0 20px;font-size:19px;line-height:1.62}.ct i{font-style:normal;font-family:${SERIF};font-size:20px}.ct h3{font-size:18px;margin:20px 0 6px}.ct p{margin:0;word-break:keep-all}
+.me{margin:0 0 18px auto;width:fit-content;background:#393937;border-radius:16px;padding:10px 16px;font-size:16px}.st{color:#a5a39d;font-size:15px!important;margin-bottom:14px!important}
+.sb{position:fixed;top:0;left:0;right:0;height:30px;display:flex;justify-content:space-between;align-items:center;padding:0 18px;font:600 14px ${EN};background:#1f1e1d;color:#eee}.sb svg{fill:currentColor}.sbr{display:flex;gap:5px;align-items:center;font-size:10px}.bat{background:#bbb;color:#000;border-radius:7px;padding:0 5px;font-weight:700}
+.cover{position:fixed}.card{left:12px;right:12px;bottom:150px;height:112px;border-radius:20px;background:#2c2b29;padding:14px 18px;font-size:15px}.card small{display:block;color:#a5a39d;font-size:13px;margin:4px 0 10px}.card u{display:block;text-decoration:none;text-align:center;background:#3a3937;border-radius:16px;padding:6px;font-weight:700}
+.inp{left:12px;right:12px;bottom:48px;height:92px;border-radius:24px;background:#2c2b29;padding:12px 16px;color:#9a9893;font-size:16px}.inp b{position:absolute;left:14px;bottom:10px;width:34px;height:34px;border-radius:17px;background:#3a3937}.inp em{position:absolute;left:58px;bottom:12px;font-style:normal;color:#e6e4df;background:#3a3937;border-radius:15px;padding:4px 12px;font-size:14px}
+.navb{position:fixed;left:0;right:0;bottom:0;height:44px;background:#141413;display:flex;justify-content:space-around;align-items:center;color:#aaa;font-size:20px}`;
+  return `${HEAD}<style>${css}</style><div class=ct>${body.join('')}</div>${STAT('SKT 10:27', true)}<div class="cover card"><b>이번 주 사용량 75%</b><small>목요일 오후 9:00에 다시 채워져요</small><u>자세히</u></div><div class="cover inp">무엇이든 물어보세요...<b></b><em>Lite 3.5 빠름</em></div>${NAVB}`;
+}
 const FORMATS = [
   { id: 'chat-dark-share', quick: true, min: 12, shot: { vw: 360, vh: 780, dpr: 3, html: () => chatHTML({ time: 'SKT 2:05', share: true, at: 24, y: 62 }) }, truth: chatTruth },
   { id: 'chat-dark-top', min: 9, shot: { vw: 360, vh: 780, dpr: 3, html: () => chatHTML({ time: 'SKT 2:05', share: false, at: 0, y: 150, arrowOn: 8, arrowX: 205 }) }, truth: chatTruth },
   { id: 'photo-twocol-dark-desk', quick: true, min: 12, page: listHTML, cam: { rz: 4, rx: 4, ry: 2, blur: .6, light: 'br', q: 70, bg: 'wood', fit: .93, noise: .07, seed: 11 }, truth: () => LIST },
   { id: 'photo-table-sideways', quick: true, min: 11, page: tableHTML, cam: { rz: 90, rx: 4, ry: -3, blur: .6, light: 'tl', q: 74, bg: 'papers', fit: .94, noise: .06, seed: 13 }, truth: () => TABLE },
   { id: 'shot-icons-below', quick: true, min: 8, shot: { vw: 432, vh: 936, dpr: 2.5, html: belowHTML }, truth: () => APP },
+  { id: 'chat-dark-inline', quick: true, min: 13, shot: { vw: 360, vh: 780, dpr: 3, html: inlineHTML }, truth: () => INLINE.flatMap(s => s.items) },
   { id: 'pc-table-pos', quick: true, min: 10, shot: { vw: 1280, vh: 800, dpr: 1.5, html: pcTableHTML }, truth: () => APP },
 ];
 // 화면에 다 보이는(위아래 막대·공유 창·단추에 가리지 않은) 줄만 정답으로
