@@ -4,7 +4,8 @@
    이야기 틀·인물·단어 순서(말썽 → 해결)는 앱이 정하고(mkStory), AI는 앱이 쓴 이야기 전체를 보고
    번호 붙은 단어 줄만 더 재미있게 고쳐 써요 (그 줄의 인물은 그대로: 그림도 그 인물로 그려져 있어요).
    AI는 단어 뜻을 다시 쓰지 않아요: 앱이 단어 뜻 자리를 ★로 바꿔 보내고, AI는 ★ 앞뒤만 써요.
-   앱이 ★ 자리에 단어 뜻을 그대로 되돌려 넣어요. ★가 없거나 두 번이거나 문장과 맞지 않은 줄은 그 줄들만 담아 한 번 더 물어요.
+   앱이 ★ 자리에 단어 뜻을 그대로 되돌려 넣어요. ★가 없거나 두 번이거나 문장과 맞지 않은 줄은 그 줄들만 담아 한 번 더 묻고,
+   그래도 이 에피소드에 모자라면 남은 줄만 담아 더 물어요 (다시 묻기는 AI_AGAIN_MAX번까지).
    그 뒤 AI가 에피소드 단어 줄의 2/3(AI_MIN_SHARE, 올림) 이상을 써야 단어장을 만들어요 (남은 줄은 줄거리 틀 문장 그대로, 단어마다 칩이 있게).
    이야기 AI를 못 돌리거나 준비·쓰기에 실패하면 단어장을 만들지 않아요 (mkMake).
    모델 파일은 저장소에 없어요: word-game/llm/NOTICE.txt (Gemma 4: Apache 2.0) */
@@ -564,16 +565,19 @@ const aiSentN = t => (String(t).replace(/[“"][^”"]*[”"]/g, '말').match(/[
 // 예시는 앱 문장에 가장 많은 꼴(문장 끝 '-었어요')로: ★가 끝말까지 품고 있어서 ★ 뒤에 '했어요'를 또 붙이지 않는 것을 보여 줘요.
 // '줄:'·'답:' 같은 꼬리표 없이 '앱 줄 → 고친 줄' 한 줄로 보여 줘요: 작은 모델이 꼴을 따라 해도 꼬리표가 이야기에 들어가지 않고, 앱은 화살표 뒤만 읽어요
 // 휴대폰이 한 번에 짧게 읽도록 규칙·예시를 짧게 써요 (요청 글 토큰은 AI_BUDGET 안: aiParts)
+// '그대로 쓰지 말아요' 규칙은 처음부터 넣어요: 컴퓨터에서 이 규칙 없이 물었더니 단어 줄 6줄 가운데 4~6줄을 앱 문장 그대로 베꼈고,
+// 이 규칙을 넣어 다시 물었을 때는 절반쯤을 새로 썼어요
 const AI_EXAMPLE = '아기 곰은 ★. (★ = 용감했어요) → 엄마가 손을 흔들자, 아기 곰은 ★.';
 // 예시에만 나오는 말: 앱 이야기에 없는데 AI 답에 나오면 예시를 따라 쓴 거예요 (엉뚱한 아기 곰·엄마가 이야기와 그림에 들어가요). 예시를 바꾸면 함께 바꿔요
 const AI_EXAMPLE_ONLY = [/아기\s*곰/, /엄마가\s*손/];
-function aiPrompt(story, copied) {
+function aiPrompt(story) {
   const body = story.map(s => s.n ? `${s.n}. ${s.text} (★ = ${s.core}${s.hint ? `, ${s.hint}` : ''})` : s.text).join('\n');
   return `어린이 그림책 이야기예요. 번호 줄만 더 재미있게 고쳐 써요.
 - 줄마다 한두 문장으로, 앞 줄과 이어지게 까닭이나 결과를 넣어요.
 - 인물은 그대로 둬요.
 - ★는 지우거나 바꾸지 말고 딱 한 번 써요. 괄호 속 말은 앱이 나중에 ★ 자리에 넣어요. 뜻이 어울리게 ★ 앞뒤를 써요.
-- 욕설, 다치는 장면, 영어, 괄호는 쓰지 않아요. 문장 끝은 '~요'로 해요.${copied ? '\n- 원래 문장을 그대로 쓰지 말아요. ★ 앞뒤 말을 새로 쓰고, 왜 그랬는지나 그다음 일을 더해요.' : ''}
+- 욕설, 다치는 장면, 영어, 괄호는 쓰지 않아요. 문장 끝은 '~요'로 해요.
+- 원래 문장을 그대로 쓰지 말아요. ★ 앞뒤 말을 새로 쓰고, 왜 그랬는지나 그다음 일을 더해요.
 예시: ${AI_EXAMPLE}
 
 이야기:
@@ -592,7 +596,7 @@ const aiTokEst = t => Math.ceil(String(t).length * AI_TOK_PER_CHAR) + AI_TOK_TMP
 const aiBudget = () => (aiIsPhone(AI.gpuInfo) ? AI_BUDGET : Infinity);
 // story(aiReq의 이야기 줄)를 요청 글로: [{ items: 이 요청의 번호 줄 차례들(0부터), prompt, est: 토큰 어림 }]
 // 번호 줄을 차례대로 k묶음(가능한 한 고르게)으로 나눠요. k = 1부터, 모든 묶음이 AI_BUDGET 안이 될 때까지 (한 줄씩이 되면 그대로)
-function aiParts(story, first, budget = AI_BUDGET, copied = false) {
+function aiParts(story, first, budget = AI_BUDGET) {
   const at = story.map((s, i) => (s.n ? i : -1)).filter(i => i >= 0);
   for (let k = 1; ; k++) {
     const parts = [];
@@ -600,7 +604,7 @@ function aiParts(story, first, budget = AI_BUDGET, copied = false) {
       const a = Math.round(j * at.length / k), b = Math.round((j + 1) * at.length / k), from = a ? at[a - 1] + 1 : 0;
       // 번호는 요청마다 1부터. 앞 묶음 뒤의 줄부터 이 묶음 마지막 번호 줄까지 (나눈 요청은 이야기 첫 줄을 앞에)
       const st = (from && first ? [{ n: 0, text: first }] : []).concat(story.slice(from, at[b - 1] + 1).map(s => (s.n ? Object.assign({}, s, { n: s.n - a }) : s)));
-      const prompt = aiPrompt(st, copied);
+      const prompt = aiPrompt(st);
       parts.push({ items: Array.from({ length: b - a }, (_, i) => a + i), prompt, est: aiTokEst(prompt) });
     }
     if (k >= at.length || parts.every(q => q.est <= budget)) return parts;
@@ -781,7 +785,10 @@ function aiFit(t0, x, f, req) {
     const rest = x.cls === 'mid' && x.w && x.w.sub === 'pert' ? after.replace(/^의(?=\s)/, '') : after;
     if (!(x.cls === 'end' ? /^(?:[.!?…"”’'」』]|$)/ : /^[’”"']?,?\s+[^\s.!?…]/).test(rest)) return { why: '★ 자리가 문장과 안 맞음' };
   }
-  const line = before + `{${x.id}|${x.core}}` + after, plain = before + x.core + after, bad = aiLineWhy(plain, x.core, { sent, max: room(line, plain) });
+  const line = before + `{${x.id}|${x.core}}` + after, plain = before + x.core + after;
+  // ★ 뒤에 ★ 말의 끝말을 붙였거나('발자국을 ★했어요.') 조사만 바꿨을 뿐 앱 문장과 똑같은 줄도 베낀 거예요
+  if (same(plain, x.plain)) return { why: AI_COPY };
+  const bad = aiLineWhy(plain, x.core, { sent, max: room(line, plain) });
   if (bad) return { why: bad };
   // ★ 바로 옆에 같은 뜻 낱말을 또 썼거나('불안해서 ★'), 앱 문장에 없던 '안·못'이 ★ 뜻을 뒤집으면 버려요
   const head = x.core.replace(/\s/g, '').slice(0, 2);
@@ -825,16 +832,21 @@ const aiNeed = n => Math.ceil(n * AI_MIN_SHARE - 1e-9);
 // 이야기(res)의 단어 줄 수 (AI가 쓸 번호 줄: aiReq와 같은 방법으로 셈)
 const aiWordLines = (res, rows) => res.lines.filter(l => { const m = l.match(/\{([^|}]+)\|([^}]+)\}/); return !!(m && rows[m[1]]); }).length;
 // 다시 묻기 요청: 버린 번호 줄(miss: 이야기 전체의 번호 줄 차례)만 담아요. 이야기 첫 줄(단어 없는 줄)을 앞에 두고 번호는 1부터,
-// 같은 ★ 꼴과 길이 한도(aiParts). at: 'AI가 쓴 글 보기'에 이야기 전체의 번호로 적으려고.
-// copied: 처음 답이 앱 문장을 그대로 베꼈으면 '그대로 쓰지 말아요' 규칙을 더하고 조금 더 자유롭게(온도 0.9) 물어요 (같은 요청을 또 보내면 또 베꼈어요)
-function aiReqAgain(req, miss, budget, copied = false) {
+// 같은 ★ 꼴과 길이 한도(aiParts). at: 'AI가 쓴 글 보기'에 이야기 전체의 번호로 적으려고. round: 몇 번째 다시 묻기인지 (1부터)
+// copied: 버린 줄의 절반 이상이 앱 문장을 그대로 베낀 줄이었는지 ('AI가 쓴 글 보기' 제목에 '베끼지 말고 새로'로 적어요)
+function aiReqAgain(req, miss, budget, copied = false, round = 1) {
   const items = miss.map(k => req.items[k]), head = req.story[0] && !req.story[0].n ? [req.story[0]] : [];
   const story = head.concat(items.map((x, i) => ({ n: i + 1, core: x.core, hint: x.hint, text: x.star })));
-  return Object.assign({}, req, { items, story, at: miss, again: true, copied, parts: aiParts(story, head.length ? head[0].text : '', budget, copied) });
+  return Object.assign({}, req, { items, story, at: miss, again: true, round, copied, parts: aiParts(story, head.length ? head[0].text : '', budget) });
 }
 // 앱이 만든 줄거리 틀(res)의 단어 줄을 AI 문장으로 바꿔요. 바꾼 줄 수를 돌려줘요.
 // 요청이 여럿으로 나뉘면(aiParts) 차례로 묻고, 다 끝난 뒤에 한꺼번에 바꿔요 (중간에 오류가 나면 아무 줄도 바꾸지 않고 오류를 넘겨요)
-// again(단어장 만들기): 규칙에 맞지 않아 버린 번호 줄만 담아 한 번 더 물어요. 다시 묻기는 한 번뿐이에요
+// again(단어장 만들기): 규칙에 맞지 않아 버린 번호 줄만 담아 다시 물어요. 첫 번째 다시 묻기는 버린 줄이 있으면 늘,
+// 두 번째부터는 그래도 이 에피소드에 모자랄 때만(aiNeed: 이대로면 단어장을 못 만들어요) 남은 줄만 담아 AI_AGAIN_MAX번까지.
+// 컴퓨터에서 같은 줄을 두 번 물어도 또 베낀 줄이 있었어요: 한 번 더 물으면(약 5초, 휴대폰은 약 30초) 처음부터 다시 만드는 것보다 빨라요
+const AI_AGAIN_MAX = 3;
+// 묻는 온도: 처음 0.9, 다시 물을 때 1 (처음에 0.7로 물었을 때 앱 문장을 거의 다 베꼈고, 0.9로 다시 물으니 절반쯤을 새로 썼어요)
+const AI_TEMP = 0.9, AI_TEMP_AGAIN = 1;
 const AI_DIAG_N = 12;
 async function aiRewrite(eng, res, rows, n, signal, again) {
   const budget = aiBudget(), req = aiReq(res, rows, n, budget), { lines, plainOf, idx, items, parts } = req;
@@ -847,12 +859,14 @@ async function aiRewrite(eng, res, rows, n, signal, again) {
   AI.copied = 0;
   try {
     for (let j = 0; j < parts.length; j++) await aiAsk(eng, req, parts[j], j, parts.length, fits, signal, whys);
-    const miss = again ? items.map((x, k) => k).filter(k => !fits[k]) : [];
-    if (miss.length) {
+    const need = Math.max(1, aiNeed(items.length));
+    let miss = again ? items.map((x, k) => k).filter(k => !fits[k]) : [];
+    for (let round = 1; miss.length && round <= AI_AGAIN_MAX && (round === 1 || items.length - miss.length < need); round++) {
       const copied = miss.filter(k => whys[k] === AI_COPY).length * 2 >= miss.length;
-      const re = aiReqAgain(req, miss, budget, copied), got = miss.map(() => null), why2 = miss.map(() => '');
+      const re = aiReqAgain(req, miss, budget, copied, round), got = miss.map(() => null), why2 = miss.map(() => '');
       for (let j = 0; j < re.parts.length; j++) await aiAsk(eng, re, re.parts[j], j, re.parts.length, got, signal, why2);
       miss.forEach((k, i) => { if (got[i]) fits[k] = got[i]; else whys[k] = why2[i] || whys[k]; });
+      miss = miss.filter(k => !fits[k]);
     }
   } finally { if (signal) signal.removeEventListener('abort', stop); }
   // 끝까지 앱 문장을 그대로 베낀 줄 수 (단어장 만들기의 안내 글에 써요)
@@ -875,14 +889,14 @@ async function aiRewrite(eng, res, rows, n, signal, again) {
 // whyOut: 쓰지 못한 줄의 까닭 (fits와 같은 차례)
 async function aiAsk(eng, req, part, j, of, fits, signal, whyOut) {
   const f = req.f, mine = part.items.map(k => req.items[k]), sub = Object.assign({}, req, { items: mine });
-  const title = (req.again ? `${f.title} · 다시 묻기${req.copied ? ' (베끼지 말고 새로)' : ''}` : f.title) + (of > 1 ? ` · 요청 ${j + 1}/${of}` : '');
+  const title = (req.again ? `${f.title} · 다시 묻기${req.round > 1 ? ` ${req.round}` : ''}${req.copied ? ' (베끼지 말고 새로)' : ''}` : f.title) + (of > 1 ? ` · 요청 ${j + 1}/${of}` : '');
   let text = '';
   // 글을 조금씩 받아요(stream): 이야기를 다 읽었는지(첫 토큰), 토큰을 몇 개 썼는지 알 수 있어요. 멈추면 그 기록을 남겨요
   // (stream이 아닌 답이 와도 읽어요: 시험용 가짜 AI). 묻기 전에 다른 무거운 일꾼을 멈추고 돌던 일꾼을 적어요
   const workers = aiCalm();
   const work = AI.work = { step: 'read', t0: Date.now(), first: 0, tokens: 0, hidden: 0, stream: false, usage: null, size: AI.chunk, gap: AI.gap, est: part.est, workers };
   try {
-    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: part.prompt }], temperature: req.copied ? 0.9 : 0.7, top_p: 0.9, max_tokens: Math.min(1200, 90 * mine.length + 60), stream: true, stream_options: { include_usage: true } });
+    const reply = await eng.chat.completions.create({ messages: [{ role: 'user', content: part.prompt }], temperature: req.again ? AI_TEMP_AGAIN : AI_TEMP, top_p: 0.9, max_tokens: Math.min(1200, 90 * mine.length + 60), stream: true, stream_options: { include_usage: true } });
     if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
       work.stream = true;
       for await (const ch of reply) {
