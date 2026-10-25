@@ -744,7 +744,9 @@ function aiFit(t0, x, f, req) {
   const names = [f.H, f.F, f.V, ...Object.values(f.S || {})].filter(Boolean).sort((a, b) => b.length - a.length);
   // 앞에 붙은 '인물 이름:' 꼬리표는 떼요
   const t = t0.replace(new RegExp('^(?:' + names.map(aiEsc).join('|') + ')\\s*[:：\\-–—]\\s*'), '');
-  const same = (a, b) => a.replace(/[.!?]$/, '').trim() === b.replace(/[.!?]$/, '').trim();
+  // 따옴표·띄어쓰기·끝 문장부호만 다른 줄도 같은 줄로 봐요 (앱 문장의 ‘★’이라는 → 용감한이라는처럼 따옴표만 지운 베낌)
+  const bare = s => String(s).replace(/[‘’“”"'「」『』\s]/g, '').replace(/[.!?…]+$/, '');
+  const same = (a, b) => bare(a) === bare(b);
   const want = aiCast(x.star, f), castOk = s => !want.length || aiCast(s, f).some(k => want.includes(k));
   const s = aiStarTidy(t, x), stars = (s.match(/★/g) || []).length;
   if (stars > 1) return { why: stars === 2 ? '★가 두 번' : `★가 ${stars}번` };
