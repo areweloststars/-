@@ -1,6 +1,7 @@
 // 사진 읽기 점검: 단어 목록을 찍거나 캡처한 흔한 모양으로 직접 만든 합성 사진(일반 사전 낱말 + 직접 쓴 뜻, photo-looks.cjs)을
 // 진짜 브라우저에서 게임의 사진 읽기로 읽고, 모양마다 맞은 단어 수가 기준 아래로 떨어지지 않는지 봐요.
-// 다크 모드 채팅 답, 어두운 책상 위 기운 두 단 목록, 옆으로 찍은 칸 표, 아이콘 옆 단어 + 아랫줄 뜻, 품사 칸이 있는 표.
+// 다크 모드 채팅 답, 어두운 책상 위 기운 두 단 목록, 옆으로 찍은 칸 표, 아이콘 옆 단어 + 아랫줄 뜻, 품사 칸이 있는 표,
+// '단어 뜻 · 단어 뜻'을 이어 쓴 채팅 답.
 // 모든 모양: node app/tests/photo-looks.cjs --all. Playwright가 없는 컴퓨터에서는 건너뛰어요
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -33,5 +34,11 @@ test('photo reading: look-alike word-list photos and screenshots keep enough wor
   // '단어 — 뜻'의 줄표는 뜻에 넣지 않고, 휴대폰 화면 글자(입력 칸·상태 표시줄)는 단어 줄이 아님
   for (const r of res) for (const x of r.rows) assert.doesNotMatch(x.ko, /^[-–—ㅡ]/, `${r.id}: ${x.en} → ${x.ko}`);
   assert.ok(!by['chat-dark-share'].rows.some(x => /chatgpt|skt|답변하기/i.test(x.en + ' ' + x.ko)), JSON.stringify(by['chat-dark-share'].rows));
+  // '·'로 이어 쓴 채팅 답: 줄 끝 단어의 뜻은 다음 줄 맨 앞('kettle / 주전자'), 쌍 사이 가운뎃점은 뜻에 넣지 않고, 화면 이름표('Lite 3.5 빠름')는 단어 줄이 아님
+  assert.equal(row('chat-dark-inline', 'kettle'), '주전자');
+  assert.equal(row('chat-dark-inline', 'staircase'), '계단');
+  assert.equal(row('chat-dark-inline', 'puddle'), '물웅덩이');
+  for (const r of res) for (const x of r.rows) assert.doesNotMatch(x.ko, /[·ㆍ]$/, `${r.id}: ${x.en} → ${x.ko}`);
+  assert.ok(!by['chat-dark-inline'].rows.some(x => /^lite$/i.test(x.en)), JSON.stringify(by['chat-dark-inline'].rows));
   assert.deepEqual(res.errors, []);
 });

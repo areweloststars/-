@@ -394,6 +394,42 @@ test('OCR fixes for common photo problems: lost bold words, first syllables, das
   } finally { p.close(); }
 });
 
+test('OCR chat lists: middle-dot pairs, meanings wrapped to the next line, glued numbers, wide boxes, labels', () => {
+  const p = bootPage();
+  try {
+    p.window.__lex = fs.readFileSync(require('node:path').join(__dirname, '../../word-game/ocr/ko-lex.txt'), 'utf8');
+    p.run('window.__L = new Set(window.__lex.split("\\n").filter(Boolean)); window.__lex = ""; OCR.low = new Set();');
+    const W = (t, x, y, c = 95, w = t.length * 20, h = 40) => ({ t, x0: x, y0: y, x1: x + w, y1: y + h, c });
+    const dot = (x, y) => W('ㆍ', x, y + 15, 90, 8, 10);
+    const D = ws => `new Map(${JSON.stringify(ws.map(w => [w, 1]))})`;
+    const pairs = (words, dict) => p.json(`ocrPairs(${JSON.stringify(words)}, ${D(dict)}, 0, window.__L).map(l => l.replace(OCR_SPACED, ''))`);
+    // 'blanket 담요 · ladder 사다리 · kettle / 주전자 · drawer 서랍 · harvest 수확, / 추수 · valley 골짜기':
+    // 줄 끝 단어의 뜻은 다음 줄 맨 앞, 쉼표로 끝난 뜻은 다음 줄 맨 앞에서 이어지고, 가운뎃점은 뜻에 넣지 않고, 순서는 줄마다 왼쪽부터
+    const inline = [W('blanket', 100, 100), W('담요', 260, 100), dot(320, 100), W('ladder', 340, 100), W('사다리', 480, 100), dot(550, 100), W('kettle', 570, 100),
+      W('주전자', 100, 170), dot(180, 170), W('drawer', 200, 170), W('서랍', 340, 170), dot(400, 170), W('harvest', 420, 170), W('수확,', 580, 170),
+      W('추수', 100, 240), dot(180, 240), W('valley', 200, 240), W('골짜기', 340, 240)];
+    assert.deepEqual(pairs(inline, ['blanket', 'ladder', 'kettle', 'drawer', 'harvest', 'valley']),
+      ['blanket - 담요', 'ladder - 사다리', 'kettle - 주전자', 'drawer - 서랍', 'harvest - 수확, 추수', 'valley - 골짜기']);
+    // 두 칸 낱말 카드('valley [아이콘]   tremble [아이콘]' / 아랫줄 뜻)는 이어 쓴 목록이 아님: 아랫줄 맨 앞 뜻을 오른쪽 칸 단어가 가져가지 않음
+    const grid = [W('valley', 80, 380), W('삐', 500, 380, 9, 20), W(')', 524, 380, 88, 15), W('tremble', 660, 380), W('빼', 1076, 380, 9, 39), W(')', 1101, 380, 63, 19),
+      W('계곡,', 80, 460), W('골짜기', 190, 460), W('떨다', 660, 460)];
+    assert.deepEqual(pairs(grid, ['valley', 'tremble']).sort(), ['tremble - 떨다', 'valley - 계곡, 골짜기']);
+    // 단어와 뜻 사이에 소수가 있는 줄('Lite 3.5 빠름')은 화면의 이름표: 단어 줄이 아님
+    assert.deepEqual(pairs([W('Lite', 100, 100), W('3.5', 200, 100), W('빠름', 280, 100), W('garden', 100, 200), W('정원', 300, 200)], ['lite', 'garden']), ['garden - 정원']);
+    // 영어 읽기가 번호·줄표를 붙여 읽은 단어('5.garden', 'O.kettle-')와, 줄표 너머 뜻까지 넓게 잡힌 단어 상자도 단어로
+    const A = [W('5.', 40, 100, 96, 40), W('85016', 100, 100, 0, 200), W('정원', 340, 100), W('9.', 40, 200, 95, 40), W('6916', 100, 200, 65, 90), W('주전자', 260, 200),
+      W('1.', 40, 300, 92, 40), W('010101810', 100, 300, 48, 220), W('담요', 300, 300, 96, 88)];
+    const E = [W('5.garden', 40, 100, 81, 260), W('O.kettle-', 40, 200, 78, 190), W('blanket', 100, 300, 73, 236)];
+    assert.deepEqual(p.json(`ocrMerge(${JSON.stringify(A)}, ${JSON.stringify(E)}, ${D(['garden', 'kettle', 'blanket'])}).map(w => w.t).sort()`),
+      ['1.', '5.', '9.', 'blanket', 'garden', 'kettle', '담요', '정원', '주전자'].sort());
+    // 이어 쓴 목록에서 신뢰도 0으로 읽힌 굵은 단어: 바로 왼쪽이 가운뎃점이면 쌍의 시작 ('골짜기 · meadow 풀밭')
+    const A2 = [W('골짜기,', 60, 100, 95), W('ㆍ', 220, 115, 85, 4, 10), W('ㅋ', 236, 100, 55, 12), W('006800', 250, 100, 23, 120), W('풀밭', 400, 100, 89)];
+    assert.ok(p.json(`ocrMerge(${JSON.stringify(A2)}, ${JSON.stringify([W('meadow', 250, 100, 0, 120)])}, ${D(['meadow'])}).map(w => w.t)`).includes('meadow'));
+    // 쌍 사이 가운뎃점·잡티는 뜻에서 지움, 괄호 바로 뒤 조사 다음은 띄어쓰기 ('일정(을 잡다)')
+    assert.deepEqual(p.json(`['장소ㆍ', '안건 ㆍ', '목적지 ㆍ ＊'].map(ocrKo)`), ['장소', '안건', '목적지']);
+    assert.deepEqual(pairs([W('schedule', 100, 100), W('일정', 300, 100), W('(을', 345, 100, 86, 60), W('잡다)', 410, 100, 90, 100)], ['schedule']), ['schedule - 일정 (을 잡다)']);
+  } finally { p.close(); }
+});
 test('typed list parser reads numbered, colon, tab and Korean-first lines', () => {
   const p = bootPage();
   try {
