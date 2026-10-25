@@ -24,8 +24,9 @@ const [, , OUT = path.join(__dirname, 'app-run.json'), MODE = 'phone', NSET = '6
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.woff2': 'font/woff2', '.txt': 'text/plain', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
-// 일반 사전 낱말 (영어, 뜻, 품사). 이야기 틀이 다루기 어려운 추상적인 말도 섞었어요
-const SETS = [
+// 일반 사전 낱말 (영어, 뜻, 품사). 이야기 틀이 다루기 어려운 추상적인 말도 섞었어요.
+// WG_SETS=<json 파일>을 주면 그 묶음들로 재요 ([[["영어", "뜻", "품사"], …], …]). 저장소 밖 임시 파일로 주고, 다 쓰면 지워요
+const SETS = process.env.WG_SETS ? JSON.parse(fs.readFileSync(process.env.WG_SETS, 'utf8')) : [
   [['refund', '환불하다', 'v'], ['deliver', '배달하다', 'v'], ['invite', '초대하다', 'v'], ['delay', '미루다', 'v'], ['repair', '수리하다', 'v'], ['confirm', '확인하다', 'v']],
   [['borrow', '빌리다', 'v'], ['brave', '용감한', 'a'], ['anxious', '불안한', 'a'], ['harvest', '수확', 'n'], ['whisper', '속삭이다', 'v'], ['encourage', '격려하다', 'v']],
   [['compare', '비교하다', 'v'], ['reduce', '줄이다', 'v'], ['abandon', '버리다', 'v'], ['survey', '설문 조사', 'n'], ['discover', '발견하다', 'v'], ['celebrate', '축하하다', 'v']],
