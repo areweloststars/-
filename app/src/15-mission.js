@@ -133,6 +133,8 @@ function settlePending() {
 }
 function startPlay() {
   settlePending();
+  // 그만두며 실패로 쳐서 목숨을 모두 잃었으면(깬 에피소드 초기화) 이 미션은 다시 잠겨요
+  if (M.kind === 'scene' ? !isUnlocked(M.key) : M.kind === 'boss' && !bossOpen()) { goHome(); return; }
   leaveStory(); closeOverlay();
   if (!PP) renderPlayShell();
   const hearts = heartsFor(M.kind);
