@@ -456,6 +456,46 @@ test('answers: meaning variants count, negated meanings do not', () => {
   } finally { p.close(); }
 });
 
+test('mission: the direction chip cannot reveal the answer, quitting into game over does not replay a locked episode', async () => {
+  const p = bootPage();
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  try {
+    p.run(`SAVE.dir = 'en'; openMission('scene', SCENES[0].key); startPlay();`);
+    await wait(1800);
+    assert.equal(p.json('M.state'), 'ask');
+    const q = p.run(`$('#q').textContent`);
+    p.document.querySelector('#dirchip').click();
+    assert.equal(p.run(`$('#q').textContent`), q, '푸는 중인 카드는 뒤집히지 않음');
+    assert.equal(p.json('SAVE.dir'), 'en');
+    // 목숨 1개 남기고 에피소드 3에서 하트를 잃은 뒤 '처음부터 다시' → 게임 오버로 잠긴 에피소드 3은 다시 시작하지 않고 목록으로
+    p.run(`SAVE.best = {}; SCENES.slice(0, 2).forEach(s => { SAVE.best[s.key] = { stars: 1, elapsed: 1 }; }); SAVE.lives = 1; openMission('scene', SCENES[2].key); startPlay();`);
+    await wait(1800);
+    p.run(`SAVE.bank = 0; M.cardLeft = 0;`);
+    await wait(300);
+    assert.equal(p.json('M.heartsLost'), 1);
+    p.run(`pause(); startPlay();`);
+    assert.equal(p.json('SAVE.lives'), 3);
+    assert.equal(p.json(`isUnlocked(SCENES[2].key)`), false);
+    assert.equal(p.run(`$('#home').hidden`), false, '미션 목록으로 돌아감');
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('deck runtime: a word listed in two episodes stays in the first one only', () => {
+  const p = bootPage();
+  try {
+    // 일반 낱말로 만든 연습용 단어장 (교재 내용 아님)
+    const r = p.json(`(() => {
+      const w = (t) => ({ m: t, ans: [{ t, ok: [t] }] });
+      const rt = deckRuntime({ id: 'dup', name: 'dup', panels: {}, words: { borrow: w('빌리다'), explain: w('설명하다') },
+        scenes: [{ key: 'a', words: ['borrow', 'explain'], lines: ['책을 {borrow|빌렸어요}'] }, { key: 'b', words: ['borrow'], lines: ['또 {borrow|빌렸어요}'] }] });
+      return { scenes: rt.scenes.map(s => [s.key, s.words, s.lines]), at: rt.words.borrow.scene };
+    })()`);
+    assert.deepEqual(r.scenes, [['a', ['borrow', 'explain'], ['책을 {borrow|빌렸어요}']]]);
+    assert.equal(r.at, 'a');
+  } finally { p.close(); }
+});
+
 test('auto story: every word once, no template leftovers, no repeated lines', () => {
   const p = bootPage();
   try {

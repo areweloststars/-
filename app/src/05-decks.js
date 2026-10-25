@@ -47,12 +47,15 @@ function deckRuntime(deck) {
     words[id] = Object.assign({}, w, { id, m: ans.map(g => g.t).join(', ') || String(w.m || ''), ans });
   }
   const has = id => Object.prototype.hasOwnProperty.call(words, id);
+  const taken = new Set(); // 한 단어는 한 에피소드에만 (앞 에피소드에 이미 나온 단어는 뺌: 그림 자리·보스 문제가 겹치지 않게)
   (Array.isArray(deck.scenes) ? deck.scenes : []).forEach((s, i) => {
     if (!s || !Array.isArray(s.words)) return;
-    // 자막의 단어 표시는 이 단어장에 실제로 있는 단어만
-    const lines = (Array.isArray(s.lines) ? s.lines : []).filter(l => typeof l === 'string').map(l => l.replace(/\{([^|}]+)\|([^}]+)\}/g, (all, id, t) => has(id) ? all : t));
-    const sc = { key: String(s.key), title: String(s.title || '에피소드'), words: s.words.filter(has), lines, n: i + 1 };
+    const mine = [...new Set(s.words.filter(id => has(id) && !taken.has(id)))];
+    // 자막의 단어 표시는 이 에피소드에 실제로 있는 단어만
+    const lines = (Array.isArray(s.lines) ? s.lines : []).filter(l => typeof l === 'string').map(l => l.replace(/\{([^|}]+)\|([^}]+)\}/g, (all, id, t) => mine.includes(id) ? all : t));
+    const sc = { key: String(s.key), title: String(s.title || '에피소드'), words: mine, lines, n: i + 1 };
     if (!sc.words.length) return;
+    mine.forEach(id => taken.add(id));
     sc.n = scenes.length + 1;
     scenes.push(sc);
     const P = comicPanels(sc.words.length);

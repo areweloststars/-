@@ -102,12 +102,13 @@ function bindEvents() {
       if (act === 'pause') pause();
       else if (act === 'restart') { Sound.play('tap'); startPlay(); }
       else if (act === 'dir') {
+        // 푸는 중인 카드를 뒤집으면 답(뜻이나 영어)이 그대로 보여서, 카드 사이·답을 본 뒤·시작 전에만 바꿔요
+        if (M.state === 'ask' && M.active) { Sound.play('bad'); toast('문제를 푸는 동안에는 방향을 바꿀 수 없어요 · 답을 본 뒤에 바꿔요'); return; }
         SAVE.dir = SAVE.dir === 'en' ? 'ko' : 'en'; persist(); setDirChip(); Sound.play('tap');
-        // 풀던 카드는 새 방향으로 바꾸되 남은 시간은 그대로 (시간을 다시 채우는 꼼수 방지)
-        if (M.queue.length && (M.state === 'ask' || M.state === 'idle')) {
+        // 시작 전(시간이 흐르기 전)이면 지금 카드를 새 방향으로
+        if (M.queue.length && M.state === 'idle') {
           M.keys = keysFor(curId()); M.cardMs = cardTime(M.keys); M.matched = new Set(); $('#ain').value = ''; fillCard(curId());
-          if (M.state === 'idle') { M.cardLeft = M.cardMs; M.lastSec = null; updateFuse(true); fuseTo(1, 0); }
-          else { M.cardLeft = Math.min(M.cardLeft, M.cardMs); updateFuse(true); if (M.timing && !M.paused && !(M.grace > 0)) fuseRun(); focusInput(); }
+          M.cardLeft = M.cardMs; M.lastSec = null; updateFuse(true); fuseTo(1, 0);
         } else toast(`다음 카드부터 ${SAVE.dir === 'en' ? '영어 보고 뜻 쓰기' : '뜻 보고 영어 쓰기'}로 바뀌어요`);
       } else if (act === 'zoom') { if (!M.full) zoomOutFull(); else if (showing()) zoomIn(); else zoomCard(); }
       return;
