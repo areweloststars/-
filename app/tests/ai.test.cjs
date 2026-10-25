@@ -129,7 +129,7 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     const made = p.json('({ step: MK.step, err: MK.err, note: MK.aiNote, calls: AI.engine.calls, prompts: AI.engine.prompts, scenes: MK.deck.scenes.length, lines: MK.deck.scenes[0].lines, words: MK.deck.scenes[0].words, saved: DeckStore.list().length, diag: MK.aiDiag.map(d => d.title), log: MK.log.map(l => l.text) })');
     assert.equal(made.step, 'done', made.err);
     assert.equal(made.scenes, 1);
-    assert.equal(made.calls, 2, '한 번 묻고, 버린 줄만 한 번 더 (또 버린 줄은 다시 묻지 않아요)');
+    assert.equal(made.calls, 2, '한 번 묻고, 버린 줄만 한 번 더 (4줄 이상 썼으니 또 버린 줄은 다시 묻지 않아요)');
     const nums = t => t.split('\n').filter(l => /^\d+\. /.test(l)), body = l => l.replace(/^\d+\. /, '');
     assert.equal(nums(made.prompts[0]).length, 6);
     assert.deepEqual(nums(made.prompts[1]).map(body), nums(made.prompts[0]).filter((_, i) => i % 2).map(body), '다시 묻기에는 버린 줄만, 같은 ★ 꼴로');
@@ -408,30 +408,39 @@ test('AI error while writing: no deck is saved, the reason and the AI diagnostic
   } finally { p.close(); }
 });
 
-test('an episode where the AI wrote under two thirds of the word lines (after asking again once) stops the make; at two thirds the deck is saved with the rest as story-frame lines', async () => {
+test('an episode where the AI wrote under two thirds of the word lines (after asking again up to three times while short) stops the make; at two thirds the deck is saved with the rest as story-frame lines', async () => {
   const p = bootPage({ 'wg-ai-ready': 'gemma-4-E2B-it-q4f16_1-MLC' });
   try {
-    // 요청마다 앞의 k줄만 고쳐 쓰고 나머지는 받은 줄을 그대로 베껴요 (베낀 줄은 버려요)
-    const firstK = k => `{ interruptGenerate() {}, chat: { completions: { create: async req => { __asks.push(req.messages[0].content); return { choices: [{ message: { content: (${STAR_LINES})(req).map((m, i) => m[1] + '. ' + (i < ${k} ? '모두가 깜짝 놀라 지켜보는 가운데, ' + m[2] : m[2])).join('\\n') } }] }; } } } }`;
-    p.run(`window.__asks = []; AI.gpu = true; AI.engine = ${firstK(1)};`);
+    // 요청마다 앞의 k줄만 고쳐 쓰고 나머지는 받은 줄을 그대로 베껴요 (베낀 줄은 버려요). first: 첫 요청에서만 고쳐 쓰고 다시 물으면 다 베껴요
+    const firstK = (k, first) => `{ interruptGenerate() {}, chat: { completions: { create: async req => { __asks.push(req.messages[0].content); const k = ${first ? `__asks.length === 1 ? ${k} : 0` : k}; return { choices: [{ message: { content: (${STAR_LINES})(req).map((m, i) => m[1] + '. ' + (i < k ? '모두가 깜짝 놀라 지켜보는 가운데, ' + m[2] : m[2])).join('\\n') } }] }; } } } }`;
+    p.run(`window.__asks = []; AI.gpu = true; AI.engine = ${firstK(1, true)};`);
     p.run(`MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false; showScreen('make');`);
     await p.run('mkMake()');
     const a = p.json('({ step: MK.step, err: MK.err, fail: MK.fail, deck: MK.deck, saved: DeckStore.list().length, rows: MK.rows.length, asks: __asks.length, diag: MK.aiDiag.map(d => d.title) })');
-    // 6줄 가운데 첫 요청 1줄 + 다시 물어 1줄 = 2줄 (4줄 필요): 멈춰요. 다시 묻기는 한 번뿐
+    // 6줄 가운데 첫 요청 1줄, 다시 물어도 다 베낌 (4줄 필요): 모자라는 동안 세 번까지 다시 묻고 멈춰요
     assert.equal(a.step, 'review');
-    assert.equal(a.asks, 2);
+    assert.equal(a.asks, 4);
     assert.deepEqual([a.deck, a.saved, a.rows, a.fail], [null, 0, ROWS.length, true]);
-    assert.match(a.err, /^에피소드 1 ‘[^’]+’에서 이야기 AI가 단어 문장 6줄 가운데 2줄만 규칙\(단어 자리·뜻\)에 맞게 썼어요\. 4줄 이상 써야 해서 단어장을 만들지 않았어요\. 그 가운데 4줄은 AI가 새로 쓰지 않고 앱이 보낸 문장을 그대로 베꼈어요\. 다시 해 보면 다르게 쓸 수 있어요\. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요\. 입력한 단어는 그대로 있어요\./);
-    assert.equal(a.diag.length, 2);
-    assert.match(a.diag[1], / · 다시 묻기 \(베끼지 말고 새로\)$/);
-    assert.match(p.document.querySelector('#make .mkdiag').textContent, /다시 묻기/);
-    // 앞의 2줄씩: 첫 요청 2줄 + 다시 물어 2줄 = 4줄 (딱 2/3): 저장하고, 남은 2줄은 줄거리 틀 문장 그대로 (단어마다 칩)
-    p.run(`__asks = []; AI.engine = ${firstK(2)};`);
+    assert.match(a.err, /^에피소드 1 ‘[^’]+’에서 이야기 AI가 단어 문장 6줄 가운데 1줄만 규칙\(단어 자리·뜻\)에 맞게 썼어요\. 4줄 이상 써야 해서 단어장을 만들지 않았어요\. 그 가운데 5줄은 AI가 새로 쓰지 않고 앱이 보낸 문장을 그대로 베꼈어요\. 다시 해 보면 다르게 쓸 수 있어요\. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요\. 입력한 단어는 그대로 있어요\./);
+    assert.equal(a.diag.length, 4);
+    assert.deepEqual(a.diag.slice(1).map(t => t.replace(/^.* · 다시/, '다시')), ['다시 묻기 (베끼지 말고 새로)', '다시 묻기 2 (베끼지 말고 새로)', '다시 묻기 3 (베끼지 말고 새로)']);
+    assert.match(p.document.querySelector('#make .mkdiag').textContent, /다시 묻기 3/);
+    // 요청마다 앞의 1줄씩: 첫 요청 1줄 + 다시 물어 1줄씩 세 번 = 4줄 (딱 2/3): 세 번째 다시 묻기에서 채워서 저장해요
+    p.run(`__asks = []; AI.engine = ${firstK(1)};`);
     p.document.querySelector('#make [data-mk="retry"]').click();
     await until(() => p.json('MK.step') === 'done');
-    const b = p.json('({ asks: __asks.length, note: MK.aiNote, lines: MK.deck.scenes[0].lines, words: MK.deck.scenes[0].words, saved: DeckStore.list().length })');
+    const c = p.json('({ asks: __asks.length, note: MK.aiNote, lines: MK.deck.scenes[0].lines, saved: DeckStore.list().length })');
+    assert.equal(c.asks, 4);
+    assert.equal(c.saved, 1);
+    assert.deepEqual(c.lines.filter(l => /\{[^|}]+\|/.test(l)).map(l => /깜짝 놀라/.test(l)), [true, true, true, true, false, false]);
+    assert.equal(c.note, '이야기 AI(Gemma 4)가 이 기기에서 단어 문장 6줄 가운데 4줄을 썼어요.');
+    // 앞의 2줄씩: 첫 요청 2줄 + 다시 물어 2줄 = 4줄 (딱 2/3): 저장하고, 남은 2줄은 줄거리 틀 문장 그대로 (단어마다 칩). 모자라지 않으니 더 묻지 않아요
+    p.run(`__asks = []; AI.engine = ${firstK(2)}; MK.rows = ${JSON.stringify(ROWS)}; MK.useAI = false;`);
+    await p.run('mkMake()');
+    const b = p.json('({ step: MK.step, err: MK.err, asks: __asks.length, note: MK.aiNote, lines: MK.deck.scenes[0].lines, words: MK.deck.scenes[0].words, saved: DeckStore.list().length })');
+    assert.equal(b.step, 'done', b.err);
     assert.equal(b.asks, 2);
-    assert.equal(b.saved, 1);
+    assert.equal(b.saved, 2);
     const wl = b.lines.filter(l => /\{[^|}]+\|/.test(l));
     assert.deepEqual(wl.map(l => /깜짝 놀라/.test(l)), [true, true, true, true, false, false]);
     assert.deepEqual(wl.map(l => l.match(/\{([^|}]+)\|/)[1]).sort(), b.words.slice().sort());
@@ -752,7 +761,7 @@ test('AI ★ answers: the exact word mark goes back where ★ is; copied tags, (
   } finally { p.close(); }
 });
 
-test('AI ★ answers: a numbered first story line or (★ = meaning) notes keep each answer on its own word; copied answers are re-asked with a no-copy rule', async () => {
+test('AI ★ answers: a numbered first story line or (★ = meaning) notes keep each answer on its own word; every request carries a no-copy rule and copied answers are re-asked while the episode is short', async () => {
   const p = bootPage();
   try {
     // AI가 단어 없는 이야기 첫 줄까지 '1.'로 번호를 붙여 써서 번호가 하나씩 밀린 답: 줄 끝 메모의 뜻으로 제 줄을 찾아요
@@ -777,19 +786,21 @@ test('AI ★ answers: a numbered first story line or (★ = meaning) notes keep 
     assert.equal(r3.lines[1], '용의 그림자가 성벽에 비치자, 꼬마 공주는 {anxious|불안했어요}.');
     assert.equal(r3.lines[5], '용이 좋아하는 간식을 알아보려고 공주는 마을에서 {survey|설문 조사}를 했어요.');
     // 앱 문장을 그대로 베낀 답(첫 줄도 번호를 붙여 베낌): 줄마다 '앱 문장을 그대로 씀'이고 엉뚱한 줄을 쓰지 않아요.
-    // 다시 물을 때는 '그대로 쓰지 말아요' 규칙을 더하고 조금 더 자유롭게(온도 0.9) 물어요
+    // 요청마다 '그대로 쓰지 말아요' 규칙이 있고(처음 물을 때도), 처음은 온도 0.9, 다시 물을 때는 1.
+    // 이대로면 이 에피소드가 모자라서(6줄 가운데 4줄 필요) 버린 줄을 세 번까지 다시 물어요
     const app = JSON.parse(STAR_RES).lines;
     const copy = app.slice(0, 7).map((l, i) => `${i + 1}. ${l.replace(/\{([^|}]+)\|([^}]+)\}/, (m, id, ko) => `★`)}${i ? ` (★ = ${l.match(/\{[^|}]+\|([^}]+)\}/)[1]})` : ''}`).join('\n');
     p.run(`AI.engine = { reqs: [], interruptGenerate() {}, chat: { completions: { create: async req => { AI.engine.reqs.push({ prompt: req.messages[0].content, temp: req.temperature }); return { choices: [{ message: { content: ${JSON.stringify(copy)} } }] }; } } } };`);
-    await p.run(`(async () => { const res = ${STAR_RES}; window.__n = await aiRewrite(AI.engine, res, ${STAR_ROWS}, 0, null, true); window.__res = res; })()`);
-    const c = p.json('({ n: window.__n, copied: AI.copied, lines: window.__res.lines, reqs: AI.engine.reqs, why: AI.diag.slice(-2).map(d => d.why) })');
+    await p.run(`(async () => { AI.diag = []; const res = ${STAR_RES}; window.__n = await aiRewrite(AI.engine, res, ${STAR_ROWS}, 0, null, true); window.__res = res; })()`);
+    const c = p.json('({ n: window.__n, copied: AI.copied, lines: window.__res.lines, reqs: AI.engine.reqs, diag: AI.diag.map(d => ({ title: d.title, why: d.why })) })');
     assert.equal(c.n, 0);
     assert.deepEqual(c.lines, app, '모두 앱 문장 그대로 (다른 단어 줄에 엉뚱한 문장이 들어가지 않음)');
     assert.equal(c.copied, 6);
-    assert.deepEqual(c.why[0], ['anxious', 'borrow', 'abandon', 'brave', 'survey', 'encourage'].map((w, i) => `${i + 1}. ${w}: 앱 문장을 그대로 씀`));
-    assert.deepEqual(c.reqs.map(q => q.temp), [0.7, 0.9]);
-    assert.ok(!c.reqs[0].prompt.includes('그대로 쓰지 말아요'));
-    assert.ok(c.reqs[1].prompt.includes('원래 문장을 그대로 쓰지 말아요'));
+    const allCopied = ['anxious', 'borrow', 'abandon', 'brave', 'survey', 'encourage'].map((w, i) => `${i + 1}. ${w}: 앱 문장을 그대로 씀`);
+    assert.deepEqual(c.diag.map(d => d.why), [allCopied, allCopied, allCopied, allCopied]);
+    assert.deepEqual(c.diag.map(d => d.title.replace(/^[^·]*/, '')), ['', '· 다시 묻기 (베끼지 말고 새로)', '· 다시 묻기 2 (베끼지 말고 새로)', '· 다시 묻기 3 (베끼지 말고 새로)']);
+    assert.deepEqual(c.reqs.map(q => q.temp), [0.9, 1, 1, 1]);
+    for (const q of c.reqs) assert.ok(q.prompt.includes('원래 문장을 그대로 쓰지 말아요'), q.prompt);
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
@@ -810,6 +821,9 @@ test('AI ★ checks: missing or doubled ★, a ★ that does not fit the sentenc
     assert.equal(why(0, '숲속의 여우는 깜짝 놀라서 ★.'), '인물이 바뀜', '그림 속 인물(공주)이 그대로여야 해요');
     assert.equal(why(0, '모두가 마약 이야기를 하는 사이, 꼬마 공주는 ★.'), '어린이에게 맞지 않는 말');
     assert.equal(why(0, '어둠 속에서 이상한 소리가 나자 꼬마 공주는 ★.'), '앱 문장을 그대로 씀');
+    // ★ 뒤에 끝말을 붙이거나(★했어요) 조사만 바꿨을 뿐(★을 → ★를) 앱 문장과 똑같아지는 줄도 베낀 거예요
+    assert.equal(why(5, '드디어 공주는 레오의 어깨를 두드리며 ★했어요.'), '앱 문장을 그대로 씀');
+    assert.equal(why(4, '공주는 마을에서 ★을 했어요.'), '앱 문장을 그대로 씀');
     assert.equal(why(5, '레오가 지쳐 보였어요. 공주는 웃었어요. 그래서 공주는 레오의 어깨를 두드리며 ★.'), '문장이 너무 많음');
     // 메모·덧붙인 뜻·따옴표는 떼고 ★ 하나로 봐요
     for (const t of ['★ = 불안했어요: 용의 그림자가 비치자, 꼬마 공주는 ★.', '용의 그림자가 비치자, 꼬마 공주는 ★(불안했어요).', '용의 그림자가 비치자, 꼬마 공주는 “★”.', '용의 그림자가 비치자, 꼬마 공주는 ★ 불안했어요.', '용의 그림자가 비치자, 꼬마 공주는 ☆.'])
