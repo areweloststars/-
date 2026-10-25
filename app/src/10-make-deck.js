@@ -334,7 +334,7 @@ ${typeof GEN_SPEC_DOC === 'string' ? GEN_SPEC_DOC : ''}
           const n = aiWordLines(res, rows), need = Math.max(1, aiNeed(n));
           if (c < need) {
             mkLogSet(li, 'warn', `에피소드 ${k + 1}: AI 문장이 모자라요 (${n}줄 가운데 ${c}줄)`);
-            throw mkFail(`${at} 이야기 AI가 단어 문장 ${n}줄 가운데 ${c}줄만 규칙(단어 자리·뜻)에 맞게 썼어요. ${need}줄 이상 써야 해서 단어장을 만들지 않았어요. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요.`);
+            throw mkFail(`${at} 이야기 AI가 단어 문장 ${n}줄 가운데 ${c}줄만 규칙(단어 자리·뜻)에 맞게 썼어요. ${need}줄 이상 써야 해서 단어장을 만들지 않았어요.${AI.copied ? ` 그 가운데 ${AI.copied}줄은 AI가 새로 쓰지 않고 앱이 보낸 문장을 그대로 베꼈어요. 다시 해 보면 다르게 쓸 수 있어요.` : ''} 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요.`);
           }
           mkLogSet(li, 'ok', `에피소드 ${k + 1} ‘${ep.title}’ 완성 (AI 문장 ${c}줄)`);
           aiLines += c; wordN += n;

@@ -134,7 +134,7 @@ test('AI story: lines with the meaning replace the app lines, copied lines stay;
     assert.equal(nums(made.prompts[0]).length, 6);
     assert.deepEqual(nums(made.prompts[1]).map(body), nums(made.prompts[0]).filter((_, i) => i % 2).map(body), '다시 묻기에는 버린 줄만, 같은 ★ 꼴로');
     assert.deepEqual(nums(made.prompts[1]).map(l => l.match(/^\d+/)[0]), ['1', '2', '3']);
-    assert.match(made.diag[1], / · 다시 묻기$/);
+    assert.match(made.diag[1], / · 다시 묻기 \(베끼지 말고 새로\)$/);
     const wl = made.lines.filter(l => /\{[^|}]+\|/.test(l));
     assert.deepEqual(wl.map(l => /깜짝 놀라/.test(l)), [true, true, true, false, true, true]);
     assert.deepEqual(wl.map(l => l.match(/\{([^|}]+)\|/)[1]).sort(), made.words.slice().sort(), '단어마다 칩이 하나씩');
@@ -421,9 +421,9 @@ test('an episode where the AI wrote under two thirds of the word lines (after as
     assert.equal(a.step, 'review');
     assert.equal(a.asks, 2);
     assert.deepEqual([a.deck, a.saved, a.rows, a.fail], [null, 0, ROWS.length, true]);
-    assert.match(a.err, /^에피소드 1 ‘[^’]+’에서 이야기 AI가 단어 문장 6줄 가운데 2줄만 규칙\(단어 자리·뜻\)에 맞게 썼어요\. 4줄 이상 써야 해서 단어장을 만들지 않았어요\. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요\. 입력한 단어는 그대로 있어요\./);
+    assert.match(a.err, /^에피소드 1 ‘[^’]+’에서 이야기 AI가 단어 문장 6줄 가운데 2줄만 규칙\(단어 자리·뜻\)에 맞게 썼어요\. 4줄 이상 써야 해서 단어장을 만들지 않았어요\. 그 가운데 4줄은 AI가 새로 쓰지 않고 앱이 보낸 문장을 그대로 베꼈어요\. 다시 해 보면 다르게 쓸 수 있어요\. 아래 ‘AI가 쓴 글 보기’에서 줄마다 까닭을 볼 수 있어요\. 입력한 단어는 그대로 있어요\./);
     assert.equal(a.diag.length, 2);
-    assert.match(a.diag[1], / · 다시 묻기$/);
+    assert.match(a.diag[1], / · 다시 묻기 \(베끼지 말고 새로\)$/);
     assert.match(p.document.querySelector('#make .mkdiag').textContent, /다시 묻기/);
     // 앞의 2줄씩: 첫 요청 2줄 + 다시 물어 2줄 = 4줄 (딱 2/3): 저장하고, 남은 2줄은 줄거리 틀 문장 그대로 (단어마다 칩)
     p.run(`__asks = []; AI.engine = ${firstK(2)};`);
@@ -748,6 +748,41 @@ test('AI ★ answers: the exact word mark goes back where ★ is; copied tags, (
     // 앞뒤 줄은 그대로
     assert.equal(r.lines[0], '옛날 옛적 하늘 성에 기사 레오가 살았어요.');
     assert.equal(r.lines[7], '레오와 용은 친구가 됐답니다.');
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('AI ★ answers: a numbered first story line or (★ = meaning) notes keep each answer on its own word; copied answers are re-asked with a no-copy rule', async () => {
+  const p = bootPage();
+  try {
+    // AI가 단어 없는 이야기 첫 줄까지 '1.'로 번호를 붙여 써서 번호가 하나씩 밀린 답: 줄 끝 메모의 뜻으로 제 줄을 찾아요
+    const shifted = '1. 옛날 옛적 하늘 성에 기사 레오가 살았어요.\n'
+      + '2. 용의 그림자가 성벽에 비치자, 꼬마 공주는 ★. (★ = 불안했어요)\n'
+      + '3. 길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 ★. (★ = 빌렸어요)\n'
+      + '4. 배가 부른 용은 다 먹은 사탕 껍질을 아무 데나 ★. (★ = 버렸어요)\n'
+      + '5. 공주를 지키려고 레오는 ★ 얼굴로 성문 앞에 섰어요. (★ = 용감한)\n'
+      + '6. 용이 좋아하는 간식을 알아보려고 공주는 마을에서 ★을 했어요. (★ = 설문 조사)\n'
+      + '7. 레오가 지쳐 보이자 공주는 레오의 어깨를 두드리며 ★. (★ = 격려했어요)';
+    const r = await starRun(p, shifted);
+    assert.equal(r.n, 6, r.diag.why.join('\n'));
+    assert.equal(r.lines[2], '길을 잃지 않으려고 레오는 도서관에서 두꺼운 지도책을 {borrow|빌렸어요}.');
+    // 메모가 없어도: 번호 줄이 단어 줄보다 많고 맨 앞 번호 줄에 ★도 단어 뜻도 없으면 이야기 첫 줄로 보고 건너뛰어요
+    const r2 = await starRun(p, shifted.replace(/ \(★ = [^)]*\)/g, ''));
+    assert.equal(r2.n, 6, r2.diag.why.join('\n'));
+    // 앱 문장을 그대로 베낀 답(첫 줄도 번호를 붙여 베낌): 줄마다 '앱 문장을 그대로 씀'이고 엉뚱한 줄을 쓰지 않아요.
+    // 다시 물을 때는 '그대로 쓰지 말아요' 규칙을 더하고 조금 더 자유롭게(온도 0.9) 물어요
+    const app = JSON.parse(STAR_RES).lines;
+    const copy = app.slice(0, 7).map((l, i) => `${i + 1}. ${l.replace(/\{([^|}]+)\|([^}]+)\}/, (m, id, ko) => `★`)}${i ? ` (★ = ${l.match(/\{[^|}]+\|([^}]+)\}/)[1]})` : ''}`).join('\n');
+    p.run(`AI.engine = { reqs: [], interruptGenerate() {}, chat: { completions: { create: async req => { AI.engine.reqs.push({ prompt: req.messages[0].content, temp: req.temperature }); return { choices: [{ message: { content: ${JSON.stringify(copy)} } }] }; } } } };`);
+    await p.run(`(async () => { const res = ${STAR_RES}; window.__n = await aiRewrite(AI.engine, res, ${STAR_ROWS}, 0, null, true); window.__res = res; })()`);
+    const c = p.json('({ n: window.__n, copied: AI.copied, lines: window.__res.lines, reqs: AI.engine.reqs, why: AI.diag.slice(-2).map(d => d.why) })');
+    assert.equal(c.n, 0);
+    assert.deepEqual(c.lines, app, '모두 앱 문장 그대로 (다른 단어 줄에 엉뚱한 문장이 들어가지 않음)');
+    assert.equal(c.copied, 6);
+    assert.deepEqual(c.why[0], ['anxious', 'borrow', 'abandon', 'brave', 'survey', 'encourage'].map((w, i) => `${i + 1}. ${w}: 앱 문장을 그대로 씀`));
+    assert.deepEqual(c.reqs.map(q => q.temp), [0.7, 0.9]);
+    assert.ok(!c.reqs[0].prompt.includes('그대로 쓰지 말아요'));
+    assert.ok(c.reqs[1].prompt.includes('원래 문장을 그대로 쓰지 말아요'));
     assert.deepEqual(p.errors, []);
   } finally { p.close(); }
 });
