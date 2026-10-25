@@ -769,6 +769,13 @@ test('AI ★ answers: a numbered first story line or (★ = meaning) notes keep 
     // 메모가 없어도: 번호 줄이 단어 줄보다 많고 맨 앞 번호 줄에 ★도 단어 뜻도 없으면 이야기 첫 줄로 보고 건너뛰어요
     const r2 = await starRun(p, shifted.replace(/ \(★ = [^)]*\)/g, ''));
     assert.equal(r2.n, 6, r2.diag.why.join('\n'));
+    // ★를 지우고 그 자리에 괄호로 뜻을 써넣은 답('공주는 (불안했어요).'): 괄호가 ★ 자리이고, 괄호 속 뜻으로 제 줄을 찾아요
+    const paren = shifted.replace(/★(.*?) \(★ = ([^)]*)\)/g, '($2)$1');
+    assert.match(paren, /꼬마 공주는 \(불안했어요\)\./);
+    const r3 = await starRun(p, paren);
+    assert.equal(r3.n, 6, r3.diag.why.join('\n'));
+    assert.equal(r3.lines[1], '용의 그림자가 성벽에 비치자, 꼬마 공주는 {anxious|불안했어요}.');
+    assert.equal(r3.lines[5], '용이 좋아하는 간식을 알아보려고 공주는 마을에서 {survey|설문 조사}를 했어요.');
     // 앱 문장을 그대로 베낀 답(첫 줄도 번호를 붙여 베낌): 줄마다 '앱 문장을 그대로 씀'이고 엉뚱한 줄을 쓰지 않아요.
     // 다시 물을 때는 '그대로 쓰지 말아요' 규칙을 더하고 조금 더 자유롭게(온도 0.9) 물어요
     const app = JSON.parse(STAR_RES).lines;

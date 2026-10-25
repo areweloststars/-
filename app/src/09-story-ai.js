@@ -572,7 +572,7 @@ function aiPrompt(story, copied) {
   return `어린이 그림책 이야기예요. 번호 줄만 더 재미있게 고쳐 써요.
 - 줄마다 한두 문장으로, 앞 줄과 이어지게 까닭이나 결과를 넣어요.
 - 인물은 그대로 둬요.
-- ★는 지우거나 바꾸지 말고 딱 한 번 써요. ★ 자리에 괄호 속 말이 들어가요. 뜻이 어울리게 ★ 앞뒤를 써요.
+- ★는 지우거나 바꾸지 말고 딱 한 번 써요. 괄호 속 말은 앱이 나중에 ★ 자리에 넣어요. 뜻이 어울리게 ★ 앞뒤를 써요.
 - 욕설, 다치는 장면, 영어, 괄호는 쓰지 않아요. 문장 끝은 '~요'로 해요.${copied ? '\n- 원래 문장을 그대로 쓰지 말아요. ★ 앞뒤 말을 새로 쓰고, 왜 그랬는지나 그다음 일을 더해요.' : ''}
 예시: ${AI_EXAMPLE}
 
@@ -639,6 +639,8 @@ function aiParse(text, n, items) {
   const L = src.split(/\n+/);
   const NUM = /^\s*(?:[-#>*]+\s*)?(?:답\s*[:：]?\s*)?\(?(?:(\d{1,2})\s*(?:번)?\s*(?:답)?\s*[.):：]|([①-⑳]))\s*(.*)$/;
   const echo = s => AI_ECHO.test(s) && ![...String(s).matchAll(AI_ANS)].length;
+  // ★ 대신 괄호로 뜻을 써넣은 줄('토토는 (이전의) 신청서는'): 그 괄호 속 말이 번호 줄 하나의 뜻과 같으면 메모처럼 써요
+  const parenCore = s => { if (!items) return undefined; for (const pm of String(s).matchAll(/[(\[（]\s*([^)\]）★]{1,30}?)\s*[)\]）]/g)) if (items.some(x => aiTagKey(x.core) === aiTagKey(pm[1]))) return pm[1]; return undefined; };
   for (let i = 0; i < L.length; i++) {
     const m = L[i].match(NUM);
     if (!m) continue;
@@ -654,7 +656,7 @@ function aiParse(text, n, items) {
     else if (t && nx && !t.includes('★') && nx.includes('★') && /[.!?…]$/.test(t)) c.push(t + ' ' + nx);
     if (t) c.push(t);
     if (t && nx && t !== nx && t.includes('★')) c.push(nx);
-    ents.push({ num, c, tag: (m[3].match(AI_TAG) || raw.match(AI_TAG) || [])[1], line: m[3] + ' ' + raw });
+    ents.push({ num, c, tag: (m[3].match(AI_TAG) || raw.match(AI_TAG) || [])[1] ?? parenCore(m[3] + ' ' + raw), line: m[3] + ' ' + raw });
   }
   // 메모의 뜻이 번호 줄 하나의 뜻과 같으면 그 줄 (뜻 뒤에 붙인 '다른 뜻' 설명은 빼고도 견줘요)
   const tagAt = tag => {
@@ -687,6 +689,8 @@ function aiStarTidy(t, x) {
   s = s.replace(new RegExp(`^\\s*[‘“"']?${c}[’”"']?\\s*[:：]\\s*`), '');
   s = s.replace(/★\s*[(\[（][^)\]）★]{1,30}[)\]）]/g, '★').replace(new RegExp(`${c}\\s*[(\\[（]\\s*★\\s*[)\\]）]`, 'g'), '★').replace(/[(\[（]\s*★\s*[)\]）]/g, '★');
   s = s.replace(new RegExp(`★\\s*${c}(?![가-힣])|(?<![가-힣])${c}\\s*★`, 'g'), '★');
+  // ★를 지우고 그 자리에 괄호로 뜻을 써넣었으면('토토는 (이전의) 신청서는') 그 괄호가 ★ 자리예요 (한 번만 나올 때)
+  if (!s.includes('★')) { const pr = new RegExp(`[(\\[（]\\s*[‘“"']?${c}[’”"']?\\s*[)\\]）]`, 'g'); if ((s.match(pr) || []).length === 1) s = s.replace(pr, '★'); }
   if (!x.wrap) s = s.replace(/[‘“"'「]\s*★\s*[’”"'」]/g, '★');
   s = s.replace(/^[\s,.:：/|\-–—]+/, '').replace(/\s+([.,!?…])/g, '$1').replace(/\s{2,}/g, ' ').trim();
   return aiUnquote(s);
