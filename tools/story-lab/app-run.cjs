@@ -12,11 +12,14 @@
 //    요청 하나에 30분이 넘어요), WG_BROWSER=chrome 이면 설치된 크롬(진짜 그래픽 칩)으로 띄워요 (playwright-core도 돼요).
 //    WG_HF_MIRROR=<폴더>·WG_LIB_DIR=<폴더>: 모델 파일·모델 라이브러리(.wasm)를 미리 받아 둔 폴더에서 읽어요.
 //    모델 저장소(브라우저 Cache Storage)는 WG_PROFILE 폴더(기본: 임시 폴더/wg-app-run-profile)에 남아요.
+//    WG_MODEL=f16|f32: 쓸 모델을 정해요 (q4f16: 휴대폰과 같은 16비트 계산 · q4f32). 없으면 앱처럼 그래픽 칩을 보고 골라요.
+//    WG_CHUNK=<토큰>: phone 모드에서 글을 이 크기 조각으로 나눠 읽어요 (갤럭시 S24는 8). 없으면 모델이 만들어진 크기(512)
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), os = require('node:os');
 const REPO = path.join(__dirname, '..', '..');
 const { build } = require(path.join(REPO, 'app', 'build.cjs'));
 const GAME = path.join(REPO, 'word-game');
 const LLAMA = process.env.WG_LLAMA || '';
+const MODEL = process.env.WG_MODEL || '', CHUNK = +process.env.WG_CHUNK || 0;
 const MIRROR = process.env.WG_HF_MIRROR || '', LIBDIR = process.env.WG_LIB_DIR || '';
 const PROFILE = process.env.WG_PROFILE || path.join(os.tmpdir(), 'wg-app-run-profile');
 const PORT = +process.env.WG_PORT || 43118; // 모델 저장소는 주소마다 따로라서 늘 같은 포트로
@@ -46,11 +49,11 @@ const EPISODE = async ({ set, seed }) => {
   const lines = aiWordLines(res, rows);
   return { title: res.title, app, lines: res.lines, wrote: n, of: lines, need: aiNeed(lines), copied: AI.copied, err, diag: (AI.diag || []).map(d => ({ title: d.title, why: d.why, raw: d.raw, info: d.info })) };
 };
-// 휴대폰처럼: 요청 글 길이 한도(440토큰)로 나눠 물어요 (aiBudget이 휴대폰 그래픽 칩 이름을 봐요). 조각 크기는 그대로 둬요
-const PHONE = () => { const k = aiChunkKey({ vendor: 'qualcomm', architecture: 'adreno-8xx' }); aiChunkPut(k, r => { r.safe = AI.chunk || 512; }); AI.gpuInfo = { vendor: 'qualcomm', architecture: 'adreno-8xx', device: '', description: '' }; };
+// 휴대폰처럼: 요청 글 길이 한도(440토큰)로 나눠 물어요 (aiBudget이 휴대폰 그래픽 칩 이름을 봐요). 조각 크기는 chunk(없으면 그대로)
+const PHONE = chunk => { const k = aiChunkKey({ vendor: 'qualcomm', architecture: 'adreno-8xx' }); aiChunkPut(k, r => { r.safe = chunk || AI.chunk || 512; r.bad = []; }); AI.gpuInfo = { vendor: 'qualcomm', architecture: 'adreno-8xx', device: '', description: '' }; };
 
 async function runAll(episode) {
-  const out = { mode: MODE, engine: LLAMA ? 'llama.cpp' : 'webllm', started: new Date().toISOString(), runs: [] };
+  const out = { mode: MODE, engine: LLAMA ? 'llama.cpp' : 'webllm', model: MODEL, chunk: CHUNK, started: new Date().toISOString(), runs: [] };
   for (let s = 0; s < Math.min(+NSET, SETS.length); s++) {
     for (let k = 0; k < +NFRAME; k++) {
       const seed = (s * 5 + k * 7) % 12;
@@ -102,7 +105,7 @@ async function viaLlama() {
   try {
     p.window.__llm = llamaEngine(LLAMA);
     p.run('AI.engine = window.__llm; AI.engineId = "llama.cpp"');
-    if (MODE === 'phone') p.run(`(${PHONE})()`);
+    if (MODE === 'phone') p.run(`(${PHONE})(0)`);
     await runAll(arg => p.run(`(${EPISODE})(${JSON.stringify(arg)})`));
     if (p.errors.length) log('page errors:', p.errors.slice(0, 5));
   } finally { p.close(); }
@@ -142,6 +145,7 @@ async function viaBrowser() {
         if (lib) m.model_lib = location.origin + '/lib/' + m.model_lib.split('/').pop();
       }
     }, { mirror: !!MIRROR, lib: !!LIBDIR });
+    if (MODEL) await page.evaluate(m => { AI.gpu = true; AI.gpuWhy = ''; AI.model = m === 'f32' ? AI_MODEL_F32 : AI_MODEL; }, MODEL);
     const t0 = Date.now();
     log('loading the story AI…');
     const ready = page.evaluate(() => aiLoad(p => { window.__prog = Math.round(p * 100); }).then(() => ({ model: AI.engineId, chunk: AI.chunk, gpu: AI.gpuName })));
@@ -149,7 +153,7 @@ async function viaBrowser() {
     ready.finally(() => { done = true; });
     while (!done) { await new Promise(r => setTimeout(r, 15000)); const pr = await page.evaluate(() => window.__prog).catch(() => null); if (!done && pr !== last) { last = pr; log('  load', pr + '%'); } }
     log('ready', JSON.stringify(await ready), Math.round((Date.now() - t0) / 1000) + 's');
-    if (MODE === 'phone') await page.evaluate(PHONE);
+    if (MODE === 'phone') await page.evaluate(PHONE, CHUNK);
     await runAll(arg => page.evaluate(EPISODE, arg));
     if (errs.length) log('page errors:', errs.slice(0, 5));
   } finally { await ctx.close(); srv.close(); }
