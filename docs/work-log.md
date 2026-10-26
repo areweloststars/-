@@ -12,14 +12,13 @@
 - Colab은 사용자가 아침에 돌려요. 허깅페이스 토큰은 사용자가 Colab 보안 비밀 `HF_TOKEN`에만 넣어요.
 
 ### 한 일
-- `tools/finetune/stories/01.json`, `02.json`: 모범 이야기 50편 (단어 1~6개). `node tools/finetune/build-data.cjs` → 50/50 통과, `train.jsonl`.
+- `tools/finetune/stories/01.json`~`04.json`: 모범 이야기 100편 (단어 1개 12, 2개 14, 3개 18, 4개 20, 5개 20, 6개 16편, 서로 다른 단어 370개). `node tools/finetune/build-data.cjs` → 100/100 통과, `train.jsonl`.
   - 점검은 시험과 같아요 (앱의 aiMark·aiLineWhy). 걸리기 쉬운 것: 앱의 막는 말이 낱말 속에 든 것(예: '숨죽여'의 '죽여'), 뜻 낱말을 제 줄 밖(첫 줄·끝 줄)에 또 쓰는 것, 줄 첫 12자가 같은 것.
   - `build-data.cjs`가 `test-prompts.json`(시험 묶음 A·B·C × 단어 1~5개 요청 글)도 써요. 노트북이 학습 뒤 대충 재 볼 때 써요.
 - `tools/finetune/train_colab.ipynb` (만드는 스크립트 없이 이 파일만): T4 확인 → Unsloth 설치(공식 Gemma 4 노트북과 같게) → 토큰·저장소·공식 MLC 모델 받기와 `mlc_patch.py --verify --only layers.0.` (학습 전에 먼저 확인) → LoRA r16 3바퀴, 대화 꼴은 WebLLM `gemma4_instruction`과 같은 글(`<bos><|turn>user\n…<turn|>\n<|turn>model\n…<turn|>\n`, 공식 대화 틀로 그려 보고 같음을 확인), 답 부분만 배움, `<bos>` 두 번 붙으면 빼기 → 시험 15개로 대충 재기 → 16비트로 합쳐 `mlc_patch.py --out` → 4비트 값이 원본과 얼마나 같은지 확인(0.5~1.0 사이여야) → 사용자 허깅페이스에 `gemma-4-E2B-it-wordstory-q4f16_1-MLC`로 공개 (README에 Apache 2.0·고쳤다는 알림, LICENSE, `lora-adapter/`).
 - `mlc_patch.py`: 바꿀 가중치를 못 찾으면 멈춰요. `min-words.cjs`: `WG_MODEL_URL=https://huggingface.co/<이름>/<저장소>`로 앱의 이야기 AI 파일만 바꿔 재요.
 
 ### 남은 일
-- 모범 이야기 50편 더 (`03.json`, `04.json`). 아직 안 쓴 단어 수: 1개 6, 2개 6, 3개 9, 4개 10, 5개 10, 6개 9쯤.
 - 사용자가 Colab을 돌리면 → 받은 주소로 PC 크롬에서 `WG_BROWSER=chrome WG_MODEL_URL=<주소> node tools/story-lab/min-words.cjs` (30편, 26편 이상이면 앱에 넣을지 물어요).
 - 노트북은 여기서 돌려 보지 못했어요 (GPU 없음). Unsloth·TRL 판에 따라 셀이 멈출 수 있어요: 오류 줄을 받아 고쳐요.
 
