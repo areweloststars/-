@@ -740,6 +740,17 @@ function aiOtherLine(s, x, req, f) {
 // (다른 번호 줄의 답 같으면 to: 그 줄의 차례). ★가 없어도 단어 뜻을 그대로(활용꼴 포함) 쓴 줄은 예전처럼 뜻 자리를 찾아 써요 (how: '뜻 낱말로')
 // req(aiReq 결과)를 주면 이야기 전체와 견줘요: 예시만 따라 쓴 말, 다른 번호 줄의 답
 const AI_COPY = '앱 문장을 그대로 씀';
+// 이야기의 단어 없는 줄(첫 줄 등)을 거의 그대로 되풀이한 문장은 떼요: AI가 '안개 낀 도시에서 케이크가 사라졌어요. 그래서 …'처럼
+// 이야기 첫 줄을 다시 쓰고 이어 쓰는 일이 많았어요 (여러 줄이 같은 첫 문장으로 시작해서 이야기가 되풀이돼요).
+// ★가 없는 문장 가운데, 단어 없는 줄 하나의 낱말(aiWords, 앞 두 글자로 견줘요)을 60% 이상 담은 문장. 남는 문장이 없으면 그대로 둬요
+function aiDropEcho(s, req, f) {
+  const ctx = req && Array.isArray(req.story) ? req.story.filter(e => !e.n).map(e => aiWords(e.text, f).map(w => w.slice(0, 2))).filter(ws => ws.length >= 3) : [];
+  const parts = String(s).split(/(?<=[.!?…])\s+/);
+  if (!ctx.length || parts.length < 2) return s;
+  const echo = p => { const pw = new Set(aiWords(p, f).map(w => w.slice(0, 2))); return ctx.some(ws => ws.filter(w => pw.has(w)).length >= ws.length * 0.6); };
+  const keep = parts.filter(p => /★/.test(p) || !echo(p));
+  return keep.length && keep.length < parts.length ? keep.join(' ') : s;
+}
 function aiFit(t0, x, f, req) {
   const names = [f.H, f.F, f.V, ...Object.values(f.S || {})].filter(Boolean).sort((a, b) => b.length - a.length);
   // 앞에 붙은 '인물 이름:' 꼬리표는 떼요
@@ -748,7 +759,7 @@ function aiFit(t0, x, f, req) {
   const bare = s => String(s).replace(/[‘’“”"'「」『』\s]/g, '').replace(/[.!?…]+$/, '');
   const same = (a, b) => bare(a) === bare(b);
   const want = aiCast(x.star, f), castOk = s => !want.length || aiCast(s, f).some(k => want.includes(k));
-  const s = aiStarTidy(t, x), stars = (s.match(/★/g) || []).length;
+  const s = aiDropEcho(aiStarTidy(t, x), req, f), stars = (s.match(/★/g) || []).length;
   if (stars > 1) return { why: stars === 2 ? '★가 두 번' : `★가 ${stars}번` };
   // 예시에만 나오는 말(아기 곰·높은 다리 …)을 앱 이야기에 없는데 썼으면 예시를 따라 쓴 거예요
   const story = req ? req.text : x.plain;

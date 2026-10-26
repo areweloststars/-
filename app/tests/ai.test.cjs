@@ -829,6 +829,10 @@ test('AI ★ checks: missing or doubled ★, a ★ that does not fit the sentenc
     assert.equal(quoted('그날 아침 용은 용감한이라는 말만 들어도 뒷걸음질했어요.'), '앱 문장을 그대로 씀');
     assert.equal(quoted('그날 아침 용은 ★이라는 말만 들어도 뒷걸음질 했어요.'), '앱 문장을 그대로 씀');
     assert.equal(quoted('레오가 칼을 뽑자, 그날 아침 용은 ‘★’이라는 말만 들어도 뒷걸음질했어요.'), '씀');
+    // 이야기 첫 줄(단어 없는 줄)을 거의 그대로 되풀이한 문장은 떼고 나머지만 써요 (★가 든 문장은 그대로)
+    const withReq = (k, t) => p.json(`(() => { const q = aiReq(${STAR_RES}, ${STAR_ROWS}, 0); return aiFit(aiClean(${JSON.stringify(t)}), q.items[${k}], q.f, q); })()`);
+    assert.deepEqual(withReq(0, '옛날 옛적 하늘 성에는 기사 레오가 살았답니다. 그런데 용의 그림자가 비치자 꼬마 공주는 ★.'), { line: '그런데 용의 그림자가 비치자 꼬마 공주는 {anxious|불안했어요}.' });
+    assert.deepEqual(withReq(0, '하늘이 맑은 날이었어요. 용의 그림자가 비치자 꼬마 공주는 ★.'), { line: '하늘이 맑은 날이었어요. 용의 그림자가 비치자 꼬마 공주는 {anxious|불안했어요}.' }, '첫 줄과 다른 문장은 그대로');
     assert.equal(why(5, '레오가 지쳐 보였어요. 공주는 웃었어요. 그래서 공주는 레오의 어깨를 두드리며 ★.'), '문장이 너무 많음');
     // 메모·덧붙인 뜻·따옴표는 떼고 ★ 하나로 봐요
     for (const t of ['★ = 불안했어요: 용의 그림자가 비치자, 꼬마 공주는 ★.', '용의 그림자가 비치자, 꼬마 공주는 ★(불안했어요).', '용의 그림자가 비치자, 꼬마 공주는 “★”.', '용의 그림자가 비치자, 꼬마 공주는 ★ 불안했어요.', '용의 그림자가 비치자, 꼬마 공주는 ☆.'])
