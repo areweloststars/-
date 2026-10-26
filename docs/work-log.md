@@ -3,6 +3,33 @@
 세션마다 한 일과 남은 일을 적어요. 두 Claude 계정, 클라우드와 이 컴퓨터(CLI)가 서로 이어받을 수 있게요. 새 기록은 맨 위에 더해요.
 대화 원문은 올리지 않아요. 이 저장소는 공개라서 사이트 열쇠(공유 링크), 이메일 같은 개인 정보, 사진·화면 캡처, 교재 단어는 적지 않아요.
 
+## 2026-10-26 (클라우드) — 진짜 Gemma로 단어장 만들기 재기: 앱 코드는 되고, 휴대폰 실행 방식이 의심돼요
+
+### 한 일
+- 사용자가 고른 6단어로 주인 단어장 '신데렐라의 12시 품질보증'을 Claude가 직접 썼어요 (줄마다 앞 줄 때문에 일어나는 이야기, 단어마다 그림·팁·예문). `app/decks.enc`에 잠갔고, 휴대폰 크기 브라우저에서 이야기·그림·미션을 끝까지 확인했어요.
+- 베낌 검사: ★를 감싼 따옴표만 지운 베낌도 '앱 문장을 그대로 씀'으로 세요.
+- 이야기 첫 줄을 되풀이한 문장은 떼요 (`aiDropEcho`): 진짜 Gemma가 여러 줄을 같은 첫 문장('안개 낀 도시에서 … 사라졌어요. 그래서 …')으로 시작했어요.
+- 재는 도구 `tools/story-lab/app-run.cjs`: 앱이 단어장을 만드는 코드 그대로(mkStory → aiRewrite)를 진짜 모델로 돌려 에피소드가 만들어지는 비율과 줄마다 까닭을 적어요. `WG_LLAMA`(llama.cpp), `WG_BROWSER=chrome`(설치된 크롬·진짜 그래픽 칩), `WG_MODEL=f16|f32`, `WG_CHUNK`, `WG_SETS`(저장소 밖 단어 파일).
+
+### 알아낸 것
+- 클라우드에는 그래픽 칩이 없어요. 브라우저(SwiftShader)로 WebLLM을 돌리면 요청 하나 읽는 데 33분이 걸리고 장치를 잃었어요. 그래서 llama.cpp(같은 Gemma 4 E2B, GGUF Q4_0, CPU)로 쟀어요. 생각 모드는 꺼야 해요(켜면 생각만 쓰다 답이 비어요).
+- **llama.cpp로는 잘 돼요**: 휴대폰처럼 요청을 나눠 물어도, 일반 낱말 6묶음 × 틀 2개 = 12편 모두 만들어졌고(72줄 가운데 59줄을 AI가 씀), 사용자가 준 다른 6단어도 틀 3개 모두 만들어졌어요(18줄 가운데 16줄). 다만 AI 줄은 대부분 앱 문장을 조금 바꾼 정도예요.
+- **그런데 진짜 휴대폰(S24)에서는 같은 앱 코드로 실패했어요**: 첫 요청에서 이야기 전체를 되풀이하고 앱 문장을 거의 다 베꼈어요. 대화 틀(chat template)은 WebLLM과 llama.cpp가 똑같아요(`<|turn>user … <turn|> <|turn>model`). 남은 차이는 휴대폰의 **16비트 계산(q4f16)**과 **8토큰 조각으로 나눠 읽기**(word-game patch)예요. 컴퓨터 크롬(q4f16, 256토큰 조각)에서도 베낌이 많았어요(10-25 기록).
+
+### 남은 일 (CLI: 이 컴퓨터에서, 그래픽 칩으로)
+1. **휴대폰 실행 방식 가려내기**: 저장소 맨 위 폴더에서 PowerShell로 (playwright-core가 없으면 `npm i --no-save playwright-core`)
+   ```
+   git pull
+   $env:WG_BROWSER='chrome'; $env:WG_MODEL='f16'; $env:WG_CHUNK='8';   node tools/story-lab/app-run.cjs tools/story-lab/f16-c8.json phone 6 2
+   $env:WG_BROWSER='chrome'; $env:WG_MODEL='f16'; $env:WG_CHUNK='512'; node tools/story-lab/app-run.cjs tools/story-lab/f16-c512.json phone 6 2
+   $env:WG_BROWSER='chrome'; $env:WG_MODEL='f32'; $env:WG_CHUNK='8';   node tools/story-lab/app-run.cjs tools/story-lab/f32-c8.json phone 6 2
+   ```
+   (크롬 창이 열리고, 처음에는 모델을 받아요: q4f16 약 3GB, q4f32 약 3.5GB. 결과 파일은 `.gitignore`에 있어서 올라가지 않아요.)
+   - f16만 나쁘면: 메모리가 넉넉한 휴대폰(크롬이 8GB로 알려 주는 기기)은 q4f32를 쓰게 바꿀지 사용자에게 물어요 (한 번 더 받아야 해서).
+   - 8토큰 조각만 나쁘면: word-game patch(조각마다 logits·embedding 풀기)를 의심해요.
+   - 셋 다 잘 되면: 휴대폰 그래픽 칩(Adreno) 자체의 계산 차이일 수 있어요.
+2. 결과 요약(묶음마다 만들어짐/실패, 줄마다 까닭)을 이 기록에 적어요.
+
 ## 2026-10-26 (클라우드) — 갤럭시 S24에서 단어장 만들기 실패 분석, 이야기 설계 질문
 
 ### 알아낸 것

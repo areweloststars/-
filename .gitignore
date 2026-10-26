@@ -2,3 +2,6 @@ node_modules/
 # 사이트 열쇠와 풀어 놓은 주인 단어장: 저장소에 넣지 않아요 (공유 링크의 # 뒤가 열쇠)
 app/.site-key
 app/.decks/
+# 이야기 AI 실험 결과(단어 목록이 들어 있어요)와 실험 도구가 받은 패키지
+tools/story-lab/*.json
+tools/story-lab/node_modules/
