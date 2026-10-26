@@ -2,7 +2,9 @@
 // 제목과 짧은 이야기(첫 줄 + 단어 줄 + 마지막 줄)를 처음부터 쓰게 해요. 단어 5개 → 4 → 3 → 2 → 1개 차례로.
 // 사이트나 시험(npm test)은 이 파일을 쓰지 않아요. 단어는 일반 사전 낱말이고 뜻은 직접 썼어요 (교재 단어 아님).
 //
-//   node tools/story-lab/min-words.cjs [단어 수들, 기본 5 4 3 2 1]
+//   node tools/story-lab/min-words.cjs [단어 수들, 기본 5 4 3 2 1] [모델 id들]
+//   모델 id(…-MLC)를 주면 그 모델들을 차례로 받아 같은 시험을 해요 (WebLLM 목록에 있는 무료 모델, 다 쓴 모델은 지워요).
+//   모델을 주지 않으면 앱의 이야기 AI(Gemma 4 E2B, WG_MODEL=f16|f32)로 해요.
 //   결과: tools/story-lab/min-words.txt (이야기 전문과 자동 점검), min-words.json (AI 답 원문)
 //
 // 자동 점검(형식): 제목이 있는지, 이야기 줄 수(단어 수 + 2 안팎), 뜻이 모두 들어갔는지(활용꼴 포함, 앱의 aiMark),
@@ -19,6 +21,7 @@ const MODEL = process.env.WG_MODEL || 'f16', CHUNK = process.env.WG_CHUNK == nul
 const PROFILE = process.env.WG_PROFILE || path.join(os.tmpdir(), 'wg-app-run-profile');
 const PORT = +process.env.WG_PORT || 43118; // 모델 저장소는 주소마다 따로라서 app-run.cjs와 같은 포트로
 const NS = process.argv.slice(2).map(Number).filter(n => n >= 1 && n <= 5);
+const MODELS = process.argv.slice(2).filter(a => /-MLC/.test(a));
 const TRIES = +process.env.WG_TRIES || 2;
 const OUT = path.join(__dirname, 'min-words');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.woff2': 'font/woff2', '.txt': 'text/plain', '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -32,7 +35,7 @@ const SETS = [
 ];
 
 // 이야기 하나 (페이지 안에서 돌아요): 요청 글을 만들어 이야기 AI에 묻고, 답을 앱의 함수로 점검해요
-const STORY = async ({ set, n }) => {
+const STORY = async ({ set, n, noThink }) => {
   const ws = set.slice(0, n), lines = n + 2;
   const list = ws.map(w => `‘${w[1]}’`).join(', ');
   const prompt = `어린이 그림책에 실을 짧은 이야기를 써 주세요.
@@ -45,7 +48,7 @@ const STORY = async ({ set, n }) => {
   const t0 = performance.now();
   let text = '', first = 0, tokens = 0, usage = null, err = '';
   try {
-    const reply = await AI.engine.chat.completions.create({ messages: [{ role: 'user', content: prompt }], temperature: 0.7, top_p: 0.9, max_tokens: 100 + 60 * (lines + 1), stream: true, stream_options: { include_usage: true } });
+    const reply = await AI.engine.chat.completions.create({ messages: [{ role: 'user', content: prompt }], temperature: 0.7, top_p: 0.9, max_tokens: 100 + 60 * (lines + 1), stream: true, stream_options: { include_usage: true }, ...(noThink ? { extra_body: { enable_thinking: false } } : {}) });
     if (reply && typeof reply[Symbol.asyncIterator] === 'function') {
       for await (const ch of reply) {
         const d = ch && ch.choices && ch.choices[0] && ch.choices[0].delta && ch.choices[0].delta.content;
@@ -108,35 +111,59 @@ async function main() {
     page.on('pageerror', e => errs.push(String(e && e.message || e)));
     await page.goto(`http://127.0.0.1:${PORT}/word-game/`);
     await page.waitForFunction(() => typeof aiLoad === 'function' && typeof aiMark === 'function', null, { timeout: 60000 });
-    await page.evaluate(m => { AI.gpu = true; AI.gpuWhy = ''; AI.model = m === 'f32' ? AI_MODEL_F32 : AI_MODEL; }, MODEL);
+    const byModel = [];
+    for (const id of MODELS.length ? MODELS : ['']) {
     const t0 = Date.now();
-    log('loading the story AI…');
-    const ready = page.evaluate(() => aiLoad(p => { window.__prog = Math.round(p * 100); }).then(() => ({ model: AI.engineId, gpu: AI.gpuName })));
+    log('loading', id || 'the story AI', '…');
+    let ready;
+    if (!id) {
+      await page.evaluate(m => { AI.gpu = true; AI.gpuWhy = ''; AI.model = m === 'f32' ? AI_MODEL_F32 : AI_MODEL; }, MODEL);
+      ready = page.evaluate(() => aiLoad(p => { window.__prog = Math.round(p * 100) + '%'; }).then(() => ({ model: AI.engineId })));
+    } else ready = page.evaluate(async ({ id, chunk }) => {
+      // 앱의 AI를 쓰지 않고 WebLLM에서 바로 올려요 (그래픽 칩을 비우려고 앞 모델은 내려요)
+      if (AI.engine) { try { await AI.engine.unload(); } catch (e) { } AI.engine = null; }
+      const lib = AI.web || (AI.web = await import('/word-game/llm/web-llm.js'));
+      const rec = lib.prebuiltAppConfig.model_list.find(m => m.model_id === id);
+      if (!rec) throw new Error('목록에 없는 모델: ' + id);
+      const ov = Object.assign({}, rec.overrides || {}, { context_window_size: 4096 }, chunk ? { prefill_chunk_size: chunk } : {});
+      const appConfig = Object.assign({}, lib.prebuiltAppConfig, { model_list: [Object.assign({}, rec, { overrides: ov })] });
+      AI.engine = await lib.CreateMLCEngine(id, { appConfig, initProgressCallback: p => { window.__prog = String(p.text || '').slice(0, 80); } });
+      return { model: id };
+    }, { id, chunk: CHUNK });
     let done = false, last = '';
     ready.finally(() => { done = true; });
-    while (!done) { await new Promise(r => setTimeout(r, 15000)); const pr = await page.evaluate(() => window.__prog).catch(() => null); if (!done && pr !== last) { last = pr; log('  load', pr + '%'); } }
-    const info = await ready;
-    if (CHUNK) await page.evaluate(c => aiChunkSet(c), CHUNK);
+    while (!done) { await new Promise(r => setTimeout(r, 15000)); const pr = await page.evaluate(() => window.__prog).catch(() => null); if (!done && pr !== last) { last = pr; log('  load', pr); } }
+    let info;
+    try { info = await ready; } catch (e) { say(`\n# ${id}: 올리지 못했어요 (${String((e && e.message) || e).slice(0, 200)})`); continue; }
+    if (CHUNK && !id) await page.evaluate(c => aiChunkSet(c), CHUNK);
     log('ready', JSON.stringify(info), `chunk ${CHUNK || '모델 그대로'}`, Math.round((Date.now() - t0) / 1000) + 's');
-    say(`# 단어 몇 개까지 이야기를 혼자 쓰나 · ${info.model} · 조각 ${CHUNK || '모델 그대로'}토큰 · ${out.started.slice(0, 16)}`);
+    say(`\n# 단어 몇 개까지 이야기를 혼자 쓰나 · ${info.model} · 조각 ${CHUNK || '모델 그대로'}토큰 · ${new Date().toISOString().slice(0, 16)}`);
+    const noThink = /qwen3/i.test(info.model);
+    const mine = [];
     for (const n of NS.length ? NS : [5, 4, 3, 2, 1]) {
       const rs = [];
       for (let s = 0; s < SETS.length; s++) for (let k = 0; k < TRIES; k++) {
-        const r = await page.evaluate(STORY, { set: SETS[s], n });
-        r.set = 'ABC'[s]; r.try = k + 1; rs.push(r); out.runs.push(r);
+        const r = await page.evaluate(STORY, { set: SETS[s], n, noThink });
+        r.model = info.model; r.set = 'ABC'[s]; r.try = k + 1; rs.push(r); mine.push(r); out.runs.push(r);
         fs.writeFileSync(OUT + '.json', JSON.stringify(out, null, 1));
-        say(`\n[단어 ${n}개 · 묶음 ${r.set} · ${r.try}번째] ${r.ok ? '형식 통과' : '형식 실패: ' + r.why.join(' · ')}${r.ok && !r.order ? ' (순서 다름)' : ''} · ${(r.ms / 1000).toFixed(1)}초`);
+        say(`\n[${MODELS.length ? info.model.replace(/-q4f\d+_1-MLC$/, '') + ' · ' : ''}단어 ${n}개 · 묶음 ${r.set} · ${r.try}번째] ${r.ok ? '형식 통과' : '형식 실패: ' + r.why.join(' · ')}${r.ok && !r.order ? ' (순서 다름)' : ''} · ${(r.ms / 1000).toFixed(1)}초`);
         say(`  넣을 말: ${r.words.join(', ')}`);
         say(`  제목: ${r.title || '(없음)'}`);
         r.body.forEach((l, i) => say(`  ${i + 1}. ${l}`));
         if (!r.title && !r.body.length) say(`  (답 원문) ${String(r.raw).slice(0, 300).replace(/\n/g, ' / ')}`);
       }
-      say(`\n== 단어 ${n}개: 형식 통과 ${rs.filter(r => r.ok).length}/${rs.length}편 ==`);
+      say(`\n== ${info.model} · 단어 ${n}개: 형식 통과 ${rs.filter(r => r.ok).length}/${rs.length}편 ==`);
     }
-    const byN = {};
-    for (const r of out.runs) { const b = byN[r.n] || (byN[r.n] = [0, 0]); b[0] += r.ok ? 1 : 0; b[1]++; }
-    say('\n# 요약 (형식 통과 / 시도) — 이야기가 앞뒤가 맞는지는 위 이야기를 읽고 판단해요');
-    for (const n of Object.keys(byN).sort((a, b) => b - a)) say(`  단어 ${n}개: ${byN[n][0]}/${byN[n][1]}`);
+    byModel.push([info.model, mine]);
+    // 다 쓴 모델은 내리고 지워요 (PC 저장 공간). 앱의 AI(Gemma)는 남겨요
+    if (id && !process.env.WG_KEEP) await page.evaluate(async id => { try { await AI.engine.unload(); } catch (e) { } AI.engine = null; try { await AI.web.deleteModelAllInfoInCache(id); } catch (e) { } }, id);
+    }
+    say('\n# 요약 (형식 통과 / 시도 · 한 편 평균 시간) — 이야기가 앞뒤가 맞는지는 위 이야기를 읽고 판단해요');
+    for (const [m, rs] of byModel) {
+      const byN = {};
+      for (const r of rs) { const b = byN[r.n] || (byN[r.n] = [0, 0, 0]); b[0] += r.ok ? 1 : 0; b[1]++; b[2] += r.ms; }
+      say(`  ${m}: ` + Object.keys(byN).sort((a, b) => b - a).map(n => `단어 ${n}개 ${byN[n][0]}/${byN[n][1]} (${(byN[n][2] / byN[n][1] / 1000).toFixed(1)}초)`).join(' · '));
+    }
     if (errs.length) say('page errors: ' + errs.slice(0, 5).join(' | '));
     log('done →', OUT + '.txt');
   } finally { await ctx.close(); srv.close(); }
