@@ -26,6 +26,9 @@
 - Ministral-3-3B-Instruct(2.9GB): 첫 요청 뒤 그래픽 칩을 잃었어요(Object has already been disposed → DXGI_ERROR_DEVICE_REMOVED). 그 뒤 Qwen2.5-3B·Qwen3.5-2B는 재지 못했어요.
 - 결론: WebLLM 목록의 8GB용 무료 모델 가운데 한국어는 Gemma 4 E2B가 가장 나아요. 그래도 이야기는 못 써요.
 - 다음 후보: 한국 회사의 작은 무료 한국어 모델 — 네이버 HyperCLOVA X SEED 1.5B(상업 무료, 네이버 자체 라이선스), 카카오 Kanana(1.5 2.1B, Kanana-2 1.3B; 라이선스 파일 확인 필요). WebLLM 목록에 없어서 먼저 PC에서 Ollama로 글솜씨를 재요(`WG_API` 길을 더했어요). 좋으면 크롬용(MLC)으로 바꾸는 일을 해요.
+- 네이버 HyperCLOVA X SEED 1.5B (Ollama, 커뮤니티 GGUF Q4_K_M, 사용자 PC GPU): 형식 통과 0/36. 한국어 문장은 가장 자연스러웠지만 지시를 안 따라요: 한 줄에 문단 통째로, 넣을 뜻을 대부분 빼먹음(빌리다는 한 번도 못 씀), 대본 꼴·괄호, 영어('felt'), 같은 문장 되풀이, '친구를 때렸어요' 같은 어린이에게 안 맞는 장면. (커뮤니티 GGUF의 대화 틀이 틀렸을 가능성은 남아요)
+- 결론: 지금까지 잰 8GB용 무료 모델(Gemma 4 E2B, Qwen3.5-4B, Qwen3-4B, HyperCLOVA X SEED 1.5B) 가운데 단어 뜻을 맞게 넣은 이야기를 믿고 쓸 만큼 쓰는 모델은 없어요. Gemma 4 E2B가 가장 나아요(8편에 1편쯤). 못 잰 것: Ministral 3 3B(그래픽 칩을 잃음), Qwen2.5-3B, Qwen3.5-2B, 카카오 Kanana.
+- 사용자에게 물었어요: 기기 안 AI 이야기 쓰기를 멈추고, Claude가 미리 써 둔 좋은 이야기 문장을 앱에 넣는 길로 갈지 (AI만 쓰는 규칙을 바꿔야 해요).
 
 ## 2026-10-26 (클라우드 + 사용자 PC) — 크롬 실행 방식 가려내기: 16비트도 조각 크기도 범인이 아니에요
 
