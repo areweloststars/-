@@ -45,5 +45,8 @@ const byN = {};
 for (const s of stories) byN[s.words.length] = (byN[s.words.length] || 0) + 1;
 const words = new Set(stories.flatMap(s => s.words.map(w => w[0])));
 fs.writeFileSync(path.join(__dirname, 'train.jsonl'), out.map(o => JSON.stringify(o)).join('\n') + '\n');
+// Colab 노트북이 학습 뒤 대충 재 보는 요청 글 (시험 묶음 A·B·C × 단어 1~5개, min-words.cjs와 같은 글. 진짜 재기는 PC 크롬에서)
+const tests = SETS.flatMap((set, s) => [1, 2, 3, 4, 5].map(n => { const words = set.slice(0, n).map(w => w[1]); return { set: 'ABC'[s], n, words, prompt: storyPrompt(words) }; }));
+fs.writeFileSync(path.join(__dirname, 'test-prompts.json'), JSON.stringify(tests, null, 1) + '\n');
 console.log(`이야기 ${stories.length}편 (단어 수별 ${JSON.stringify(byN)}, 서로 다른 단어 ${words.size}개) → 통과 ${out.length}, 고칠 것 ${bad}`);
 process.exit(bad ? 1 : 0);

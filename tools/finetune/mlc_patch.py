@@ -144,6 +144,8 @@ def main():
         if all(n in hf.where for n in hf_names):
             jobs.append((base, hf_names))
     print(f"다시 눌러 담을 가중치 {len(jobs)}개", flush=True)
+    if not jobs:
+        sys.exit("바꿀 가중치를 못 찾았어요: --hf 파일의 이름이 model.language_model.layers.N.… 꼴인지 보세요")
 
     changed = {}
     bad = 0

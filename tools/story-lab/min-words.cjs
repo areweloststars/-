@@ -16,9 +16,12 @@
 // 브라우저 + WebLLM(앱이 쓰는 것 그대로). WG_BROWSER=chrome 이면 설치된 크롬(진짜 그래픽 칩)으로 띄워요.
 // WG_MODEL=f16|f32 (기본 f16: 휴대폰과 같은 16비트), WG_CHUNK=<토큰> (기본 8: 휴대폰처럼 잘게 나눠 읽기).
 // 모델 저장소는 app-run.cjs와 같은 폴더·포트를 써서, 전에 받아 둔 모델을 다시 받지 않아요.
+// WG_MODEL_URL=https://huggingface.co/<이름>/<저장소>: 앱의 이야기 AI를 같은 꼴의 다른 모델 파일(파인튜닝한 판, tools/finetune)로 바꿔 재요.
+//   모델 라이브러리(.wasm)·설정은 앱 것 그대로예요 (WG_MODEL=f16일 때만).
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), os = require('node:os');
 const REPO = path.join(__dirname, '..', '..');
 const GAME = path.join(REPO, 'word-game');
+const MODEL_URL = (process.env.WG_MODEL_URL || '').replace(/\/+$/, '');
 const MODEL = process.env.WG_MODEL || 'f16', CHUNK = process.env.WG_CHUNK == null ? 8 : +process.env.WG_CHUNK || 0;
 const PROFILE = process.env.WG_PROFILE || path.join(os.tmpdir(), 'wg-app-run-profile');
 const PORT = +process.env.WG_PORT || 43118; // 모델 저장소는 주소마다 따로라서 app-run.cjs와 같은 포트로
@@ -123,7 +126,13 @@ async function main() {
     log('loading', id || 'the story AI', '…');
     let ready;
     if (!id) {
-      await page.evaluate(m => { AI.gpu = true; AI.gpuWhy = ''; AI.model = m === 'f32' ? AI_MODEL_F32 : AI_MODEL; }, MODEL);
+      await page.evaluate(async ({ m, url }) => {
+        AI.gpu = true; AI.gpuWhy = ''; AI.model = m === 'f32' ? AI_MODEL_F32 : AI_MODEL;
+        if (!url) return;
+        const lib = AI.web || (AI.web = await import('/word-game/llm/web-llm.js'));
+        lib.prebuiltAppConfig.model_list.find(r => r.model_id === AI.model).model = url;
+      }, { m: MODEL, url: MODEL_URL });
+      if (MODEL_URL) log('model files from', MODEL_URL);
       ready = page.evaluate(() => aiLoad(p => { window.__prog = Math.round(p * 100) + '%'; }).then(() => ({ model: AI.engineId })));
     } else ready = page.evaluate(async ({ id, chunk }) => {
       // 앱의 AI를 쓰지 않고 WebLLM에서 바로 올려요 (그래픽 칩을 비우려고 앞 모델은 내려요)
@@ -143,7 +152,7 @@ async function main() {
     try { info = await ready; } catch (e) { say(`\n# ${id}: 올리지 못했어요 (${String((e && e.message) || e).slice(0, 200)})`); continue; }
     if (CHUNK && !id) await page.evaluate(c => aiChunkSet(c), CHUNK);
     log('ready', JSON.stringify(info), `chunk ${CHUNK || '모델 그대로'}`, Math.round((Date.now() - t0) / 1000) + 's');
-    say(`\n# 단어 몇 개까지 이야기를 혼자 쓰나 · ${info.model} · 조각 ${CHUNK || '모델 그대로'}토큰 · ${new Date().toISOString().slice(0, 16)}`);
+    say(`\n# 단어 몇 개까지 이야기를 혼자 쓰나 · ${info.model}${MODEL_URL && !id ? ' (' + MODEL_URL + ')' : ''} · 조각 ${CHUNK || '모델 그대로'}토큰 · ${new Date().toISOString().slice(0, 16)}`);
     const noThink = /qwen3/i.test(info.model);
     const mine = [];
     for (const n of NS.length ? NS : [5, 4, 3, 2, 1]) {
