@@ -11,6 +11,8 @@
 // 한 줄에 뜻을 몰아 쓰지 않았는지, 줄마다 앱의 문장 검사(aiLineWhy: 영어·기호·끝맺음·반복 …), 설명 글('써 드릴게요'), 같은 줄 되풀이.
 // 이야기가 앞뒤가 맞는지(개연성)는 사람이(또는 Claude가) 읽고 판단해요.
 //
+// WG_API=http://127.0.0.1:11434 (+ WG_API_MODEL=<이름>): 브라우저 대신 OpenAI 꼴 서버(Ollama·llama-server)의 모델에 물어요.
+//   크롬용(WebLLM)으로 바꾸기 전에 다른 무료 모델(한국어 모델 등)의 글솜씨부터 재 볼 때. 점검은 jsdom에서 앱 함수로 똑같이 해요.
 // 브라우저 + WebLLM(앱이 쓰는 것 그대로). WG_BROWSER=chrome 이면 설치된 크롬(진짜 그래픽 칩)으로 띄워요.
 // WG_MODEL=f16|f32 (기본 f16: 휴대폰과 같은 16비트), WG_CHUNK=<토큰> (기본 8: 휴대폰처럼 잘게 나눠 읽기).
 // 모델 저장소는 app-run.cjs와 같은 폴더·포트를 써서, 전에 받아 둔 모델을 다시 받지 않아요.
@@ -169,5 +171,50 @@ async function main() {
   } finally { await ctx.close(); srv.close(); }
 }
 
-if (require.main === module) main().catch(e => { console.error('FAILED', e); process.exit(1); });
+// OpenAI 꼴 서버에 묻는 엔진: 앱이 WebLLM에 묻는 꼴(chat.completions.create, stream)을 그대로 받아요
+function apiEngine(base, model) {
+  async function* stream(req) {
+    const body = { model, messages: req.messages, temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens, stream: true };
+    const r = await fetch(base.replace(/\/$/, '') + '/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error('서버 ' + r.status + ': ' + (await r.text()).slice(0, 200));
+    const dec = new TextDecoder();
+    let buf = '';
+    for await (const part of r.body) {
+      buf += dec.decode(part, { stream: true });
+      for (let i; (i = buf.indexOf('\n')) >= 0;) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line.startsWith('data:') || line.slice(5).trim() === '[DONE]') continue;
+        const j = JSON.parse(line.slice(5).trim()), d = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+        if (d) yield { choices: [{ delta: { content: d } }] };
+      }
+    }
+  }
+  return { chat: { completions: { create: async req => stream(req) } } };
+}
+async function viaApi(base, model) {
+  const { bootPage } = require(path.join(REPO, 'app', 'tests', 'page.cjs'));
+  const p = bootPage(), txt = [], rs = [];
+  const say = s => { console.log(s); txt.push(s); fs.writeFileSync(OUT + '.txt', txt.join('\n') + '\n'); };
+  try {
+    p.window.__llm = apiEngine(base, model);
+    p.run('AI.engine = window.__llm');
+    say(`# 단어 몇 개까지 이야기를 혼자 쓰나 · ${model} (${base}) · ${new Date().toISOString().slice(0, 16)}`);
+    for (const n of NS.length ? NS : [5, 4, 3, 2, 1]) {
+      const mine = [];
+      for (let s = 0; s < SETS.length; s++) for (let k = 0; k < TRIES; k++) {
+        const r = await p.run(`(${STORY})(${JSON.stringify({ set: SETS[s], n })})`);
+        r.set = 'ABC'[s]; r.try = k + 1; mine.push(r); rs.push(r);
+        fs.writeFileSync(OUT + '.json', JSON.stringify({ model, runs: rs }, null, 1));
+        say(`\n[${model} · 단어 ${n}개 · 묶음 ${r.set} · ${r.try}번째] ${r.ok ? '형식 통과' : '형식 실패: ' + r.why.join(' · ')}${r.ok && !r.order ? ' (순서 다름)' : ''} · ${(r.ms / 1000).toFixed(1)}초`);
+        say(`  넣을 말: ${r.words.join(', ')}`);
+        say(`  제목: ${r.title || '(없음)'}`);
+        r.body.forEach((l, i) => say(`  ${i + 1}. ${l}`));
+        if (!r.title && !r.body.length) say(`  (답 원문) ${String(r.raw).slice(0, 300).replace(/\n/g, ' / ')}`);
+      }
+      say(`\n== ${model} · 단어 ${n}개: 형식 통과 ${mine.filter(r => r.ok).length}/${mine.length}편 ==`);
+    }
+  } finally { p.close(); }
+}
+
+if (require.main === module) (process.env.WG_API ? viaApi(process.env.WG_API, process.env.WG_API_MODEL || '') : main()).catch(e => { console.error('FAILED', e); process.exit(1); });
 module.exports = { STORY, SETS };
