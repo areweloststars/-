@@ -21,6 +21,7 @@
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), os = require('node:os');
 const REPO = path.join(__dirname, '..', '..');
 const GAME = path.join(REPO, 'word-game');
+const PROMPT_EN = !!process.env.WG_PROMPT_EN; // 요청 글에 영어 낱말을 함께 줘요 (storyPrompt)
 const MODEL_URL = (process.env.WG_MODEL_URL || '').replace(/\/+$/, '');
 const MODEL = process.env.WG_MODEL || 'f16', CHUNK = process.env.WG_CHUNK == null ? 8 : +process.env.WG_CHUNK || 0;
 const PROFILE = process.env.WG_PROFILE || path.join(os.tmpdir(), 'wg-app-run-profile');
@@ -40,9 +41,10 @@ const SETS = [
 ];
 
 // 요청 글: 뜻 n개(적힌 순서대로) → 제목 + 이야기 n + 2줄. 파인튜닝 모범 답안(tools/finetune)도 이 글 그대로 써요
-const storyPrompt = meanings => {
+// en(영어 낱말들)을 주면 뜻 옆에 괄호로 붙여요: 뜻을 헷갈리지 않게 (빌리다 ≠ 빌다). 시험에서는 WG_PROMPT_EN=1
+const storyPrompt = (meanings, en) => {
   const n = meanings.length, lines = n + 2;
-  const list = meanings.map(m => `‘${m}’`).join(', ');
+  const list = meanings.map((m, i) => (en ? `‘${m}’(${en[i]})` : `‘${m}’`)).join(', ');
   return `어린이 그림책에 실을 짧은 이야기를 써 주세요.
 꼭 넣을 말: ${list}
 - 첫 줄은 이야기 제목이에요.
@@ -158,7 +160,7 @@ async function main() {
     for (const n of NS.length ? NS : [5, 4, 3, 2, 1]) {
       const rs = [];
       for (let s = 0; s < SETS.length; s++) for (let k = 0; k < TRIES; k++) {
-        const r = await page.evaluate(STORY, { set: SETS[s], n, noThink, prompt: storyPrompt(SETS[s].slice(0, n).map(w => w[1])) });
+        const r = await page.evaluate(STORY, { set: SETS[s], n, noThink, prompt: storyPrompt(SETS[s].slice(0, n).map(w => w[1]), PROMPT_EN ? SETS[s].slice(0, n).map(w => w[0]) : null) });
         r.model = info.model; r.set = 'ABC'[s]; r.try = k + 1; rs.push(r); mine.push(r); out.runs.push(r);
         fs.writeFileSync(OUT + '.json', JSON.stringify(out, null, 1));
         say(`\n[${MODELS.length ? info.model.replace(/-q4f\d+_1-MLC$/, '') + ' · ' : ''}단어 ${n}개 · 묶음 ${r.set} · ${r.try}번째] ${r.ok ? '형식 통과' : '형식 실패: ' + r.why.join(' · ')}${r.ok && !r.order ? ' (순서 다름)' : ''} · ${(r.ms / 1000).toFixed(1)}초`);
@@ -215,7 +217,7 @@ async function viaApi(base, model) {
     for (const n of NS.length ? NS : [5, 4, 3, 2, 1]) {
       const mine = [];
       for (let s = 0; s < SETS.length; s++) for (let k = 0; k < TRIES; k++) {
-        const r = await p.run(`(${STORY})(${JSON.stringify({ set: SETS[s], n, prompt: storyPrompt(SETS[s].slice(0, n).map(w => w[1])) })})`);
+        const r = await p.run(`(${STORY})(${JSON.stringify({ set: SETS[s], n, prompt: storyPrompt(SETS[s].slice(0, n).map(w => w[1]), PROMPT_EN ? SETS[s].slice(0, n).map(w => w[0]) : null) })})`);
         r.set = 'ABC'[s]; r.try = k + 1; mine.push(r); rs.push(r);
         fs.writeFileSync(OUT + '.json', JSON.stringify({ model, runs: rs }, null, 1));
         say(`\n[${model} · 단어 ${n}개 · 묶음 ${r.set} · ${r.try}번째] ${r.ok ? '형식 통과' : '형식 실패: ' + r.why.join(' · ')}${r.ok && !r.order ? ' (순서 다름)' : ''} · ${(r.ms / 1000).toFixed(1)}초`);
