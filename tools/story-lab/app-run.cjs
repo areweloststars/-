@@ -72,7 +72,8 @@ async function runAll(episode) {
 // llama-server에 묻는 엔진: 앱이 WebLLM에 묻는 꼴(chat.completions.create, stream)을 그대로 받아요
 function llamaEngine(base) {
   async function* stream(req) {
-    const body = { messages: req.messages, temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens, stream: true, stream_options: { include_usage: true }, top_k: 0, min_p: 0, repeat_penalty: 1 };
+    // 생각 모드는 끄고(앱의 WebLLM처럼: 켜면 생각만 쓰다가 max_tokens에 닿아 답이 비어요), 받은 글은 그대로(생각 글을 떼지 않음: 앱의 aiNoThink가 떼요)
+    const body = { messages: req.messages, temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens, stream: true, stream_options: { include_usage: true }, top_k: 0, min_p: 0, repeat_penalty: 1, chat_template_kwargs: { enable_thinking: false }, reasoning_format: 'none' };
     const r = await fetch(base + '/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     if (!r.ok) throw new Error('llama-server ' + r.status + ': ' + (await r.text()).slice(0, 200));
     const dec = new TextDecoder();
