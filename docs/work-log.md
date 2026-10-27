@@ -13,6 +13,7 @@
 - `v3/eval.cjs`: 2차 재기 도구와 같은 쓰임 (`WG_API=… node tools/finetune/v3/eval.cjs <이름>` → `tools/story-lab/v3-eval-<이름>.txt/.json`). 제목·줄거리·이야기·그림 설명을 모두 적어요. 가짜 서버로 끝까지 도는 것만 확인했어요.
 - `v3/train_colab.ipynb`: 2차 노트북과 같은 순서 (LoRA 먼저 올리기, `TRAIN = False`·`MERGE_SCALE`). 데이터 `repo/tools/finetune/v3`, 저장소 이름 `…-wordstory3-q4f16_1-MLC`. 7번 셀의 꼴 점검을 3차 형식(제목·줄거리·줄 수·단어마다 표시 하나·그림 줄)으로 바꿨고, 모범 답안 300편을 모두 통과시키는 것을 확인했어요. 학습은 T4에서 20~40분쯤으로 봐요 (2차보다 글이 2~3배 길어요).
 - 만드는 도구는 저장소 밖(`mknb3.py`)에 두었어요. 노트북을 고칠 때는 노트북을 직접 고쳐도 돼요.
+- 학습 전 Gemma(llama.cpp Q8, CPU)로 `v3/eval.cjs base`: **형식 0/30** (한 편 59초쯤). 영어로 `## Story` 같은 마크다운 제목을 달고, 단어마다 번호를 붙여 영어 문장을 써요. 학습 뒤와 견줄 기준이에요.
 
 ### 다음
 - 사용자: Colab에서 `tools/finetune/v3/train_colab.ipynb`를 열고 런타임 T4 → 모두 실행 → 모델 주소를 Claude에게.
