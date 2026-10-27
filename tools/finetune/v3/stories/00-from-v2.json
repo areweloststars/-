@@ -1,0 +1,4233 @@
+[
+ {
+  "t": "지니의 세 가지 소원",
+  "plan": "알라딘이 요술 램프의 지니에게 소원을 빌다가 마지막 소원으로 지니를 풀어 주어요.",
+  "w": [
+   [
+    "lamp",
+    "램프",
+    "n"
+   ],
+   [
+    "rub",
+    "문지르다",
+    "v"
+   ],
+   [
+    "wish",
+    "소원",
+    "n"
+   ],
+   [
+    "palace",
+    "궁전",
+    "n"
+   ],
+   [
+    "camel",
+    "낙타",
+    "n"
+   ],
+   [
+    "grant",
+    "들어주다",
+    "v"
+   ]
+  ],
+  "l": [
+   "시장에서 알라딘은 낡은 물건 하나를 주웠어요.",
+   "그것은 먼지가 잔뜩 쌓인 요술 {lamp|램프}였어요.",
+   "알라딘이 먼지를 털려고 살살 {rub|문지르자} 지니가 펑 나타났어요.",
+   "지니는 세 가지 {wish|소원}을 말해 보라고 했어요.",
+   "알라딘은 먼저 엄마를 위해 멋진 {palace|궁전}을 지어 달라고 했어요.",
+   "다음으로 시장까지 태워 줄 {camel|낙타}를 한 마리 부탁했어요.",
+   "마지막으로 지니를 풀어 달라고 하자 지니는 눈물을 흘리며 그 말을 {grant|들어주었어요}.",
+   "자유로워진 지니는 알라딘의 가장 친한 친구가 되었어요."
+  ],
+  "pic": {
+   "lamp": "a boy in a purple vest holding a dusty golden oil lamp at a busy desert market",
+   "rub": "the boy in a purple vest rubbing a golden oil lamp with his sleeve as blue smoke swirls out",
+   "wish": "a friendly blue genie floating above a golden lamp, holding up three glowing fingers to the boy in a purple vest",
+   "palace": "a shining white palace with golden domes appearing next to a small house, the boy and his mother amazed",
+   "camel": "the boy in a purple vest riding a smiling camel toward a colorful market",
+   "grant": "the blue genie crying happy tears as golden cuffs fall off his wrists, the boy in a purple vest smiling"
+  }
+ },
+ {
+  "t": "로봇 선생님의 첫 수업",
+  "plan": "숲속 학교의 로봇 선생님이 힘이 빠져 실수하자 학생들이 충전해 드려요.",
+  "w": [
+   [
+    "robot",
+    "로봇",
+    "n"
+   ],
+   [
+    "battery",
+    "배터리",
+    "n"
+   ],
+   [
+    "calculate",
+    "계산하다",
+    "v"
+   ],
+   [
+    "mistake",
+    "실수",
+    "n"
+   ],
+   [
+    "laugh",
+    "웃다",
+    "v"
+   ],
+   [
+    "charge",
+    "충전하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "숲속 학교에 새 선생님이 오셨어요.",
+   "그 선생님은 반짝이는 {robot|로봇}이었어요.",
+   "선생님은 등에 달린 {battery|배터리}로 하루 종일 움직였어요.",
+   "수학 시간에 선생님은 어려운 문제도 척척 {calculate|계산했어요}.",
+   "그런데 힘이 빠지자 일 더하기 일을 셋이라고 하는 {mistake|실수}를 했어요.",
+   "학생들이 깔깔 {laugh|웃자} 선생님 얼굴이 빨갛게 깜빡였어요.",
+   "학생들은 쉬는 시간에 선생님을 콘센트 옆에서 {charge|충전해} 드렸어요.",
+   "다시 힘이 난 선생님은 쉬는 시간마다 재미있는 퀴즈를 냈어요."
+  ],
+  "pic": {
+   "robot": "a shiny silver robot teacher standing at the front of a forest classroom full of animal students",
+   "battery": "the back of the silver robot teacher showing a big glowing green battery",
+   "calculate": "the silver robot teacher working out a long math problem on a chalkboard very fast",
+   "mistake": "the silver robot teacher with a nearly empty battery pointing at a chalkboard, looking confused",
+   "laugh": "rabbit, squirrel and fox students laughing loudly at their desks while the robot teacher's face glows red",
+   "charge": "animal students plugging a long cable from the silver robot teacher into a wall outlet"
+  }
+ },
+ {
+  "t": "꼬마 요리사의 대결",
+  "plan": "꼬마 요리사 지우가 떡볶이 대회에 나갔다가 너무 맵게 만들어 친구와 비겨요.",
+  "w": [
+   [
+    "contest",
+    "대회",
+    "n"
+   ],
+   [
+    "recipe",
+    "요리법",
+    "n"
+   ],
+   [
+    "boil",
+    "끓이다",
+    "v"
+   ],
+   [
+    "spicy",
+    "매운",
+    "a"
+   ],
+   [
+    "judge",
+    "심사위원",
+    "n"
+   ],
+   [
+    "tie",
+    "비기다",
+    "v"
+   ]
+  ],
+  "l": [
+   "꼬마 요리사 지우는 동네 요리 왕을 꿈꿨어요.",
+   "마침 마을 광장에서 떡볶이 {contest|대회}가 열렸어요.",
+   "지우는 할머니께 배운 비밀 {recipe|요리법}을 떠올렸어요.",
+   "지우는 큰 냄비에 떡과 어묵을 넣고 보글보글 {boil|끓였어요}.",
+   "그런데 고춧가루를 너무 많이 넣어서 아주 {spicy|매운} 떡볶이가 되었어요.",
+   "한 입 먹은 {judge|심사위원}의 얼굴이 토마토처럼 빨개졌어요.",
+   "결국 지우는 달콤한 떡볶이를 만든 친구와 {tie|비겼어요}.",
+   "두 친구는 다음에 매콤달콤 떡볶이를 함께 만들기로 했어요."
+  ],
+  "pic": {
+   "contest": "a cooking competition in a town square with children in chef hats at colorful cooking stations",
+   "recipe": "a girl in a chef hat dreaming of her grandmother teaching her to cook, shown in a soft thought bubble",
+   "boil": "a big pot of red rice cakes boiling and bubbling on a stove, steam rising, the girl in a chef hat stirring",
+   "spicy": "the girl in a chef hat tipping a huge pile of red chili powder into the pot by mistake",
+   "judge": "a judge in a white coat eating rice cakes, his face turning tomato red with steam from his ears",
+   "tie": "two children in chef hats holding one shared trophy together and smiling"
+  }
+ },
+ {
+  "t": "거짓말쟁이 양치기의 반성",
+  "plan": "심심해서 늑대가 왔다고 장난친 양치기 소년이 아무도 믿어 주지 않자 크게 뉘우쳐요.",
+  "w": [
+   [
+    "shepherd",
+    "양치기",
+    "n"
+   ],
+   [
+    "bored",
+    "심심한",
+    "a"
+   ],
+   [
+    "shout",
+    "외치다",
+    "v"
+   ],
+   [
+    "villager",
+    "마을 사람",
+    "n"
+   ],
+   [
+    "believe",
+    "믿다",
+    "v"
+   ],
+   [
+    "regret",
+    "후회하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "언덕 위에서 한 소년이 날마다 양을 돌봤어요.",
+   "그 {shepherd|양치기} 소년은 하루 종일 할 일이 없었어요.",
+   "너무 {bored|심심한} 소년은 장난을 치기로 했어요.",
+   "소년은 늑대가 나타났다고 크게 {shout|외쳤어요}.",
+   "헐레벌떡 달려온 {villager|마을 사람}들은 속은 걸 알고 화를 냈어요.",
+   "진짜 늑대가 나타난 날, 아무도 소년의 말을 {believe|믿어} 주지 않았어요.",
+   "양들이 흩어진 뒤 소년은 자기 장난을 크게 {regret|후회했어요}.",
+   "그 뒤로 소년은 장난 대신 피리를 불며 양들과 놀았어요."
+  ],
+  "pic": {
+   "shepherd": "a young shepherd boy with a wooden staff watching fluffy sheep on a green hill",
+   "bored": "the shepherd boy lying on the grass with his chin on his hands, yawning and bored",
+   "shout": "the shepherd boy standing on a rock, cupping his hands around his mouth and shouting loudly",
+   "villager": "a group of farmers with rakes running up the hill, then looking annoyed at the laughing boy",
+   "believe": "a gray wolf near the sheep while the farmers in the village below turn away, not listening to the shepherd boy",
+   "regret": "the shepherd boy sitting alone on the hill with his head down, his sheep scattered far away"
+  }
+ },
+ {
+  "t": "해적선의 보물 지도",
+  "plan": "해적들이 낡은 지도를 따라 섬에서 상자를 파냈지만 안에는 양말 한 짝뿐이었어요.",
+  "w": [
+   [
+    "pirate",
+    "해적",
+    "n"
+   ],
+   [
+    "map",
+    "지도",
+    "n"
+   ],
+   [
+    "island",
+    "섬",
+    "n"
+   ],
+   [
+    "dig",
+    "파다",
+    "v"
+   ],
+   [
+    "chest",
+    "상자",
+    "n"
+   ],
+   [
+    "disappointed",
+    "실망한",
+    "a"
+   ]
+  ],
+  "l": [
+   "외눈 선장은 바다에서 가장 시끄러운 사람이었어요.",
+   "선장과 {pirate|해적} 친구들은 보물을 찾아 떠났어요.",
+   "선장은 낡은 병 속에서 찾은 {map|지도}를 펼쳤어요.",
+   "그 종이에 그려진 작은 {island|섬}에 도착하자 모두 신이 났어요.",
+   "모두 함께 야자나무 아래 모래를 열심히 {dig|팠어요}.",
+   "드디어 커다란 나무 {chest|상자}가 모습을 드러냈어요.",
+   "그런데 안에는 양말 한 짝만 있어서 모두 {disappointed|실망한} 얼굴이 되었어요.",
+   "선장은 양말을 깃발로 달고 다시 신나게 노를 저었어요."
+  ],
+  "pic": {
+   "pirate": "a noisy pirate captain with an eye patch and his cheerful pirate crew on a wooden ship",
+   "map": "the pirate captain unrolling an old treasure map from a glass bottle, a big X drawn on it",
+   "island": "a pirate ship arriving at a tiny sandy island with one palm tree, the crew cheering",
+   "dig": "pirates digging a deep hole in the sand with shovels under a palm tree",
+   "chest": "a big wooden treasure chest coming out of the sand, pirates gathered around it",
+   "disappointed": "pirates looking disappointed at an open treasure chest with just one striped sock inside"
+  }
+ },
+ {
+  "t": "백설공주와 일곱 요리사",
+  "plan": "질투 많은 왕비 때문에 숲으로 쫓겨난 백설공주가 일곱 요리사와 요리하다 왕비와 화해해요.",
+  "w": [
+   [
+    "queen",
+    "왕비",
+    "n"
+   ],
+   [
+    "mirror",
+    "거울",
+    "n"
+   ],
+   [
+    "jealous",
+    "질투하는",
+    "a"
+   ],
+   [
+    "forest",
+    "숲",
+    "n"
+   ],
+   [
+    "cottage",
+    "오두막",
+    "n"
+   ],
+   [
+    "apple",
+    "사과",
+    "n"
+   ],
+   [
+    "cook",
+    "요리하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "어느 성에 자기 얼굴만 들여다보는 사람이 살았어요.",
+   "그 사람은 바로 이 나라의 {queen|왕비}였어요.",
+   "어느 날 요술 {mirror|거울}이 백설공주가 더 예쁘다고 말했어요.",
+   "{jealous|질투하는} 마음에 그녀는 백설공주를 성 밖으로 내보냈어요.",
+   "길을 잃은 백설공주는 깊은 {forest|숲}을 헤맸어요.",
+   "그러다 일곱 요리사가 사는 작은 {cottage|오두막}을 찾았어요.",
+   "요리사들은 백설공주에게 달콤한 {apple|사과} 파이를 구워 주었어요.",
+   "백설공주는 보답으로 요리사들과 함께 맛있는 수프를 {cook|요리했어요}.",
+   "그 냄새에 이끌린 성의 주인도 찾아와 한 그릇 얻어먹고 화해했어요."
+  ],
+  "pic": {
+   "queen": "a proud queen with a tall crown admiring herself in a castle hall",
+   "mirror": "a magic mirror on a castle wall glowing and showing the face of a sweet girl with black hair, the queen surprised",
+   "jealous": "the queen with a jealous scowl pointing a girl with black hair out of the castle gate",
+   "forest": "a girl with black hair and a red bow walking alone through a deep green forest",
+   "cottage": "the girl with black hair finding a tiny wooden cottage with a smoking chimney and seven chef hats by the door",
+   "apple": "seven little cooks in white hats bringing a warm apple pie to the girl with black hair",
+   "cook": "the girl with black hair and seven little cooks cooking soup together in a big pot in a cozy kitchen"
+  }
+ },
+ {
+  "t": "달나라 소풍",
+  "plan": "아이들이 달로 소풍을 가서 높이 뛰어오르고 구덩이 옆에 깃발을 꽂아요.",
+  "w": [
+   [
+    "astronaut",
+    "우주 비행사",
+    "n"
+   ],
+   [
+    "helmet",
+    "헬멧",
+    "n"
+   ],
+   [
+    "gravity",
+    "중력",
+    "n"
+   ],
+   [
+    "jump",
+    "뛰어오르다",
+    "v"
+   ],
+   [
+    "crater",
+    "구덩이",
+    "n"
+   ],
+   [
+    "flag",
+    "깃발",
+    "n"
+   ],
+   [
+    "wave",
+    "손을 흔들다",
+    "v"
+   ]
+  ],
+  "l": [
+   "별빛 초등학교 학생들이 달로 소풍을 갔어요.",
+   "안내를 맡은 {astronaut|우주 비행사} 아저씨가 웃으며 맞아 주었어요.",
+   "학생들은 저마다 동그란 {helmet|헬멧}을 머리에 썼어요.",
+   "달에서는 {gravity|중력}이 약해서 몸이 깃털처럼 가벼웠어요.",
+   "아이들은 신이 나서 높이 {jump|뛰어올랐어요}.",
+   "한 아이는 너무 높이 뛰다가 커다란 {crater|구덩이}에 쏙 빠졌어요.",
+   "친구를 꺼낸 아이들은 그 자리에 학교 {flag|깃발}을 꽂았어요.",
+   "지구로 돌아가는 우주선에서 아이들은 달을 보며 {wave|손을 흔들었어요}.",
+   "그날 밤 아이들은 모두 몸이 붕붕 뜨는 꿈을 꾸었어요."
+  ],
+  "pic": {
+   "astronaut": "a smiling astronaut guide welcoming a group of children on the gray surface of the moon",
+   "helmet": "children in space suits putting on round glass helmets and smiling at each other",
+   "gravity": "children floating lightly like feathers above the moon surface, the earth glowing in the sky",
+   "jump": "a child in a space suit jumping very high over the moon surface with arms spread wide",
+   "crater": "a child in a space suit sliding down into a big round crater on the moon",
+   "flag": "children planting a small colorful school flag at the edge of a crater",
+   "wave": "children in a spaceship window waving goodbye to the moon"
+  }
+ },
+ {
+  "t": "콩쥐와 구멍 난 항아리",
+  "plan": "콩쥐가 두꺼비 덕분에 구멍 난 항아리를 채우고 잔치에 갔다가 꽃신 한 짝을 잃어버려요.",
+  "w": [
+   [
+    "pot",
+    "항아리",
+    "n"
+   ],
+   [
+    "hole",
+    "구멍",
+    "n"
+   ],
+   [
+    "toad",
+    "두꺼비",
+    "n"
+   ],
+   [
+    "fill",
+    "채우다",
+    "v"
+   ],
+   [
+    "festival",
+    "잔치",
+    "n"
+   ],
+   [
+    "flower shoes",
+    "꽃신",
+    "n"
+   ],
+   [
+    "lose",
+    "잃어버리다",
+    "v"
+   ]
+  ],
+  "l": [
+   "콩쥐는 마음씨 고운 소녀였지만 늘 일이 많았어요.",
+   "하루는 커다란 {pot|항아리}에 물을 가득 부으라는 일을 받았어요.",
+   "그런데 바닥에 {hole|구멍}이 뚫려 있어서 물이 자꾸 빠졌어요.",
+   "그때 연못에서 {toad|두꺼비} 한 마리가 폴짝 뛰어왔어요.",
+   "그 친구가 등으로 바닥을 막아 주자 금세 물을 가득 {fill|채웠어요}.",
+   "덕분에 콩쥐는 마을 {festival|잔치}에 늦지 않게 갈 수 있었어요.",
+   "콩쥐는 원님이 선물한 {flower shoes|꽃신}을 신고 춤을 추었어요.",
+   "그런데 냇가를 건너다 한 짝을 {lose|잃어버렸어요}.",
+   "신발을 주운 원님은 콩쥐를 찾아와 마을 춤 대회의 주인공으로 뽑았어요."
+  ],
+  "pic": {
+   "pot": "a girl in a pink hanbok pouring water into a huge brown clay jar in a Korean courtyard",
+   "hole": "water leaking out of a hole at the bottom of the big clay jar, the girl in a pink hanbok worried",
+   "toad": "a big friendly toad hopping out of a pond toward the girl in a pink hanbok",
+   "fill": "the toad sitting inside the jar blocking the hole while the girl fills the jar to the top with water",
+   "festival": "a lively Korean village festival with lanterns, food stalls and people dancing",
+   "flower shoes": "the girl in a pink hanbok dancing in beautiful embroidered flower shoes",
+   "lose": "the girl crossing a stream on stepping stones as one flower shoe falls into the water"
+  }
+ },
+ {
+  "t": "박물관의 공룡 뼈",
+  "plan": "한밤중 박물관에서 공룡 뼈가 깨어나자 겁먹은 경비원 할아버지가 자장가를 불러 줘요.",
+  "w": [
+   [
+    "museum",
+    "박물관",
+    "n"
+   ],
+   [
+    "skeleton",
+    "뼈대",
+    "n"
+   ],
+   [
+    "guard",
+    "경비원",
+    "n"
+   ],
+   [
+    "midnight",
+    "한밤중",
+    "n"
+   ],
+   [
+    "wake up",
+    "깨어나다",
+    "v"
+   ],
+   [
+    "tail",
+    "꼬리",
+    "n"
+   ],
+   [
+    "scared",
+    "겁먹은",
+    "a"
+   ]
+  ],
+  "l": [
+   "도시 한가운데에 공룡 뼈가 서 있는 건물이 있었어요.",
+   "그곳은 아이들이 가장 좋아하는 {museum|박물관}이었어요.",
+   "가운데 홀에는 거대한 티라노 {skeleton|뼈대}가 서 있었어요.",
+   "밤마다 늙은 {guard|경비원} 할아버지가 손전등을 들고 홀을 돌았어요.",
+   "어느 {midnight|한밤중}에 쿵쿵 소리가 울렸어요.",
+   "티라노 뼈가 기지개를 켜며 {wake up|깨어났어요}.",
+   "티라노가 반가워서 {tail|꼬리}를 흔들자 진열장이 와르르 흔들렸어요.",
+   "{scared|겁먹은} 할아버지는 얼른 공룡에게 자장가를 불러 주었어요.",
+   "그 뒤로 둘은 밤마다 함께 자장가를 부르는 친구가 되었어요."
+  ],
+  "pic": {
+   "museum": "a big museum building with tall columns and children walking in",
+   "skeleton": "a giant T-rex skeleton standing in the middle of a museum hall",
+   "guard": "an old museum guard with a gray mustache walking through the dark hall with a flashlight",
+   "midnight": "a museum hall at midnight lit by moonlight from tall windows, a clock pointing at twelve",
+   "wake up": "the T-rex skeleton stretching and opening its jaws as if yawning, waking up in the dark museum",
+   "tail": "the T-rex skeleton happily wagging its long bony tail, glass display cases wobbling",
+   "scared": "the old guard with wide eyes and knocking knees holding his flashlight up at the moving skeleton"
+  }
+ },
+ {
+  "t": "헤라클레스의 대청소",
+  "plan": "힘센 영웅 헤라클레스가 강물을 끌어와 삼십 년 묵은 마구간을 하루 만에 청소해요.",
+  "w": [
+   [
+    "hero",
+    "영웅",
+    "n"
+   ],
+   [
+    "strong",
+    "힘센",
+    "a"
+   ],
+   [
+    "stable",
+    "마구간",
+    "n"
+   ],
+   [
+    "dirty",
+    "더러운",
+    "a"
+   ],
+   [
+    "river",
+    "강",
+    "n"
+   ],
+   [
+    "flow",
+    "흐르다",
+    "v"
+   ],
+   [
+    "sweep",
+    "쓸다",
+    "v"
+   ],
+   [
+    "sparkle",
+    "반짝이다",
+    "v"
+   ]
+  ],
+  "l": [
+   "그리스에는 누구보다 힘이 넘치는 청년이 살았어요.",
+   "사람들은 그 청년을 {hero|영웅} 헤라클레스라고 불렀어요.",
+   "{strong|힘센} 헤라클레스에게 왕이 어려운 일을 맡겼어요.",
+   "그것은 소 삼천 마리가 사는 {stable|마구간}을 하루 만에 치우는 일이었어요.",
+   "그곳은 삼십 년 동안 한 번도 안 치운 {dirty|더러운} 곳이었어요.",
+   "헤라클레스는 근처 {river|강}의 물길을 그쪽으로 돌렸어요.",
+   "물이 콸콸 {flow|흐르자} 오물이 한꺼번에 씻겨 나갔어요.",
+   "마지막으로 헤라클레스는 바닥을 빗자루로 싹싹 {sweep|쓸었어요}.",
+   "마침내 바닥이 거울처럼 {sparkle|반짝였어요}.",
+   "소들은 깨끗한 집에 기뻐서 헤라클레스에게 우유 파티를 열어 주었어요."
+  ],
+  "pic": {
+   "hero": "a muscular young Greek hero in a red cape with crowds cheering around him",
+   "strong": "the muscular hero easily lifting a huge boulder over his head",
+   "stable": "a long wooden stable full of many cows in old Greece",
+   "dirty": "a very dirty stable floor covered with mud and straw piles, flies buzzing, the hero holding his nose",
+   "river": "the hero digging a channel to turn a sparkling river toward the stable",
+   "flow": "river water rushing through the stable doors and washing away all the mud",
+   "sweep": "the hero sweeping the wet stable floor with a giant broom",
+   "sparkle": "the clean stable floor sparkling like a mirror, happy cows looking at their reflections"
+  }
+ },
+ {
+  "t": "개미 마을 겨울 축제",
+  "plan": "여름 내내 일한 개미들이 겨울에 배고픈 베짱이와 먹이를 나누고 베짱이는 음악회로 보답해요.",
+  "w": [
+   [
+    "summer",
+    "여름",
+    "n"
+   ],
+   [
+    "sweat",
+    "땀",
+    "n"
+   ],
+   [
+    "store",
+    "저장하다",
+    "v"
+   ],
+   [
+    "winter",
+    "겨울",
+    "n"
+   ],
+   [
+    "freeze",
+    "얼다",
+    "v"
+   ],
+   [
+    "knock",
+    "두드리다",
+    "v"
+   ],
+   [
+    "share",
+    "나누다",
+    "v"
+   ],
+   [
+    "concert",
+    "음악회",
+    "n"
+   ]
+  ],
+  "l": [
+   "노래만 하던 베짱이와 부지런한 개미들은 같은 들판에 살았어요.",
+   "무더운 {summer|여름} 내내 개미들은 먹이를 날랐어요.",
+   "개미들의 이마에서는 {sweat|땀}이 뚝뚝 떨어졌어요.",
+   "개미들은 먹이를 굴 깊은 곳에 차곡차곡 {store|저장했어요}.",
+   "차가운 {winter|겨울}이 오자 베짱이는 먹을 것이 하나도 없었어요.",
+   "들판의 물웅덩이까지 꽁꽁 {freeze|얼었어요}.",
+   "배고픈 베짱이는 개미네 문을 똑똑 {knock|두드렸어요}.",
+   "개미들은 쌓아 둔 먹이를 베짱이와 {share|나누었어요}.",
+   "보답으로 베짱이는 굴 안에서 신나는 {concert|음악회}를 열었어요.",
+   "그해 추위는 노랫소리 덕분에 금방 지나갔어요."
+  ],
+  "pic": {
+   "summer": "busy ants carrying seeds across a sunny green meadow on a hot summer day",
+   "sweat": "a tired ant wiping big drops of sweat from its forehead while carrying a seed",
+   "store": "ants stacking seeds and grains neatly in an underground storeroom",
+   "winter": "a snowy meadow in winter with a thin hungry grasshopper holding a violin",
+   "freeze": "a puddle frozen solid into ice, the grasshopper hugging itself in the cold beside it",
+   "knock": "the cold grasshopper knocking on a small wooden door in a snowy hill",
+   "share": "ants welcoming the grasshopper inside and sharing a pile of seeds around a warm table",
+   "concert": "the grasshopper playing violin on a little stage while ants dance in a cozy underground hall"
+  }
+ },
+ {
+  "t": "이카로스의 날개",
+  "plan": "탑에 갇힌 이카로스가 깃털 날개로 날아오르다 해 가까이에서 밀랍이 녹아 바다에 떨어져요.",
+  "w": [
+   [
+    "trap",
+    "가두다",
+    "v"
+   ],
+   [
+    "escape",
+    "탈출하다",
+    "v"
+   ],
+   [
+    "attach",
+    "붙이다",
+    "v"
+   ],
+   [
+    "soar",
+    "날아오르다",
+    "v"
+   ],
+   [
+    "melt",
+    "녹다",
+    "v"
+   ],
+   [
+    "fall",
+    "떨어지다",
+    "v"
+   ]
+  ],
+  "l": [
+   "발명가 다이달로스와 아들 이카로스는 높은 탑에 살았어요.",
+   "욕심 많은 왕이 두 사람을 탑에 {trap|가두었어요}.",
+   "아버지는 탑에서 {escape|탈출할} 방법을 밤낮으로 궁리했어요.",
+   "아버지는 새 깃털을 밀랍으로 나무틀에 {attach|붙였어요}.",
+   "두 사람은 날개를 달고 하늘로 높이 {soar|날아올랐어요}.",
+   "신이 난 이카로스가 해 가까이 가자 밀랍이 {melt|녹았어요}.",
+   "날개를 잃은 이카로스는 바다로 {fall|떨어졌어요}.",
+   "다행히 돌고래가 이카로스를 등에 태워 아버지에게 데려다주었어요."
+  ],
+  "pic": {
+   "trap": "a father and his young son locked at the top of a tall stone tower by the sea",
+   "escape": "the father looking out of the tower window at flying birds, planning a way out",
+   "attach": "the father gluing white feathers onto wooden wing frames with yellow wax",
+   "soar": "the father and son with feathered wings soaring high over the blue sea",
+   "melt": "the boy flying too close to the bright sun as wax drips from his wings",
+   "fall": "the boy with loose feathers tumbling down toward the sea, a dolphin swimming below"
+  }
+ },
+ {
+  "t": "왕자와 거지",
+  "plan": "똑같이 생긴 왕자와 거지가 옷을 바꿔 입자 강아지만 진짜 주인을 알아봐요.",
+  "w": [
+   [
+    "prince",
+    "왕자",
+    "n"
+   ],
+   [
+    "beggar",
+    "거지",
+    "n"
+   ],
+   [
+    "swap",
+    "바꾸다",
+    "v"
+   ],
+   [
+    "recognize",
+    "알아보다",
+    "v"
+   ],
+   [
+    "confused",
+    "어리둥절한",
+    "a"
+   ],
+   [
+    "return",
+    "돌아오다",
+    "v"
+   ]
+  ],
+  "l": [
+   "똑같이 생긴 두 소년이 성문 앞에서 우연히 마주쳤어요.",
+   "한 소년은 이 나라의 {prince|왕자}였어요.",
+   "다른 소년은 길에서 동냥하는 {beggar|거지}였어요.",
+   "재미 삼아 두 소년은 서로의 옷을 {swap|바꿔} 입었어요.",
+   "오직 강아지만이 냄새로 진짜 주인을 {recognize|알아봤어요}.",
+   "성 안 사람들은 갑자기 말투가 달라진 소년을 보고 {confused|어리둥절한} 표정을 지었어요.",
+   "해가 지자 두 소년은 각자의 집으로 {return|돌아왔어요}.",
+   "그 뒤로 둘은 자주 성에서 함께 밥을 먹는 친구가 되었어요."
+  ],
+  "pic": {
+   "prince": "a boy prince in a golden crown and blue royal robe at a castle gate",
+   "beggar": "a boy in torn patched clothes with a dusty face at the same castle gate, looking just like the prince",
+   "swap": "the two look-alike boys laughing as they exchange clothes behind a bush",
+   "recognize": "a small dog sniffing and wagging its tail at the boy in torn clothes who is really the prince",
+   "confused": "castle helpers scratching their heads, confused by a boy in a crown acting strangely",
+   "return": "two boys walking back to their own homes at sunset, one to a castle and one to a small hut"
+  }
+ },
+ {
+  "t": "놀부와 도깨비 방망이",
+  "plan": "심술궂은 놀부가 도깨비를 속였다가 벌로 마당을 쓸며 마음이 바뀌어요.",
+  "w": [
+   [
+    "mean",
+    "심술궂은",
+    "a"
+   ],
+   [
+    "kick",
+    "걷어차다",
+    "v"
+   ],
+   [
+    "cheat",
+    "속이다",
+    "v"
+   ],
+   [
+    "angry",
+    "화가 난",
+    "a"
+   ],
+   [
+    "punish",
+    "벌을 주다",
+    "v"
+   ],
+   [
+    "change",
+    "바뀌다",
+    "v"
+   ]
+  ],
+  "l": [
+   "흥부의 형 놀부는 큰 기와집에 살았어요.",
+   "놀부는 마을에서 가장 {mean|심술궂은} 부자였어요.",
+   "놀부는 길에서 만난 도깨비의 보물 자루를 괜히 {kick|걷어찼어요}.",
+   "그러고는 자루가 망가졌다며 도깨비를 {cheat|속여} 방망이까지 빼앗았어요.",
+   "{angry|화가 난} 도깨비들이 놀부의 집에 몰려왔어요.",
+   "도깨비들은 놀부에게 마당을 백 번 쓸라는 {punish|벌을 주었어요}.",
+   "마당을 쓸며 땀을 흘린 놀부는 마음이 조금씩 {change|바뀌었어요}.",
+   "그날 저녁 놀부는 흥부네 아이들에게 처음으로 떡을 나눠 주었어요."
+  ],
+  "pic": {
+   "mean": "a grumpy rich man in a fancy Korean hanbok frowning in front of a big tile-roofed house",
+   "kick": "the grumpy rich man kicking a small cloth sack on a mountain path while a little goblin gasps",
+   "cheat": "the grumpy rich man pretending the sack is broken and snatching a magic club from the little goblin",
+   "angry": "a crowd of angry horned goblins marching to the rich man's gate at night",
+   "punish": "the goblins pointing at a broom while the rich man starts sweeping a huge yard",
+   "change": "the rich man sweating with a broom, his frown turning into a gentle smile"
+  }
+ },
+ {
+  "t": "편의점 고양이의 하루",
+  "plan": "편의점의 고양이 점장이 손님을 맞고 동전을 세다가 하루가 끝나자 하품하며 잠들어요.",
+  "w": [
+   [
+    "stretch",
+    "기지개를 켜다",
+    "v"
+   ],
+   [
+    "greet",
+    "인사하다",
+    "v"
+   ],
+   [
+    "count",
+    "세다",
+    "v"
+   ],
+   [
+    "pay",
+    "계산하다",
+    "v"
+   ],
+   [
+    "polite",
+    "공손한",
+    "a"
+   ],
+   [
+    "yawn",
+    "하품하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "동네 편의점에는 손님을 맞는 고양이 점장이 있었어요.",
+   "아침이 되자 고양이 점장은 계산대 위에서 {stretch|기지개를 켰어요}.",
+   "문이 열릴 때마다 점장은 야옹 하고 손님에게 {greet|인사했어요}.",
+   "점장은 앞발로 동전을 하나씩 {count|세었어요}.",
+   "꼬마 손님은 사탕을 고르고 저금통 동전으로 {pay|계산했어요}.",
+   "점장은 {polite|공손한} 꼬마에게 꼬리를 흔들어 주었어요.",
+   "손님이 모두 돌아가자 점장은 크게 {yawn|하품했어요}.",
+   "그리고 신문 더미 위에서 다음 날 아침까지 푹 잤어요."
+  ],
+  "pic": {
+   "stretch": "an orange cat wearing a tiny store apron stretching on a convenience store counter in the morning",
+   "greet": "the orange cat in an apron meowing hello to a customer coming through the door",
+   "count": "the orange cat in an apron counting coins with its paw on the counter",
+   "pay": "a little girl paying for a candy with coins from her piggy bank at the counter",
+   "polite": "the little girl bowing politely to the orange cat, who flicks its tail happily",
+   "yawn": "the orange cat yawning widely in the empty store at night"
+  }
+ },
+ {
+  "t": "마법 학교의 물약 시간",
+  "plan": "마법 학교에서 마루가 물약을 잘못 만들어 머리카락이 고양이 귀로 변해요.",
+  "w": [
+   [
+    "potion",
+    "물약",
+    "n"
+   ],
+   [
+    "stir",
+    "젓다",
+    "v"
+   ],
+   [
+    "pour",
+    "붓다",
+    "v"
+   ],
+   [
+    "strange",
+    "이상한",
+    "a"
+   ],
+   [
+    "turn into",
+    "변하다",
+    "v"
+   ],
+   [
+    "proud",
+    "자랑스러운",
+    "a"
+   ]
+  ],
+  "l": [
+   "마법 학교의 첫 수업은 날아다니는 약 만들기였어요.",
+   "학생들은 커다란 솥에 {potion|물약}을 끓일 준비를 했어요.",
+   "마루는 국자로 솥을 빙글빙글 {stir|저었어요}.",
+   "그런데 실수로 고양이 털이 든 병을 통째로 {pour|부었어요}.",
+   "솥에서 보라색 연기와 함께 {strange|이상한} 소리가 났어요.",
+   "마루의 머리카락이 순식간에 고양이 귀 모양으로 {turn into|변했어요}.",
+   "선생님은 이렇게 귀여운 실수는 처음이라며 마루를 {proud|자랑스러운} 학생이라고 불렀어요.",
+   "그날부터 마루는 학교에서 냥냥 마법사로 불렸어요."
+  ],
+  "pic": {
+   "potion": "young wizard students in pointy hats gathered around a bubbling cauldron of potion in a castle classroom",
+   "stir": "a boy wizard in a blue pointy hat stirring a cauldron with a big ladle",
+   "pour": "the boy wizard in a blue hat pouring a whole bottle of cat fur into the cauldron by mistake",
+   "strange": "purple smoke swirling out of the cauldron with strange sparkling bubbles, students surprised",
+   "turn into": "the boy wizard's hair changing into fluffy cat ears, everyone gasping",
+   "proud": "the old wizard teacher smiling proudly with a hand on the shoulder of the blushing boy with cat ears"
+  }
+ },
+ {
+  "t": "토끼와 거북의 재경기",
+  "plan": "토끼가 거북에게 다시 경주를 걸어 이기지만 끝까지 포기하지 않는 거북에게 감탄해요.",
+  "w": [
+   [
+    "challenge",
+    "도전하다",
+    "v"
+   ],
+   [
+    "overtake",
+    "앞지르다",
+    "v"
+   ],
+   [
+    "rest",
+    "쉬다",
+    "v"
+   ],
+   [
+    "sweaty",
+    "땀투성이인",
+    "a"
+   ],
+   [
+    "give up",
+    "포기하다",
+    "v"
+   ],
+   [
+    "admire",
+    "감탄하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "지난번 경주에서 진 토끼는 밤새 분해서 잠을 못 잤어요.",
+   "토끼는 거북에게 다시 한 번 경주하자고 {challenge|도전했어요}.",
+   "출발 신호가 울리자 토끼는 순식간에 거북을 {overtake|앞질렀어요}.",
+   "이번에는 낮잠 대신 물 한 모금만 마시고 잠깐 {rest|쉬었어요}.",
+   "결승선에 들어온 토끼는 {sweaty|땀투성이인} 얼굴로 활짝 웃었어요.",
+   "거북은 한참 뒤에 도착했지만 끝까지 {give up|포기하지} 않았어요.",
+   "토끼는 거북의 끈기에 진심으로 {admire|감탄했어요}.",
+   "둘은 다음 경주부터 함께 뛰는 짝꿍이 되기로 했어요."
+  ],
+  "pic": {
+   "challenge": "a white rabbit pointing at a turtle and challenging it to a race on a forest path",
+   "overtake": "the white rabbit dashing past the slow turtle right after the start",
+   "rest": "the white rabbit taking a short break and drinking water under a tree",
+   "sweaty": "the white rabbit crossing the finish line drenched in sweat and smiling",
+   "give up": "the turtle still walking slowly and steadily toward the finish line at sunset",
+   "admire": "the white rabbit clapping in admiration as the turtle finally finishes"
+  }
+ },
+ {
+  "t": "농장 체험 대소동",
+  "plan": "농장에 간 지우가 모자를 물고 달아난 염소를 쫓다가 진흙투성이가 돼요.",
+  "w": [
+   [
+    "visit",
+    "방문하다",
+    "v"
+   ],
+   [
+    "feed",
+    "먹이를 주다",
+    "v"
+   ],
+   [
+    "chase",
+    "쫓아가다",
+    "v"
+   ],
+   [
+    "slip",
+    "미끄러지다",
+    "v"
+   ],
+   [
+    "muddy",
+    "진흙투성이인",
+    "a"
+   ],
+   [
+    "wash",
+    "씻다",
+    "v"
+   ],
+   [
+    "tired",
+    "피곤한",
+    "a"
+   ]
+  ],
+  "l": [
+   "유치원 친구들이 버스를 타고 시골로 체험 학습을 떠났어요.",
+   "아이들은 오리와 염소가 사는 농장을 {visit|방문했어요}.",
+   "아이들은 배고픈 염소에게 풀로 {feed|먹이를 주었어요}.",
+   "그때 염소 한 마리가 지우의 모자를 물고 달아나서 지우가 {chase|쫓아갔어요}.",
+   "지우는 웅덩이 앞에서 그만 쭉 {slip|미끄러졌어요}.",
+   "순식간에 지우는 머리부터 발끝까지 {muddy|진흙투성이인} 꼬마가 되었어요.",
+   "지우는 수돗가에서 얼굴과 손을 깨끗이 {wash|씻었어요}.",
+   "집에 오는 버스에서 아이들은 모두 {tired|피곤한} 얼굴로 곯아떨어졌어요.",
+   "지우의 꿈속에서는 염소가 모자를 쓰고 춤을 추었어요."
+  ],
+  "pic": {
+   "visit": "a group of kindergarten children with backpacks arriving at a farm with ducks and goats",
+   "feed": "children holding out handfuls of grass to hungry goats over a fence",
+   "chase": "a goat running away with a yellow hat in its mouth, a little girl chasing it",
+   "slip": "the little girl slipping on a muddy puddle with her arms waving in the air",
+   "muddy": "the little girl covered in mud from head to toe, laughing",
+   "wash": "the little girl washing her muddy face and hands at an outdoor water tap",
+   "tired": "tired children sleeping in their seats on a bus ride home at sunset"
+  }
+ },
+ {
+  "t": "도서관에서 사라진 책",
+  "plan": "도서관 고양이 사서가 없어진 그림책을 찾다가 책을 베고 잠든 아기 쥐를 만나요.",
+  "w": [
+   [
+    "missing",
+    "없어진",
+    "a"
+   ],
+   [
+    "ask",
+    "묻다",
+    "v"
+   ],
+   [
+    "shelf",
+    "책꽂이",
+    "n"
+   ],
+   [
+    "climb",
+    "오르다",
+    "v"
+   ],
+   [
+    "peek",
+    "엿보다",
+    "v"
+   ],
+   [
+    "asleep",
+    "잠든",
+    "a"
+   ],
+   [
+    "gently",
+    "살며시",
+    "d"
+   ]
+  ],
+  "l": [
+   "동네 도서관에는 책을 지키는 고양이 사서가 살았어요.",
+   "어느 날 가장 많이 읽히는 그림책이 {missing|없어진} 것을 알았어요.",
+   "고양이는 도서관에 온 아이들에게 하나하나 {ask|물었어요}.",
+   "아무도 모르자 고양이는 높은 {shelf|책꽂이} 꼭대기를 살폈어요.",
+   "고양이는 사다리를 타고 꼭대기까지 {climb|올랐어요}.",
+   "구석의 상자 안을 살짝 {peek|엿보니} 무언가 꿈틀거렸어요.",
+   "상자 안에는 그림책을 베개 삼아 {asleep|잠든} 아기 쥐가 있었어요.",
+   "고양이는 아기 쥐가 깨지 않게 그림책을 {gently|살며시} 빼냈어요.",
+   "다음 날 고양이는 아기 쥐에게 작은 도서관 카드를 만들어 주었어요."
+  ],
+  "pic": {
+   "missing": "a gray cat librarian with round glasses staring at an empty gap on a bookshelf",
+   "ask": "the gray cat librarian asking a group of children at a library table, all of them shaking their heads",
+   "shelf": "a very tall wooden bookshelf reaching the ceiling of a cozy library",
+   "climb": "the gray cat librarian climbing a rolling ladder to the top of the tall bookshelf",
+   "peek": "the gray cat librarian peeking carefully into a small box in a dusty corner",
+   "asleep": "a tiny baby mouse fast asleep, hugging a picture book like a pillow inside the box",
+   "gently": "the gray cat librarian gently sliding the picture book out without waking the baby mouse"
+  }
+ },
+ {
+  "t": "방귀 며느리의 대활약",
+  "plan": "참고 참던 며느리의 방귀가 터져 배나무의 배가 떨어지자 장사꾼들이 고마워해요.",
+  "w": [
+   [
+    "hold in",
+    "참다",
+    "v"
+   ],
+   [
+    "burst",
+    "터지다",
+    "v"
+   ],
+   [
+    "shake",
+    "흔들리다",
+    "v"
+   ],
+   [
+    "shocked",
+    "깜짝 놀란",
+    "a"
+   ],
+   [
+    "pear",
+    "배",
+    "n"
+   ],
+   [
+    "pick up",
+    "줍다",
+    "v"
+   ],
+   [
+    "thankful",
+    "고마운",
+    "a"
+   ]
+  ],
+  "l": [
+   "어느 마을에 새로 시집온 며느리가 있었어요.",
+   "며느리는 방귀가 나올 것 같아도 꾹꾹 {hold in|참았어요}.",
+   "며칠 뒤 꾹 눌러 둔 방귀가 뿌웅 하고 {burst|터졌어요}.",
+   "그 바람에 집이 들썩들썩 {shake|흔들렸어요}.",
+   "지나가던 장사꾼들이 {shocked|깜짝 놀란} 얼굴로 하늘을 올려다봤어요.",
+   "방귀 바람에 마당의 나무에서 탐스러운 {pear|배}가 우수수 떨어졌어요.",
+   "장사꾼들은 신이 나서 떨어진 열매를 {pick up|주웠어요}.",
+   "장사꾼들은 {thankful|고마운} 마음에 며느리에게 비단을 선물했어요.",
+   "그날부터 며느리의 방귀는 온 마을의 자랑거리가 되었어요."
+  ],
+  "pic": {
+   "hold in": "a young Korean bride in a hanbok with puffed cheeks sitting stiffly and holding in a fart",
+   "burst": "a huge gust of wind bursting out behind the bride, her hanbok skirt fluttering",
+   "shake": "an old Korean house shaking with roof tiles rattling and dust flying",
+   "shocked": "passing merchants with big bundles on their backs looking up in shock",
+   "pear": "ripe yellow pears falling from a big tree in a Korean courtyard",
+   "pick up": "the merchants happily picking up pears from the ground into their baskets",
+   "thankful": "the merchants bowing thankfully and offering a roll of silk to the bride"
+  }
+ },
+ {
+  "t": "공룡 유치원의 낮잠 시간",
+  "plan": "공룡 유치원 선생님이 시끄러운 아기 공룡들에게 자장가를 불러 낮잠을 재워요.",
+  "w": [
+   [
+    "noisy",
+    "시끄러운",
+    "a"
+   ],
+   [
+    "roar",
+    "으르렁거리다",
+    "v"
+   ],
+   [
+    "whine",
+    "칭얼거리다",
+    "v"
+   ],
+   [
+    "lullaby",
+    "자장가",
+    "n"
+   ],
+   [
+    "calm down",
+    "진정하다",
+    "v"
+   ],
+   [
+    "snore",
+    "코를 골다",
+    "v"
+   ],
+   [
+    "peaceful",
+    "평화로운",
+    "a"
+   ]
+  ],
+  "l": [
+   "공룡 유치원에 낮잠 시간이 찾아왔어요.",
+   "하지만 아기 공룡들은 여전히 {noisy|시끄러운} 장난을 쳤어요.",
+   "티라노는 이불을 차며 크게 {roar|으르렁거렸어요}.",
+   "브라키오는 엄마가 보고 싶다고 {whine|칭얼거렸어요}.",
+   "선생님은 긴 목을 흔들며 느릿느릿 {lullaby|자장가}를 불렀어요.",
+   "그러자 아기 공룡들이 하나둘 {calm down|진정했어요}.",
+   "곧 교실 여기저기서 드르렁 {snore|코를 고는} 소리가 났어요.",
+   "유치원은 다시 {peaceful|평화로운} 오후를 맞았어요.",
+   "그런데 선생님도 그만 아이들 옆에서 곯아떨어졌어요."
+  ],
+  "pic": {
+   "noisy": "baby dinosaurs jumping on beds and throwing pillows in a messy kindergarten room",
+   "roar": "a baby T-rex kicking off its blanket and roaring loudly",
+   "whine": "a baby long-necked dinosaur crying and whining for its mom while holding a teddy bear",
+   "lullaby": "a gentle long-necked dinosaur teacher singing a lullaby with music notes floating around",
+   "calm down": "baby dinosaurs lying still under their blankets, their eyes getting sleepy",
+   "snore": "baby dinosaurs fast asleep and snoring with little dreamy bubbles above them",
+   "peaceful": "a peaceful sunny nap room with sleeping baby dinosaurs and soft curtains moving"
+  }
+ },
+ {
+  "t": "브레멘 음악대",
+  "plan": "늙었다고 쫓겨난 당나귀가 개, 고양이, 닭과 음악대를 만들어 도둑들의 집에 자리를 잡아요.",
+  "w": [
+   [
+    "old",
+    "늙은",
+    "a"
+   ],
+   [
+    "useless",
+    "쓸모없는",
+    "a"
+   ],
+   [
+    "leave",
+    "떠나다",
+    "v"
+   ],
+   [
+    "meet",
+    "만나다",
+    "v"
+   ],
+   [
+    "band",
+    "음악대",
+    "n"
+   ],
+   [
+    "thief",
+    "도둑",
+    "n"
+   ],
+   [
+    "frightened",
+    "겁에 질린",
+    "a"
+   ],
+   [
+    "settle",
+    "자리를 잡다",
+    "v"
+   ]
+  ],
+  "l": [
+   "어느 농장에 일을 많이 한 당나귀가 살았어요.",
+   "이제 {old|늙은} 당나귀는 무거운 짐을 나르지 못했어요.",
+   "주인은 당나귀를 {useless|쓸모없는} 녀석이라고 흉봤어요.",
+   "당나귀는 음악가가 되려고 농장을 {leave|떠났어요}.",
+   "길에서 당나귀는 개와 고양이와 닭을 차례로 {meet|만났어요}.",
+   "넷은 함께 동물 {band|음악대}를 만들기로 했어요.",
+   "밤이 되자 넷은 불 켜진 집에서 {thief|도둑}들이 잔치하는 것을 보았어요.",
+   "넷이 동시에 크게 노래하자 {frightened|겁에 질린} 사람들이 숲으로 달아났어요.",
+   "넷은 그 집에 {settle|자리를 잡고} 매일 밤 연주회를 열었어요.",
+   "마을 사람들은 그 집을 세상에서 제일 시끄러운 공연장이라고 불렀어요."
+  ],
+  "pic": {
+   "old": "an old gray donkey with drooping ears struggling to carry heavy sacks",
+   "useless": "a farmer shaking his head and frowning at the tired old donkey",
+   "leave": "the old donkey walking away down a country road with a small bundle, the farm behind it",
+   "meet": "the donkey meeting a dog, a cat and a rooster one by one on the road",
+   "band": "the donkey, dog, cat and rooster playing instruments together as a funny animal band",
+   "thief": "a group of robbers feasting at a table inside a cottage at night, seen through a lit window",
+   "frightened": "frightened robbers running out of the cottage into the dark woods as the animals sing loudly",
+   "settle": "the four animals relaxing happily inside the cozy cottage by the fireplace"
+  }
+ },
+ {
+  "t": "꼬마 소방관의 첫 출동",
+  "plan": "꼬마 소방관 소방이가 첫 출동에서 연기 속에 갇힌 아기 고양이를 안고 내려와요.",
+  "w": [
+   [
+    "alarm bell",
+    "비상벨",
+    "n"
+   ],
+   [
+    "rush",
+    "달려가다",
+    "v"
+   ],
+   [
+    "ladder",
+    "사다리",
+    "n"
+   ],
+   [
+    "climb up",
+    "기어오르다",
+    "v"
+   ],
+   [
+    "stuck",
+    "갇힌",
+    "a"
+   ],
+   [
+    "hold",
+    "꼭 안다",
+    "v"
+   ],
+   [
+    "thank",
+    "고마워하다",
+    "v"
+   ],
+   [
+    "satisfied",
+    "뿌듯한",
+    "a"
+   ]
+  ],
+  "l": [
+   "꼬마 소방관 소방이는 오늘 처음으로 출동을 기다렸어요.",
+   "그때 소방서에 따르릉 {alarm bell|비상벨}이 울렸어요.",
+   "소방이는 소방차를 타고 불이 난 곳으로 {rush|달려갔어요}.",
+   "소방이는 아파트 벽에 기다란 {ladder|사다리}를 세웠어요.",
+   "소방이는 삼 층 창문까지 씩씩하게 {climb up|기어올랐어요}.",
+   "창문 안에는 연기 때문에 못 나온 아기 고양이가 {stuck|갇힌} 채 울고 있었어요.",
+   "소방이는 고양이를 품에 {hold|꼭 안고} 천천히 내려왔어요.",
+   "고양이 주인 할머니는 눈물을 글썽이며 몇 번이나 {thank|고마워했어요}.",
+   "소방이는 {satisfied|뿌듯한} 얼굴로 소방서에 돌아왔어요.",
+   "그날 밤 소방이의 침대 옆에는 고양이 그림이 붙어 있었어요."
+  ],
+  "pic": {
+   "alarm bell": "a red alarm bell ringing loudly on the wall of a fire station",
+   "rush": "a little firefighter in a yellow helmet rushing to a red fire truck with its lights flashing",
+   "ladder": "the little firefighter leaning a long ladder against an apartment building",
+   "climb up": "the little firefighter climbing up the ladder toward a third floor window",
+   "stuck": "a tiny kitten stuck on a windowsill with light gray smoke behind it, meowing",
+   "hold": "the little firefighter hugging the kitten close while carefully climbing down",
+   "thank": "an old grandmother with tears of joy thanking the little firefighter and holding her kitten",
+   "satisfied": "the little firefighter smiling proudly and sitting on the fire truck at sunset"
+  }
+ },
+ {
+  "t": "어부와 황금 물고기",
+  "plan": "가난한 어부 할아버지가 그물에 걸린 황금 물고기를 바다로 풀어 주고 비늘 하나에 만족해요.",
+  "w": [
+   [
+    "fisherman",
+    "어부",
+    "n"
+   ],
+   [
+    "net",
+    "그물",
+    "n"
+   ],
+   [
+    "beg",
+    "애원하다",
+    "v"
+   ],
+   [
+    "release",
+    "풀어 주다",
+    "v"
+   ],
+   [
+    "grumble",
+    "투덜거리다",
+    "v"
+   ],
+   [
+    "content",
+    "만족하는",
+    "a"
+   ]
+  ],
+  "l": [
+   "바닷가 오두막에 가난한 할아버지와 할머니가 살았어요.",
+   "할아버지는 날마다 고기를 잡는 {fisherman|어부}였어요.",
+   "어느 날 할아버지의 {net|그물}에 황금 물고기가 걸렸어요.",
+   "물고기는 바다로 돌려보내 달라고 눈물을 흘리며 {beg|애원했어요}.",
+   "마음 착한 할아버지는 물고기를 바다로 {release|풀어 주었어요}.",
+   "할머니는 소원도 안 빌고 놓아줬다며 {grumble|투덜거렸어요}.",
+   "하지만 할아버지는 물고기가 준 비늘 하나만으로도 {content|만족하는} 얼굴이었어요.",
+   "그 비늘은 밤마다 반짝여서 두 사람의 오두막을 등대처럼 밝혀 주었어요."
+  ],
+  "pic": {
+   "fisherman": "an old fisherman with a white beard rowing a small wooden boat on the sea",
+   "net": "a shining golden fish caught in the old fisherman's fishing net",
+   "beg": "the golden fish with big teary eyes begging the old fisherman to let it go",
+   "release": "the old fisherman gently releasing the golden fish back into the sea",
+   "grumble": "an old woman with crossed arms grumbling at the fisherman in their small hut",
+   "content": "the old fisherman smiling happily and holding up a single glittering golden scale"
+  }
+ },
+ {
+  "t": "첫눈 오는 날의 눈사람",
+  "plan": "첫눈 오는 날 남매가 눈사람을 만들었는데 다음 날 해가 나자 작아져서 슬퍼해요.",
+  "w": [
+   [
+    "snowflake",
+    "눈송이",
+    "n"
+   ],
+   [
+    "roll",
+    "굴리다",
+    "v"
+   ],
+   [
+    "stack",
+    "쌓다",
+    "v"
+   ],
+   [
+    "decorate",
+    "꾸미다",
+    "v"
+   ],
+   [
+    "chilly",
+    "쌀쌀한",
+    "a"
+   ],
+   [
+    "sad",
+    "슬픈",
+    "a"
+   ]
+  ],
+  "l": [
+   "아침에 일어난 남매는 창밖을 보고 소리를 질렀어요.",
+   "하늘에서 커다란 {snowflake|눈송이}가 펑펑 내리고 있었어요.",
+   "남매는 마당에서 눈덩이를 데굴데굴 {roll|굴렸어요}.",
+   "커다란 눈덩이 두 개를 위아래로 {stack|쌓았어요}.",
+   "단추와 목도리로 눈사람을 예쁘게 {decorate|꾸몄어요}.",
+   "그날 밤은 무척 {chilly|쌀쌀한} 밤이라 남매는 눈사람 걱정에 창밖을 내다봤어요.",
+   "다음 날 해가 나자 눈사람이 작아져서 남매는 {sad|슬픈} 얼굴이 되었어요.",
+   "엄마는 남은 눈을 냉동실에 넣어 여름에 꺼내 주겠다고 약속했어요."
+  ],
+  "pic": {
+   "snowflake": "big fluffy snowflakes falling outside a window, a brother and sister pressing their faces to the glass",
+   "roll": "a brother and sister in red mittens rolling big snowballs across a snowy yard",
+   "stack": "the brother and sister lifting one snowball on top of another",
+   "decorate": "the children decorating a snowman with button eyes, a carrot nose and a striped scarf",
+   "chilly": "the snowman standing alone in the cold blue night with frost on the window",
+   "sad": "the brother and sister looking sadly at a small melting snowman in the sunshine"
+  }
+ },
+ {
+  "t": "고슴도치 미용실",
+  "plan": "숲속 미용실의 고슴도치가 곱슬곱슬한 양털을 멋지게 다듬어 손님이 늘어나요.",
+  "w": [
+   [
+    "hairdresser",
+    "미용사",
+    "n"
+   ],
+   [
+    "comb",
+    "빗다",
+    "v"
+   ],
+   [
+    "curly",
+    "곱슬곱슬한",
+    "a"
+   ],
+   [
+    "trim",
+    "다듬다",
+    "v"
+   ],
+   [
+    "fancy",
+    "멋진",
+    "a"
+   ],
+   [
+    "recommend",
+    "추천하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "숲속에 고슴도치가 운영하는 작은 미용실이 있었어요.",
+   "고슴도치는 숲에서 가장 솜씨 좋은 {hairdresser|미용사}였어요.",
+   "첫 손님인 양의 털을 고슴도치는 정성껏 {comb|빗었어요}.",
+   "양의 털은 너무 {curly|곱슬곱슬한} 털이라 빗이 자꾸 걸렸어요.",
+   "고슴도치는 가위로 털끝을 조금씩 {trim|다듬었어요}.",
+   "거울을 본 양은 구름 같은 {fancy|멋진} 머리가 마음에 쏙 들었어요.",
+   "양은 친구들에게 그 미용실을 {recommend|추천했어요}.",
+   "다음 날부터 미용실 앞에는 털 많은 동물들이 줄을 섰어요."
+  ],
+  "pic": {
+   "hairdresser": "a hedgehog hairdresser wearing an apron in a tiny cozy forest hair salon",
+   "comb": "the hedgehog combing the wool of a sheep sitting in a salon chair",
+   "curly": "a sheep with extremely curly wool, a comb stuck in it",
+   "trim": "the hedgehog trimming the sheep's wool with small scissors, bits of wool flying",
+   "fancy": "the sheep admiring its fancy fluffy cloud-shaped hairstyle in a mirror",
+   "recommend": "the happy sheep talking to its animal friends and pointing toward the hedgehog's salon"
+  }
+ },
+ {
+  "t": "견우와 직녀의 다리",
+  "plan": "사랑에 빠져 일을 잊은 견우와 직녀가 은하수로 갈라졌다가 까치 다리에서 다시 만나요.",
+  "w": [
+   [
+    "weave",
+    "베를 짜다",
+    "v"
+   ],
+   [
+    "herdsman",
+    "목동",
+    "n"
+   ],
+   [
+    "fall in love",
+    "사랑에 빠지다",
+    "v"
+   ],
+   [
+    "separate",
+    "갈라놓다",
+    "v"
+   ],
+   [
+    "magpie",
+    "까치",
+    "n"
+   ],
+   [
+    "reunite",
+    "다시 만나다",
+    "v"
+   ]
+  ],
+  "l": [
+   "하늘나라 임금님에게는 솜씨 좋은 딸 직녀가 있었어요.",
+   "직녀는 날마다 고운 비단을 만들려고 {weave|베를 짰어요}.",
+   "어느 날 직녀는 소를 치는 {herdsman|목동} 견우를 만났어요.",
+   "두 사람은 첫눈에 {fall in love|사랑에 빠졌어요}.",
+   "둘이 일을 잊고 놀기만 하자 임금님은 은하수로 둘을 {separate|갈라놓았어요}.",
+   "그 모습을 본 {magpie|까치}들이 날개를 이어 은하수에 다리를 놓았어요.",
+   "그 다리 위에서 두 사람은 일 년에 한 번 {reunite|다시 만났어요}.",
+   "그래서 그날이 되면 하늘에서 반가운 눈물 같은 비가 내린대요."
+  ],
+  "pic": {
+   "weave": "a young woman in a flowing hanbok weaving shiny silk on a wooden loom in a palace in the sky",
+   "herdsman": "a young herdsman leading a brown cow across a green field",
+   "fall in love": "the weaver and the herdsman looking at each other shyly with hearts floating between them",
+   "separate": "a wide sparkling river of stars flowing between the weaver and the herdsman, both reaching out",
+   "magpie": "hundreds of black and white magpies flying together in the night sky",
+   "reunite": "the weaver and the herdsman meeting on a bridge made of magpies over the starry river"
+  }
+ },
+ {
+  "t": "로봇 청소기의 밤",
+  "plan": "로봇 청소기가 소파 밑에서 레고 조각을 삼켜 밤새 삐삐거리자 아빠가 먼지 통을 비워요.",
+  "w": [
+   [
+    "vacuum",
+    "청소기",
+    "n"
+   ],
+   [
+    "bump into",
+    "부딪치다",
+    "v"
+   ],
+   [
+    "corner",
+    "구석",
+    "n"
+   ],
+   [
+    "swallow",
+    "삼키다",
+    "v"
+   ],
+   [
+    "beep",
+    "삐삐거리다",
+    "v"
+   ],
+   [
+    "empty",
+    "비우다",
+    "v"
+   ]
+  ],
+  "l": [
+   "우리 집 로봇은 매일 밤 혼자서 집 안을 돌아다녔어요.",
+   "그 로봇은 동그란 {vacuum|청소기}였어요.",
+   "로봇은 어두운 거실에서 의자 다리에 쿵 {bump into|부딪쳤어요}.",
+   "방향을 바꾼 로봇은 소파 밑 {corner|구석}으로 들어갔어요.",
+   "그곳에서 로봇은 잃어버린 레고 조각을 꿀꺽 {swallow|삼켰어요}.",
+   "배가 아픈 로봇은 밤새 {beep|삐삐거렸어요}.",
+   "아침에 일어난 아빠가 로봇의 먼지 통을 {empty|비웠어요}.",
+   "레고 조각을 되찾은 동생은 로봇에게 고맙다고 뽀뽀했어요."
+  ],
+  "pic": {
+   "vacuum": "a round robot vacuum cleaner gliding across a dark living room floor at night",
+   "bump into": "the robot vacuum bumping into a wooden chair leg",
+   "corner": "the robot vacuum squeezing into a dusty corner under the sofa",
+   "swallow": "a small red toy brick being sucked into the robot vacuum",
+   "beep": "the robot vacuum flashing red lights and beeping in the dark",
+   "empty": "a dad in pajamas emptying the robot vacuum's dust bin, a red toy brick falling out"
+  }
+ },
+ {
+  "t": "시골 쥐의 선택",
+  "plan": "시골 쥐가 도시 쥐의 집에서 진수성찬을 보았지만 고양이에게 쫓겨나 소박한 밥을 더 좋아하게 돼요.",
+  "w": [
+   [
+    "humble",
+    "소박한",
+    "a"
+   ],
+   [
+    "stay",
+    "머물다",
+    "v"
+   ],
+   [
+    "huge",
+    "거대한",
+    "a"
+   ],
+   [
+    "feast",
+    "진수성찬",
+    "n"
+   ],
+   [
+    "chase away",
+    "쫓아내다",
+    "v"
+   ],
+   [
+    "prefer",
+    "더 좋아하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "시골 쥐는 도시에 사는 사촌 쥐를 집으로 불렀어요.",
+   "시골 쥐는 보리와 콩으로 {humble|소박한} 밥상을 차렸어요.",
+   "며칠 뒤에는 시골 쥐가 도시 쥐의 집에 {stay|머물렀어요}.",
+   "도시 쥐의 집은 {huge|거대한} 저택의 부엌 구석이었어요.",
+   "식탁에는 케이크와 치즈가 가득한 {feast|진수성찬}이 차려져 있었어요.",
+   "그런데 고양이가 나타나 두 쥐를 부엌에서 {chase away|쫓아냈어요}.",
+   "시골 쥐는 마음 편히 먹는 보리밥을 {prefer|더 좋아했어요}.",
+   "다음 날 시골 쥐는 도시 쥐에게 손을 흔들고 들판으로 돌아갔어요."
+  ],
+  "pic": {
+   "humble": "a country mouse setting out a simple meal of barley and beans on a wooden table in a field burrow",
+   "stay": "the country mouse with a small suitcase arriving to stay at the city mouse's home",
+   "huge": "two tiny mice standing in front of a huge fancy mansion",
+   "feast": "a long table full of cakes, cheese and fruit, the two mice staring with wide eyes",
+   "chase away": "a big cat chasing the two mice out of the mansion kitchen",
+   "prefer": "the country mouse happily eating barley rice in its cozy field home"
+  }
+ },
+ {
+  "t": "빨간 암탉의 빵",
+  "plan": "빨간 암탉이 혼자 밀을 심고 키워 빵을 굽자 냄새를 맡은 친구들이 몰려와요.",
+  "w": [
+   [
+    "plant",
+    "심다",
+    "v"
+   ],
+   [
+    "water",
+    "물을 주다",
+    "v"
+   ],
+   [
+    "ripe",
+    "잘 익은",
+    "a"
+   ],
+   [
+    "grind",
+    "빻다",
+    "v"
+   ],
+   [
+    "knead",
+    "반죽하다",
+    "v"
+   ],
+   [
+    "fresh",
+    "갓 구운",
+    "a"
+   ],
+   [
+    "sniff",
+    "킁킁거리다",
+    "v"
+   ]
+  ],
+  "l": [
+   "빨간 암탉은 마당에서 밀알 몇 개를 주웠어요.",
+   "암탉은 친구들에게 같이 하자고 했지만 혼자 밀알을 {plant|심었어요}.",
+   "날마다 암탉은 혼자 새싹에 {water|물을 주었어요}.",
+   "가을이 되자 밭에는 {ripe|잘 익은} 밀이 황금빛으로 출렁였어요.",
+   "암탉은 방앗간에서 밀을 곱게 {grind|빻았어요}.",
+   "암탉은 밀가루에 물을 부어 {knead|반죽했어요}.",
+   "오븐에서 {fresh|갓 구운} 빵 냄새가 마당에 퍼졌어요.",
+   "그제야 고양이와 개와 오리가 코를 {sniff|킁킁거렸어요}.",
+   "암탉은 웃으며 내일은 같이 밭부터 갈자고 빵을 조금씩 나눠 주었어요."
+  ],
+  "pic": {
+   "plant": "a little red hen planting wheat seeds in a garden while a cat, a dog and a duck nap nearby",
+   "water": "the red hen watering tiny green sprouts with a small watering can",
+   "ripe": "a field of ripe golden wheat swaying in the autumn wind, the red hen smiling",
+   "grind": "the red hen grinding wheat into flour at an old stone mill",
+   "knead": "the red hen kneading soft bread dough on a floured table",
+   "fresh": "a loaf of fresh golden bread coming out of the oven with warm steam",
+   "sniff": "a cat, a dog and a duck sniffing the air with their eyes closed outside the kitchen window"
+  }
+ },
+ {
+  "t": "우주 식당의 첫 손님",
+  "plan": "우주 식당에 온 외계인 손님이 별가루 볶음밥을 먹고 식당을 크게 칭찬해요.",
+  "w": [
+   [
+    "alien",
+    "외계인",
+    "n"
+   ],
+   [
+    "order",
+    "주문하다",
+    "v"
+   ],
+   [
+    "unusual",
+    "특이한",
+    "a"
+   ],
+   [
+    "chef",
+    "요리사",
+    "n"
+   ],
+   [
+    "chew",
+    "씹다",
+    "v"
+   ],
+   [
+    "tentacle",
+    "촉수",
+    "n"
+   ],
+   [
+    "compliment",
+    "칭찬하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "달 기지 옆에 작은 우주 식당이 문을 열었어요.",
+   "첫 손님으로 초록색 {alien|외계인}이 들어왔어요.",
+   "손님은 메뉴판에 없는 운석 볶음밥을 {order|주문했어요}.",
+   "그 손님은 무척 {unusual|특이한} 입맛을 가지고 있었어요.",
+   "당황한 {chef|요리사}는 별가루와 돌멩이 모양 사탕으로 볶음밥을 만들었어요.",
+   "손님은 볶음밥을 오도독오도독 {chew|씹었어요}.",
+   "그러고는 기다란 {tentacle|촉수}로 엄지척을 해 보였어요.",
+   "손님은 우주 최고의 맛이라며 식당을 크게 {compliment|칭찬했어요}.",
+   "그 뒤로 식당에는 은하계 곳곳에서 손님들이 찾아왔어요."
+  ],
+  "pic": {
+   "alien": "a cute green alien with three eyes walking into a small diner on the moon",
+   "order": "the green alien pointing at a menu and ordering from a nervous waiter robot",
+   "unusual": "the green alien sprinkling pebbles onto its plate while the waiter robot looks puzzled",
+   "chef": "a chef in a tall white hat making fried rice with sparkling star powder in a wok",
+   "chew": "the green alien crunching and chewing rock-shaped candy fried rice",
+   "tentacle": "the green alien giving a thumbs up with a long wiggly tentacle",
+   "compliment": "the green alien clapping with its tentacles and praising the blushing chef"
+  }
+ },
+ {
+  "t": "근심 많은 어머니",
+  "plan": "우산 장수와 짚신 장수 두 아들 때문에 날마다 걱정하던 어머니가 이웃의 조언으로 늘 웃게 돼요.",
+  "w": [
+   [
+    "son",
+    "아들",
+    "n"
+   ],
+   [
+    "umbrella",
+    "우산",
+    "n"
+   ],
+   [
+    "straw sandals",
+    "짚신",
+    "n"
+   ],
+   [
+    "worry",
+    "걱정하다",
+    "v"
+   ],
+   [
+    "sunny",
+    "맑은",
+    "a"
+   ],
+   [
+    "rainy",
+    "비 오는",
+    "a"
+   ],
+   [
+    "advice",
+    "조언",
+    "n"
+   ]
+  ],
+  "l": [
+   "어느 마을에 근심이 끊이지 않는 어머니가 살았어요.",
+   "어머니에게는 장사를 하는 두 {son|아들}이 있었어요.",
+   "큰아들은 시장에서 {umbrella|우산}을 팔았어요.",
+   "작은아들은 장터에서 {straw sandals|짚신}을 팔았어요.",
+   "어머니는 날마다 두 사람의 장사를 {worry|걱정했어요}.",
+   "{sunny|맑은} 날에는 큰아들의 물건이 안 팔릴까 봐 한숨을 쉬었어요.",
+   "{rainy|비 오는} 날에는 작은아들의 물건이 안 팔릴까 봐 한숨을 쉬었어요.",
+   "이웃 할머니가 날마다 좋은 쪽을 떠올려 보라고 {advice|조언}을 했어요.",
+   "생각을 바꾸자 어머니는 비가 와도 해가 떠도 늘 웃으며 지냈어요."
+  ],
+  "pic": {
+   "son": "an old Korean mother in a hanbok standing between her two grown sons",
+   "umbrella": "the older son selling colorful paper umbrellas at a market stall",
+   "straw sandals": "the younger son selling handmade straw sandals at a market stall",
+   "worry": "the mother sitting on the porch with a worried face, her chin in her hand",
+   "sunny": "a bright sunny day with nobody buying umbrellas at the older son's stall",
+   "rainy": "a rainy day with nobody buying straw sandals at the younger son's stall",
+   "advice": "a kind neighbor grandmother patting the mother's hand and giving her advice over tea"
+  }
+ },
+ {
+  "t": "꼬마 모험가의 정글",
+  "plan": "동물원 정글을 탐험하던 준이가 길을 잃자 말을 따라 하는 앵무새 덕분에 아빠를 만나요.",
+  "w": [
+   [
+    "jungle",
+    "정글",
+    "n"
+   ],
+   [
+    "explore",
+    "탐험하다",
+    "v"
+   ],
+   [
+    "vine",
+    "덩굴",
+    "n"
+   ],
+   [
+    "swing",
+    "흔들다",
+    "v"
+   ],
+   [
+    "parrot",
+    "앵무새",
+    "n"
+   ],
+   [
+    "copy",
+    "따라 하다",
+    "v"
+   ],
+   [
+    "lost",
+    "길을 잃은",
+    "a"
+   ]
+  ],
+  "l": [
+   "꼬마 모험가 준이는 아빠와 함께 동물원에 갔어요.",
+   "동물원 한가운데에는 커다란 실내 {jungle|정글}이 있었어요.",
+   "준이는 나뭇잎 사이를 헤치며 구석구석 {explore|탐험했어요}.",
+   "높은 나무에는 굵은 {vine|덩굴}이 치렁치렁 늘어져 있었어요.",
+   "준이는 그것을 잡고 힘껏 {swing|흔들었어요}.",
+   "그러자 나무 위에서 알록달록한 {parrot|앵무새}가 푸드덕 날아올랐어요.",
+   "그 새는 준이의 말을 그대로 {copy|따라 했어요}.",
+   "신나게 놀다 보니 준이는 그만 {lost|길을 잃은} 처지가 되었어요.",
+   "그때 새가 아빠를 부르는 준이 목소리를 크게 흉내 내서 아빠가 달려왔어요."
+  ],
+  "pic": {
+   "jungle": "a big indoor jungle with tall trees and hanging plants inside a glass dome at a zoo",
+   "explore": "a little boy in a safari hat exploring the jungle path and pushing big leaves aside",
+   "vine": "thick green vines hanging down from tall jungle trees",
+   "swing": "the little boy in a safari hat swinging on a thick vine",
+   "parrot": "a colorful parrot flying up from a tree branch",
+   "copy": "the colorful parrot opening its beak and copying the boy's voice while the boy laughs",
+   "lost": "the little boy standing alone among tall jungle plants and looking around, lost"
+  }
+ },
+ {
+  "t": "개미와 비둘기",
+  "plan": "비둘기가 던져 준 나뭇잎 덕분에 살아난 개미가 사냥꾼의 발을 물어 은혜를 갚아요.",
+  "w": [
+   [
+    "thirsty",
+    "목마른",
+    "a"
+   ],
+   [
+    "stream",
+    "시냇물",
+    "n"
+   ],
+   [
+    "sweep away",
+    "떠내려가다",
+    "v"
+   ],
+   [
+    "leaf",
+    "나뭇잎",
+    "n"
+   ],
+   [
+    "grab",
+    "붙잡다",
+    "v"
+   ],
+   [
+    "hunter",
+    "사냥꾼",
+    "n"
+   ],
+   [
+    "bite",
+    "물다",
+    "v"
+   ],
+   [
+    "repay",
+    "은혜를 갚다",
+    "v"
+   ]
+  ],
+  "l": [
+   "무더운 여름날 개미 한 마리가 물을 찾아 헤맸어요.",
+   "{thirsty|목마른} 개미는 마침내 졸졸 흐르는 물가에 닿았어요.",
+   "개미가 물을 마시려다 그만 {stream|시냇물}에 빠졌어요.",
+   "개미는 빠른 물살에 둥둥 {sweep away|떠내려갔어요}.",
+   "그 모습을 본 비둘기가 {leaf|나뭇잎} 하나를 물 위로 툭 던져 주었어요.",
+   "개미는 그 잎을 꼭 {grab|붙잡고} 물가로 나왔어요.",
+   "며칠 뒤 숲에 그물을 든 {hunter|사냥꾼}이 비둘기를 노렸어요.",
+   "개미는 그 사람의 발뒤꿈치를 따끔하게 {bite|물었어요}.",
+   "덕분에 비둘기는 무사히 날아갔고, 개미는 {repay|은혜를 갚았어요}.",
+   "그 뒤로 둘은 숲에서 가장 든든한 친구가 되었어요."
+  ],
+  "pic": {
+   "thirsty": "a tiny ant panting under a hot sun, looking for water",
+   "stream": "the tiny ant falling into a clear rushing stream",
+   "sweep away": "the tiny ant being swept away by the fast current of the stream",
+   "leaf": "a white dove dropping a green leaf onto the water near the ant",
+   "grab": "the tiny ant grabbing onto the green leaf and floating to the shore",
+   "hunter": "a hunter with a big net sneaking up on a white dove in a tree",
+   "bite": "the tiny ant biting the hunter's heel and the hunter jumping in surprise",
+   "repay": "the white dove flying away safely and smiling back at the tiny ant"
+  }
+ },
+ {
+  "t": "토끼의 재판",
+  "plan": "함정에서 구해 준 나그네를 배신한 호랑이가 지혜로운 토끼의 꾀에 다시 함정으로 들어가요.",
+  "w": [
+   [
+    "traveler",
+    "나그네",
+    "n"
+   ],
+   [
+    "trap",
+    "함정",
+    "n"
+   ],
+   [
+    "plead",
+    "간청하다",
+    "v"
+   ],
+   [
+    "pull out",
+    "꺼내 주다",
+    "v"
+   ],
+   [
+    "ungrateful",
+    "배은망덕한",
+    "a"
+   ],
+   [
+    "unfair",
+    "억울한",
+    "a"
+   ],
+   [
+    "wise",
+    "지혜로운",
+    "a"
+   ],
+   [
+    "demonstrate",
+    "직접 보여 주다",
+    "v"
+   ]
+  ],
+  "l": [
+   "깊은 산속에서 호랑이가 커다란 구덩이에 빠졌어요.",
+   "마침 지나가던 {traveler|나그네}가 울부짖는 소리를 들었어요.",
+   "호랑이가 빠진 곳은 사람이 파 놓은 깊은 {trap|함정}이었어요.",
+   "호랑이는 은혜를 꼭 갚겠다며 눈물로 {plead|간청했어요}.",
+   "마음 약한 그 사람은 나뭇가지를 내려 호랑이를 {pull out|꺼내 주었어요}.",
+   "밖으로 나온 {ungrateful|배은망덕한} 호랑이는 그 사람의 도시락을 몽땅 내놓으라고 했어요.",
+   "{unfair|억울한} 젊은이는 지나가던 토끼에게 누가 옳은지 물었어요.",
+   "{wise|지혜로운} 토끼는 처음에 어떻게 된 일인지 다시 보여 달라고 했어요.",
+   "호랑이가 신이 나서 구덩이로 뛰어들어 처음 모습을 {demonstrate|직접 보여 주었어요}.",
+   "토끼와 젊은이는 도시락을 나눠 먹으며 산을 내려왔어요."
+  ],
+  "pic": {
+   "traveler": "a young traveler with a straw hat and a lunch bundle walking along a mountain path",
+   "trap": "a tiger at the bottom of a deep pit trap in the forest floor",
+   "plead": "the tiger in the pit with teary eyes pleading with folded paws",
+   "pull out": "the traveler lowering a long tree branch to pull the tiger out of the pit",
+   "ungrateful": "the tiger out of the pit grabbing the traveler's lunch bundle with a greedy grin",
+   "unfair": "the traveler looking upset and stamping his foot at the tiger",
+   "wise": "a clever white rabbit with glasses stroking its chin thoughtfully",
+   "demonstrate": "the tiger jumping back into the pit to show what happened while the rabbit winks"
+  }
+ },
+ {
+  "t": "이상한 나라의 앨리스",
+  "plan": "토끼굴에 빠진 앨리스가 작아지고 커지다가 모자 장수의 이상한 다과회에 끼어요.",
+  "w": [
+   [
+    "rabbit hole",
+    "토끼굴",
+    "n"
+   ],
+   [
+    "shrink",
+    "작아지다",
+    "v"
+   ],
+   [
+    "grow",
+    "커지다",
+    "v"
+   ],
+   [
+    "tea party",
+    "다과회",
+    "n"
+   ],
+   [
+    "rude",
+    "무례한",
+    "a"
+   ],
+   [
+    "confusing",
+    "헷갈리는",
+    "a"
+   ]
+  ],
+  "l": [
+   "앨리스는 조끼를 입고 시계를 든 하얀 토끼를 따라 달렸어요.",
+   "토끼는 나무 밑 {rabbit hole|토끼굴}로 쏙 들어갔어요.",
+   "앨리스가 병 속 물약을 마시자 몸이 개미만큼 {shrink|작아졌어요}.",
+   "이번에는 과자를 먹자 몸이 천장까지 {grow|커졌어요}.",
+   "앨리스는 모자 장수의 이상한 {tea party|다과회}에 끼게 되었어요.",
+   "모자 장수는 자리가 없다며 {rude|무례한} 말을 늘어놓았어요.",
+   "수수께끼만 오가는 {confusing|헷갈리는} 대화에 앨리스는 머리가 빙빙 돌았어요.",
+   "눈을 떠 보니 앨리스는 언니 무릎을 베고 풀밭에 누워 있었어요."
+  ],
+  "pic": {
+   "rabbit hole": "a girl in a blue dress peering into a deep rabbit hole under a big tree",
+   "shrink": "the girl in a blue dress shrinking to the size of an ant next to a giant bottle",
+   "grow": "the girl in a blue dress growing so tall that her head touches the ceiling",
+   "tea party": "a long messy tea party table in a garden with teapots, cups and a man in a tall hat",
+   "rude": "the man in a tall hat waving the girl away rudely from the table",
+   "confusing": "the girl in a blue dress with dizzy eyes as teacups and question marks spin around her"
+  }
+ },
+ {
+  "t": "무지개 물고기",
+  "plan": "반짝이는 비늘을 뽐내던 무지개 물고기가 비늘을 나누어 주고 친구들과 행복해져요.",
+  "w": [
+   [
+    "shiny",
+    "반짝이는",
+    "a"
+   ],
+   [
+    "scale",
+    "비늘",
+    "n"
+   ],
+   [
+    "boast",
+    "뽐내다",
+    "v"
+   ],
+   [
+    "give away",
+    "나누어 주다",
+    "v"
+   ],
+   [
+    "ordinary",
+    "평범한",
+    "a"
+   ],
+   [
+    "happy",
+    "행복한",
+    "a"
+   ]
+  ],
+  "l": [
+   "깊은 바다에 무지개 빛깔 물고기가 살았어요.",
+   "그 물고기는 바다에서 가장 {shiny|반짝이는} 물고기였어요.",
+   "몸에는 은빛 {scale|비늘}이 가득 덮여 있었어요.",
+   "물고기는 친구들 앞에서 늘 자기 모습을 {boast|뽐냈어요}.",
+   "친구들이 다 떠나자 물고기는 은빛 조각을 하나씩 친구들에게 {give away|나누어 주었어요}.",
+   "이제 물고기는 다른 친구들과 비슷한 {ordinary|평범한} 모습이 되었어요.",
+   "하지만 함께 헤엄칠 친구가 생겨서 물고기는 무척 {happy|행복했어요}.",
+   "그날 밤 바다 곳곳에서 작은 무지개 빛이 춤을 추었어요."
+  ],
+  "pic": {
+   "shiny": "a beautiful rainbow fish with sparkling shiny scales in the deep blue sea",
+   "scale": "close-up of glittering silver and rainbow scales on the side of the fish",
+   "boast": "the rainbow fish showing off proudly with its nose up in front of plain little fish",
+   "give away": "the rainbow fish giving one sparkling scale to a small blue fish",
+   "ordinary": "the rainbow fish now looking plain like the other fish, with only one shiny scale left",
+   "happy": "the rainbow fish swimming happily with a group of fish friends, each with one shiny scale"
+  }
+ },
+ {
+  "t": "토르의 망치 찾기",
+  "plan": "망치를 잃어버린 토르가 로키의 꾀로 신부로 꾸며 거인에게서 망치를 되찾아요.",
+  "w": [
+   [
+    "hammer",
+    "망치",
+    "n"
+   ],
+   [
+    "thunder",
+    "천둥",
+    "n"
+   ],
+   [
+    "furious",
+    "몹시 화가 난",
+    "a"
+   ],
+   [
+    "trick",
+    "꾀를 내다",
+    "v"
+   ],
+   [
+    "bride",
+    "신부",
+    "n"
+   ],
+   [
+    "veil",
+    "면사포",
+    "n"
+   ],
+   [
+    "snatch",
+    "낚아채다",
+    "v"
+   ]
+  ],
+  "l": [
+   "아침에 일어난 토르는 머리맡을 보고 깜짝 놀랐어요.",
+   "아끼던 {hammer|망치}가 감쪽같이 사라졌거든요.",
+   "그날은 하늘에서 {thunder|천둥}도 치지 않았어요.",
+   "거인이 그것을 숨겼다는 걸 알고 토르는 {furious|몹시 화가 난} 얼굴이 되었어요.",
+   "친구 로키가 한 가지 {trick|꾀를 냈어요}.",
+   "토르는 거인과 결혼할 {bride|신부}로 꾸며 거인의 집에 갔어요.",
+   "토르는 수염을 가리려고 커다란 {veil|면사포}를 썼어요.",
+   "거인이 결혼 선물을 꺼내자 토르는 그것을 번개처럼 {snatch|낚아챘어요}.",
+   "그날 밤 하늘에서는 우르릉 쾅쾅 신나는 소리가 울렸어요."
+  ],
+  "pic": {
+   "hammer": "an empty stand where a big silver hammer should be, next to a sleepy red-bearded man's bed",
+   "thunder": "a calm gray sky with no lightning over a Viking village, people looking up puzzled",
+   "furious": "the big red-bearded man with a furious red face stomping his feet",
+   "trick": "a sly man in a green cape grinning and sharing a clever plan with the red-bearded man",
+   "bride": "the big red-bearded man wearing a white wedding dress and looking embarrassed",
+   "veil": "the red-bearded man hiding his beard under a long white lace veil",
+   "snatch": "the man in the wedding dress quickly snatching a silver hammer from a surprised giant"
+  }
+ },
+ {
+  "t": "우리 반 반장 선거",
+  "plan": "우리 반 반장 선거에서 약속을 잘 지키는 하은이가 뽑혀 책임감 있는 반장이 돼요.",
+  "w": [
+   [
+    "election",
+    "선거",
+    "n"
+   ],
+   [
+    "candidate",
+    "후보",
+    "n"
+   ],
+   [
+    "speech",
+    "연설",
+    "n"
+   ],
+   [
+    "vote",
+    "투표하다",
+    "v"
+   ],
+   [
+    "elect",
+    "뽑다",
+    "v"
+   ],
+   [
+    "responsible",
+    "책임감 있는",
+    "a"
+   ]
+  ],
+  "l": [
+   "새 학기가 되자 우리 반은 반장을 정하기로 했어요.",
+   "금요일에 반장 {election|선거}가 열렸어요.",
+   "{candidate|후보}로 나온 친구는 수줍음 많은 하은이와 말 잘하는 도윤이였어요.",
+   "하은이는 작은 목소리로 짧은 {speech|연설}을 했어요.",
+   "친구들은 쪽지에 이름을 적어 {vote|투표했어요}.",
+   "친구들은 약속을 잘 지키는 하은이를 반장으로 {elect|뽑았어요}.",
+   "하은이는 누구보다 {responsible|책임감 있는} 반장이 되었어요.",
+   "도윤이는 부반장이 되어 하은이를 옆에서 든든하게 도왔어요."
+  ],
+  "pic": {
+   "election": "a classroom on election day with a ballot box on the teacher's desk",
+   "candidate": "a shy girl and a talkative boy standing in front of the class as candidates",
+   "speech": "the shy girl giving a short speech in front of her classmates",
+   "vote": "students dropping folded paper ballots into a ballot box one by one",
+   "elect": "classmates cheering as the shy girl is chosen and the teacher pins a badge on her",
+   "responsible": "the girl with a class president badge carefully helping her classmates and watering the class plants"
+  }
+ },
+ {
+  "t": "할아버지의 괘종시계",
+  "plan": "할아버지와 손자가 멈춘 괘종시계의 태엽을 감자 시계가 다시 울리고 옛이야기가 시작돼요.",
+  "w": [
+   [
+    "antique",
+    "오래된",
+    "a"
+   ],
+   [
+    "tick",
+    "똑딱거리다",
+    "v"
+   ],
+   [
+    "stop",
+    "멈추다",
+    "v"
+   ],
+   [
+    "wind",
+    "태엽을 감다",
+    "v"
+   ],
+   [
+    "chime",
+    "울리다",
+    "v"
+   ],
+   [
+    "memory",
+    "추억",
+    "n"
+   ]
+  ],
+  "l": [
+   "할아버지 댁 거실에는 키가 큰 괘종시계가 서 있었어요.",
+   "그 시계는 할아버지가 태어날 때 산 {antique|오래된} 시계였어요.",
+   "시계는 밤낮으로 {tick|똑딱거렸어요}.",
+   "그런데 어느 날 시계가 갑자기 {stop|멈췄어요}.",
+   "손자는 할아버지와 함께 시계 {wind|태엽을 감았어요}.",
+   "다시 움직인 시계가 뎅뎅 {chime|울렸어요}.",
+   "할아버지는 시계 소리를 들으며 어릴 적 {memory|추억}을 이야기해 주었어요.",
+   "그날 밤 손자는 시계 소리를 자장가 삼아 잠들었어요."
+  ],
+  "pic": {
+   "antique": "a tall old wooden grandfather clock with carved patterns standing in a living room",
+   "tick": "the pendulum of the grandfather clock swinging back and forth",
+   "stop": "the pendulum of the grandfather clock standing still, a boy looking surprised",
+   "wind": "a grandfather and his grandson winding the clock with a small brass key",
+   "chime": "the grandfather clock chiming loudly with musical rings around it",
+   "memory": "the grandfather telling a story, a dreamy bubble showing him as a little boy next to the same clock"
+  }
+ },
+ {
+  "t": "해녀 할머니와 바닷속",
+  "plan": "해녀 할머니와 손녀가 바닷속에 잠수해 문어의 안내로 빛나는 진주를 보아요.",
+  "w": [
+   [
+    "snorkel",
+    "잠수하다",
+    "v"
+   ],
+   [
+    "coral",
+    "산호",
+    "n"
+   ],
+   [
+    "seaweed",
+    "해초",
+    "n"
+   ],
+   [
+    "tangled",
+    "엉킨",
+    "a"
+   ],
+   [
+    "octopus",
+    "문어",
+    "n"
+   ],
+   [
+    "pearl",
+    "진주",
+    "n"
+   ]
+  ],
+  "l": [
+   "여름 바다에서 해녀 할머니와 손녀가 물질을 나갔어요.",
+   "두 사람은 숨을 크게 들이쉬고 바닷속으로 {snorkel|잠수했어요}.",
+   "바닥에는 알록달록한 {coral|산호}가 숲처럼 펼쳐져 있었어요.",
+   "그 사이로 긴 {seaweed|해초}가 너울너울 춤을 추었어요.",
+   "손녀의 발이 {tangled|엉킨} 줄에 걸리자 할머니가 얼른 풀어 주었어요.",
+   "그때 바위틈에서 {octopus|문어}가 다리를 흔들며 나왔어요.",
+   "그 친구가 바위 밑을 가리키자 동그란 {pearl|진주}가 빛나고 있었어요.",
+   "두 사람은 그 보물을 다시 바닷속에 두고 웃으며 물 위로 올라왔어요."
+  ],
+  "pic": {
+   "snorkel": "a Korean sea woman diver in a black wetsuit and her granddaughter diving into clear blue water",
+   "coral": "a colorful coral reef like a forest under the sea",
+   "seaweed": "long green seaweed waving gently in the water",
+   "tangled": "the granddaughter's foot tangled in an old rope underwater, her grandmother untangling it",
+   "octopus": "a friendly orange octopus waving its arms from between rocks",
+   "pearl": "a big round pearl glowing inside an open shell under a rock"
+  }
+ },
+ {
+  "t": "횡단보도의 고양이 경찰",
+  "plan": "횡단보도의 고양이 경찰이 휴대폰을 보며 빨간불에 건너던 강아지를 호루라기로 멈춰 세워요.",
+  "w": [
+   [
+    "traffic light",
+    "신호등",
+    "n"
+   ],
+   [
+    "wait",
+    "기다리다",
+    "v"
+   ],
+   [
+    "careless",
+    "부주의한",
+    "a"
+   ],
+   [
+    "run across",
+    "무단 횡단하다",
+    "v"
+   ],
+   [
+    "whistle",
+    "호루라기를 불다",
+    "v"
+   ],
+   [
+    "safely",
+    "안전하게",
+    "d"
+   ]
+  ],
+  "l": [
+   "학교 앞 횡단보도에는 아이들을 지키는 고양이 경찰이 있었어요.",
+   "고양이 경찰은 빨간 {traffic light|신호등} 아래에 서 있었어요.",
+   "아이들은 초록불이 켜질 때까지 얌전히 {wait|기다렸어요}.",
+   "그런데 {careless|부주의한} 강아지 한 마리가 휴대폰을 보며 걸어왔어요.",
+   "강아지는 빨간불인데도 길을 {run across|무단 횡단했어요}.",
+   "고양이 경찰은 삐익 {whistle|호루라기를 불었어요}.",
+   "강아지는 깜짝 놀라 뒤로 물러섰다가 초록불에 {safely|안전하게} 길을 건넜어요.",
+   "그 뒤로 강아지는 길을 걸을 때 휴대폰을 주머니에 넣었어요."
+  ],
+  "pic": {
+   "traffic light": "a cat police officer in a blue cap standing under a red traffic light at a crosswalk",
+   "wait": "school children waiting patiently at the crosswalk for the light to turn green",
+   "careless": "a puppy staring at its phone and walking without looking",
+   "run across": "the puppy stepping into the crosswalk while the light is red and cars are coming",
+   "whistle": "the cat police officer blowing a whistle loudly with one paw raised",
+   "safely": "the puppy crossing safely on the green light together with the children"
+  }
+ },
+ {
+  "t": "호두까기 인형의 밤",
+  "plan": "크리스마스 밤에 살아난 호두까기 인형과 클라라가 생쥐 왕을 물리치고 과자 나라로 가요.",
+  "w": [
+   [
+    "Christmas",
+    "크리스마스",
+    "n"
+   ],
+   [
+    "nutcracker",
+    "호두까기 인형",
+    "n"
+   ],
+   [
+    "come alive",
+    "살아 움직이다",
+    "v"
+   ],
+   [
+    "mouse king",
+    "생쥐 왕",
+    "n"
+   ],
+   [
+    "battle",
+    "전투",
+    "n"
+   ],
+   [
+    "defeat",
+    "물리치다",
+    "v"
+   ],
+   [
+    "candy kingdom",
+    "과자 나라",
+    "n"
+   ]
+  ],
+  "l": [
+   "눈이 펑펑 오는 밤, 클라라네 집에 손님들이 모였어요.",
+   "그날은 온 가족이 기다리던 {Christmas|크리스마스} 저녁이었어요.",
+   "삼촌은 클라라에게 군인 모양의 {nutcracker|호두까기 인형}을 선물했어요.",
+   "모두 잠든 밤, 인형들이 하나둘 {come alive|살아 움직였어요}.",
+   "그때 부엌에서 왕관을 쓴 {mouse king|생쥐 왕}이 부하들과 나타났어요.",
+   "인형 군대와 생쥐들 사이에 장난감 {battle|전투}가 벌어졌어요.",
+   "클라라가 슬리퍼를 던져 생쥐들을 {defeat|물리쳤어요}.",
+   "인형은 왕자로 변해 클라라를 달콤한 {candy kingdom|과자 나라}로 데려갔어요.",
+   "아침에 깬 클라라는 인형을 꼭 안고 다음 겨울밤을 기다렸어요."
+  ],
+  "pic": {
+   "Christmas": "a cozy living room on Christmas evening with a decorated tree and presents",
+   "nutcracker": "a girl in a nightgown holding a wooden nutcracker soldier doll",
+   "come alive": "toys under the Christmas tree coming alive and marching at midnight",
+   "mouse king": "a gray mouse king wearing a tiny gold crown leading mice out of a hole in the kitchen wall",
+   "battle": "wooden toy soldiers and mice chasing each other across the living room floor in a playful clash",
+   "defeat": "the girl throwing her slipper at the mouse king while the mice run away",
+   "candy kingdom": "a magical candy kingdom with lollipop trees and a castle made of sweets"
+  }
+ },
+ {
+  "t": "다락방의 이웃 할아버지",
+  "plan": "수상해 보이던 이웃 할아버지가 사실은 천문학자여서 아이들에게 혜성을 보여 줘요.",
+  "w": [
+   [
+    "neighbor",
+    "이웃",
+    "n"
+   ],
+   [
+    "mysterious",
+    "수상한",
+    "a"
+   ],
+   [
+    "spy on",
+    "몰래 지켜보다",
+    "v"
+   ],
+   [
+    "telescope",
+    "망원경",
+    "n"
+   ],
+   [
+    "misunderstand",
+    "오해하다",
+    "v"
+   ],
+   [
+    "astronomer",
+    "천문학자",
+    "n"
+   ],
+   [
+    "comet",
+    "혜성",
+    "n"
+   ]
+  ],
+  "l": [
+   "새로 이사 온 집 옆에는 밤마다 불이 켜지는 다락방이 있었어요.",
+   "그곳에는 말이 없는 {neighbor|이웃} 할아버지가 살았어요.",
+   "아이들은 할아버지가 무척 {mysterious|수상한} 사람이라고 생각했어요.",
+   "아이들은 담장 너머로 할아버지를 {spy on|몰래 지켜봤어요}.",
+   "할아버지는 밤마다 기다란 {telescope|망원경}을 창밖으로 내밀었어요.",
+   "아이들은 할아버지가 남의 집을 엿본다고 {misunderstand|오해했어요}.",
+   "알고 보니 할아버지는 별을 연구하는 {astronomer|천문학자}였어요.",
+   "할아버지는 아이들을 불러 꼬리가 긴 {comet|혜성}을 보여 주었어요.",
+   "그날부터 다락방은 아이들의 밤하늘 교실이 되었어요."
+  ],
+  "pic": {
+   "neighbor": "a shy old neighbor with a gray beard in the attic window of the house next door",
+   "mysterious": "a mysterious glowing attic window at night with a shadowy figure inside",
+   "spy on": "children peeking over a garden wall and secretly watching the attic window",
+   "telescope": "the old man pointing a long brass telescope out of the attic window",
+   "misunderstand": "children frowning suspiciously, thinking the telescope is pointed at the houses",
+   "astronomer": "the old man surrounded by star charts and globes in his attic, studying the night sky",
+   "comet": "children looking through the telescope at a bright comet with a long glowing tail"
+  }
+ },
+ {
+  "t": "하린이의 텃밭",
+  "plan": "하린이가 텃밭에 채소를 기르다 벌레가 생기자 무당벌레를 데려와 토마토를 익혀요.",
+  "w": [
+   [
+    "vegetable",
+    "채소",
+    "n"
+   ],
+   [
+    "weed",
+    "잡초를 뽑다",
+    "v"
+   ],
+   [
+    "sprinkle",
+    "뿌리다",
+    "v"
+   ],
+   [
+    "pest",
+    "벌레",
+    "n"
+   ],
+   [
+    "droop",
+    "축 처지다",
+    "v"
+   ],
+   [
+    "ripen",
+    "익다",
+    "v"
+   ],
+   [
+    "proudly",
+    "자랑스럽게",
+    "d"
+   ]
+  ],
+  "l": [
+   "할머니는 손녀 하린이에게 마당 한쪽을 텃밭으로 내주었어요.",
+   "하린이는 상추와 토마토 같은 {vegetable|채소}를 심었어요.",
+   "하린이는 주말마다 쪼그려 앉아 {weed|잡초를 뽑았어요}.",
+   "비가 안 오는 날에는 물뿌리개로 물을 {sprinkle|뿌렸어요}.",
+   "어느 날 상추잎에 초록 {pest|벌레}가 잔뜩 붙어 있었어요.",
+   "구멍 난 상추잎은 힘없이 {droop|축 처졌어요}.",
+   "하린이가 무당벌레 친구들을 데려오자 토마토가 빨갛게 {ripen|익었어요}.",
+   "하린이는 첫 토마토를 {proudly|자랑스럽게} 할머니께 내밀었어요.",
+   "할머니는 토마토를 한 입 먹고 세상에서 제일 달다고 했어요."
+  ],
+  "pic": {
+   "vegetable": "a little girl planting lettuce and tomato seedlings in a small backyard garden",
+   "weed": "the little girl squatting and pulling weeds from the garden bed",
+   "sprinkle": "the little girl sprinkling water over the plants with a green watering can",
+   "pest": "small green caterpillars chewing holes in lettuce leaves",
+   "droop": "lettuce leaves full of holes drooping sadly in the garden",
+   "ripen": "ladybugs on the plants as the tomatoes turn bright red and ripe",
+   "proudly": "the little girl proudly holding up a red tomato to her grandmother"
+  }
+ },
+ {
+  "t": "오즈의 마법사",
+  "plan": "회오리바람에 날아간 도로시가 친구들과 마법사를 찾아갔다가 빨간 구두 뒤꿈치를 부딪쳐 집으로 돌아와요.",
+  "w": [
+   [
+    "tornado",
+    "회오리바람",
+    "n"
+   ],
+   [
+    "scarecrow",
+    "허수아비",
+    "n"
+   ],
+   [
+    "tin",
+    "양철",
+    "n"
+   ],
+   [
+    "coward",
+    "겁쟁이",
+    "n"
+   ],
+   [
+    "wizard",
+    "마법사",
+    "n"
+   ],
+   [
+    "fake",
+    "가짜",
+    "n"
+   ],
+   [
+    "homesick",
+    "집이 그리운",
+    "a"
+   ],
+   [
+    "heel",
+    "뒤꿈치",
+    "n"
+   ]
+  ],
+  "l": [
+   "캔자스의 시골 소녀 도로시는 강아지 토토와 살았어요.",
+   "어느 날 커다란 {tornado|회오리바람}이 도로시의 집을 하늘로 날려 보냈어요.",
+   "낯선 나라에 떨어진 도로시는 노래하는 {scarecrow|허수아비}를 만났어요.",
+   "그다음에는 녹슨 {tin|양철} 나무꾼을 만나 기름을 쳐 주었어요.",
+   "숲에서는 덩치만 큰 {coward|겁쟁이} 사자가 일행이 되었어요.",
+   "넷은 소원을 들어준다는 {wizard|마법사}를 찾아갔어요.",
+   "그런데 커튼 뒤에서 나온 사람은 평범한 할아버지인 {fake|가짜}였어요.",
+   "{homesick|집이 그리운} 도로시는 엉엉 울었어요.",
+   "착한 마녀는 빨간 구두 {heel|뒤꿈치}를 세 번 부딪치라고 알려 주었어요.",
+   "눈을 떠 보니 도로시는 토토를 안고 캔자스의 침대에 누워 있었어요."
+  ],
+  "pic": {
+   "tornado": "a giant swirling tornado lifting a small farmhouse into the sky",
+   "scarecrow": "a girl with braids and a small dog meeting a smiling scarecrow in a cornfield",
+   "tin": "the girl oiling the creaky joints of a rusty tin man in the woods",
+   "coward": "a big lion hiding behind a tree and covering its eyes with its paws",
+   "wizard": "the friends standing before a giant green glowing face in an emerald throne room",
+   "fake": "a small ordinary old man behind a curtain pulling levers, the giant face only a trick",
+   "homesick": "the girl with braids crying and hugging her little dog, thinking of her farmhouse",
+   "heel": "the girl clicking the heels of her sparkly red shoes together three times"
+  }
+ },
+ {
+  "t": "할머니네 김장하는 날",
+  "plan": "겨울이 오기 전 온 가족이 할머니 댁에 모여 배추를 절이고 양념을 발라 김장을 해요.",
+  "w": [
+   [
+    "cabbage",
+    "배추",
+    "n"
+   ],
+   [
+    "pickle",
+    "절이다",
+    "v"
+   ],
+   [
+    "rinse",
+    "헹구다",
+    "v"
+   ],
+   [
+    "seasoning",
+    "양념",
+    "n"
+   ],
+   [
+    "spread",
+    "바르다",
+    "v"
+   ],
+   [
+    "relatives",
+    "친척",
+    "n"
+   ],
+   [
+    "jar",
+    "장독",
+    "n"
+   ],
+   [
+    "bury",
+    "묻다",
+    "v"
+   ]
+  ],
+  "l": [
+   "겨울이 오기 전, 할머니 댁 마당에 온 가족이 모였어요.",
+   "마당에는 할머니가 키운 {cabbage|배추}가 산더미처럼 쌓여 있었어요.",
+   "할머니는 커다란 대야에서 그것을 소금에 {pickle|절였어요}.",
+   "다음 날 아빠는 짭짤해진 잎을 맑은 물에 {rinse|헹구었어요}.",
+   "엄마는 고춧가루와 젓갈로 빨간 {seasoning|양념}을 만들었어요.",
+   "아이들은 고무장갑을 끼고 잎 사이사이에 빨간 속을 {spread|발랐어요}.",
+   "옆 동네에 사는 {relatives|친척}들도 와서 일손을 보탰어요.",
+   "완성된 김치는 마당의 커다란 {jar|장독}에 차곡차곡 담겼어요.",
+   "할아버지는 항아리들을 땅속에 {bury|묻었어요}.",
+   "그날 저녁 가족들은 갓 담근 김치와 수육을 먹으며 웃음꽃을 피웠어요."
+  ],
+  "pic": {
+   "cabbage": "a mountain of fresh napa cabbages piled up in a Korean grandmother's yard",
+   "pickle": "a grandmother sprinkling salt over cut napa cabbages in a huge basin",
+   "rinse": "a dad rinsing salty cabbage leaves in clean water",
+   "seasoning": "a mom stirring bright red chili seasoning in a big bowl",
+   "spread": "children in pink rubber gloves spreading red seasoning between cabbage leaves",
+   "relatives": "relatives arriving to help, everyone sitting around the cabbages on mats",
+   "jar": "rows of large brown earthenware kimchi jars being filled",
+   "bury": "a grandfather burying the kimchi jars in the ground for winter"
+  }
+ },
+ {
+  "t": "콩나물 음악 실험",
+  "plan": "지민이가 음악을 들은 콩이 더 잘 자라는지 실험하고 결과를 그래프로 그려 발표해요.",
+  "w": [
+   [
+    "hypothesis",
+    "가설",
+    "n"
+   ],
+   [
+    "experiment",
+    "실험",
+    "n"
+   ],
+   [
+    "observe",
+    "관찰하다",
+    "v"
+   ],
+   [
+    "record",
+    "기록하다",
+    "v"
+   ],
+   [
+    "graph",
+    "그래프",
+    "n"
+   ],
+   [
+    "announce",
+    "발표하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "과학 시간에 지민이는 콩이 음악을 좋아하는지 궁금했어요.",
+   "지민이는 음악을 들은 콩이 더 빨리 자랄 거라는 {hypothesis|가설}을 세웠어요.",
+   "지민이는 화분 두 개로 {experiment|실험}을 시작했어요.",
+   "지민이는 날마다 두 화분의 싹을 꼼꼼히 {observe|관찰했어요}.",
+   "지민이는 싹의 키를 공책에 {record|기록했어요}.",
+   "지민이는 그 숫자로 막대 {graph|그래프}를 그렸어요.",
+   "지민이는 친구들 앞에서 음악을 들은 콩이 조금 더 컸다고 {announce|발표했어요}.",
+   "그날부터 교실 창가 화분에서는 하루 종일 동요가 흘러나왔어요."
+  ],
+  "pic": {
+   "hypothesis": "a girl with glasses thinking hard in science class, a thought bubble showing a bean plant with music notes",
+   "experiment": "two flower pots with bean sprouts on a classroom windowsill, one next to a small speaker",
+   "observe": "the girl with glasses observing the bean sprouts closely with a magnifying glass",
+   "record": "the girl with glasses measuring the sprouts with a measuring tape and noting them in her notebook",
+   "graph": "a colorful bar graph on paper showing two plant heights side by side",
+   "announce": "the girl with glasses presenting her results in front of the class while classmates clap"
+  }
+ },
+ {
+  "t": "아빠와 자전거 연습",
+  "plan": "수아가 보조 바퀴를 뗀 자전거로 연습하다 아빠가 몰래 손을 놓자 혼자 공원을 달려요.",
+  "w": [
+   [
+    "training wheels",
+    "보조 바퀴",
+    "n"
+   ],
+   [
+    "balance",
+    "균형을 잡다",
+    "v"
+   ],
+   [
+    "wobble",
+    "비틀거리다",
+    "v"
+   ],
+   [
+    "pedal",
+    "페달을 밟다",
+    "v"
+   ],
+   [
+    "let go",
+    "손을 놓다",
+    "v"
+   ],
+   [
+    "confident",
+    "자신 있는",
+    "a"
+   ]
+  ],
+  "l": [
+   "일곱 살 수아는 두발자전거를 타는 게 소원이었어요.",
+   "아빠는 수아의 자전거에서 {training wheels|보조 바퀴}를 떼어 냈어요.",
+   "수아는 두 팔을 쭉 펴고 {balance|균형을 잡았어요}.",
+   "처음에는 자전거가 이리저리 {wobble|비틀거렸어요}.",
+   "수아는 이를 악물고 힘껏 {pedal|페달을 밟았어요}.",
+   "뒤에서 잡아 주던 아빠가 몰래 {let go|손을 놓았어요}.",
+   "혼자 달리는 걸 안 수아는 {confident|자신 있는} 얼굴로 공원을 한 바퀴 돌았어요.",
+   "그날 저녁 수아는 아빠에게 내일은 아빠가 타 보라고 했어요."
+  ],
+  "pic": {
+   "training wheels": "a dad unscrewing the small training wheels from a girl's pink bicycle",
+   "balance": "a little girl on a bicycle stretching out her arms to keep her balance",
+   "wobble": "the bicycle wobbling from side to side as the girl grips the handlebars",
+   "pedal": "the girl pushing the pedals hard with a determined face",
+   "let go": "the dad running behind and gently letting go of the bicycle seat",
+   "confident": "the girl riding alone confidently around the park with a big smile"
+  }
+ },
+ {
+  "t": "도깨비 시장의 흥정",
+  "plan": "꼬마 도깨비 방울이가 도깨비 시장에서 비싼 방망이를 노래 한 곡으로 흥정해 사요.",
+  "w": [
+   [
+    "merchant",
+    "상인",
+    "n"
+   ],
+   [
+    "expensive",
+    "비싼",
+    "a"
+   ],
+   [
+    "bargain",
+    "흥정하다",
+    "v"
+   ],
+   [
+    "coin",
+    "동전",
+    "n"
+   ],
+   [
+    "fair",
+    "공정한",
+    "a"
+   ],
+   [
+    "deal",
+    "거래",
+    "n"
+   ]
+  ],
+  "l": [
+   "보름달이 뜨면 산속에 도깨비 시장이 열렸어요.",
+   "꼬마 도깨비 방울이는 그곳에서 방망이를 파는 {merchant|상인}을 만났어요.",
+   "방망이는 금화 백 개나 하는 아주 {expensive|비싼} 물건이었어요.",
+   "방울이는 금화 열 개에 달라고 {bargain|흥정했어요}.",
+   "결국 방울이는 주머니 속 반짝이는 {coin|동전}을 모두 꺼냈어요.",
+   "그 사람은 노래 한 곡을 더 들려주면 {fair|공정한} 값이라고 했어요.",
+   "방울이가 노래를 부르자 둘은 손바닥을 마주치며 {deal|거래}를 마쳤어요.",
+   "그 방망이에서는 두드릴 때마다 방울이의 노래가 흘러나왔어요."
+  ],
+  "pic": {
+   "merchant": "a big goblin merchant selling magic clubs at a lantern-lit night market",
+   "expensive": "a magic club shining on a velvet cushion next to a tall pile of gold coins",
+   "bargain": "a little goblin with a bell on its horn haggling with the big merchant and holding up fingers",
+   "coin": "the little goblin emptying its pocket of a few shiny coins onto the counter",
+   "fair": "the big goblin merchant nodding kindly and raising one finger for one more song",
+   "deal": "the little goblin and the merchant giving each other a high five over the counter"
+  }
+ },
+ {
+  "t": "해님의 휴가",
+  "plan": "지친 해님이 휴가를 떠나 반딧불이가 대신 빛을 내다가 해님이 돌아와 세상이 다시 환해져요.",
+  "w": [
+   [
+    "exhausted",
+    "지친",
+    "a"
+   ],
+   [
+    "vacation",
+    "휴가",
+    "n"
+   ],
+   [
+    "substitute",
+    "대신하다",
+    "v"
+   ],
+   [
+    "gloomy",
+    "우울한",
+    "a"
+   ],
+   [
+    "glow",
+    "환하게 비추다",
+    "v"
+   ],
+   [
+    "refreshed",
+    "상쾌한",
+    "a"
+   ]
+  ],
+  "l": [
+   "하늘의 해님은 백 년 동안 하루도 쉬지 않고 일했어요.",
+   "어느 날 해님은 너무 {exhausted|지친} 나머지 하품을 크게 했어요.",
+   "해님은 일주일 동안 {vacation|휴가}를 떠나기로 했어요.",
+   "반딧불이들이 해님의 일을 {substitute|대신했어요}.",
+   "하지만 작은 불빛만으로는 세상이 어둑어둑해서 모두 {gloomy|우울한} 얼굴이었어요.",
+   "일주일 뒤 돌아온 해님이 온 세상을 {glow|환하게 비추었어요}.",
+   "해님 덕분에 그날 아침은 무척 {refreshed|상쾌한} 공기로 가득했어요.",
+   "반딧불이들은 해님에게 받은 햇살 한 줌을 밤마다 꺼내 썼어요."
+  ],
+  "pic": {
+   "exhausted": "a tired sun with droopy eyes yawning in the sky",
+   "vacation": "the sun wearing sunglasses and lying on a beach chair on a cloud",
+   "substitute": "a team of fireflies glowing together in the sky where the sun should be",
+   "gloomy": "people and animals with gloomy faces in a dim gray town",
+   "glow": "the sun returning and glowing brightly over a colorful town",
+   "refreshed": "children stretching happily in the fresh bright morning air as flowers open"
+  }
+ },
+ {
+  "t": "분실물 센터의 곰 인형",
+  "plan": "기차역 분실물 센터의 아저씨가 이름표를 보고 곰 인형 주인에게 연락해 돌려줘요.",
+  "w": [
+   [
+    "lost and found",
+    "분실물 센터",
+    "n"
+   ],
+   [
+    "teddy bear",
+    "곰 인형",
+    "n"
+   ],
+   [
+    "label",
+    "이름표",
+    "n"
+   ],
+   [
+    "owner",
+    "주인",
+    "n"
+   ],
+   [
+    "contact",
+    "연락하다",
+    "v"
+   ],
+   [
+    "claim",
+    "찾아가다",
+    "v"
+   ]
+  ],
+  "l": [
+   "기차역 한쪽에는 잃어버린 물건이 모이는 방이 있었어요.",
+   "그곳은 역무원 아저씨가 일하는 {lost and found|분실물 센터}였어요.",
+   "어느 날 아저씨는 기차 의자에서 낡은 {teddy bear|곰 인형}을 주웠어요.",
+   "인형의 발바닥에는 작은 {label|이름표}가 꿰매져 있었어요.",
+   "거기에는 {owner|주인}의 이름과 전화번호가 적혀 있었어요.",
+   "아저씨는 곧바로 아이의 엄마에게 {contact|연락했어요}.",
+   "다음 날 아이는 엄마 손을 잡고 와서 인형을 {claim|찾아갔어요}.",
+   "아이는 아저씨에게 고맙다며 그림 편지를 건넸어요."
+  ],
+  "pic": {
+   "lost and found": "a train station lost and found room with shelves full of umbrellas, hats and bags",
+   "teddy bear": "a station worker finding an old brown teddy bear on a train seat",
+   "label": "a small cloth name tag sewn onto the teddy bear's foot",
+   "owner": "the station worker imagining the little girl who owns the bear, a thought bubble showing her crying",
+   "contact": "the station worker calling on an old phone with a happy face",
+   "claim": "a little girl and her mother at the station desk, the girl hugging her teddy bear"
+  }
+ },
+ {
+  "t": "개미 가족의 이사",
+  "plan": "개미 가족이 장마 전에 언덕 위 새집으로 이사하며 딱정벌레 트럭에 짐을 싣고 풀어요.",
+  "w": [
+   [
+    "move house",
+    "이사하다",
+    "v"
+   ],
+   [
+    "pack",
+    "짐을 싸다",
+    "v"
+   ],
+   [
+    "truck",
+    "트럭",
+    "n"
+   ],
+   [
+    "load",
+    "싣다",
+    "v"
+   ],
+   [
+    "neighborhood",
+    "동네",
+    "n"
+   ],
+   [
+    "unpack",
+    "짐을 풀다",
+    "v"
+   ]
+  ],
+  "l": [
+   "개미 가족은 장마가 오기 전에 높은 언덕으로 옮기기로 했어요.",
+   "개미 가족은 언덕 위 새집으로 {move house|이사했어요}.",
+   "아침부터 개미들은 부지런히 {pack|짐을 쌌어요}.",
+   "친구 딱정벌레가 등에 짐칸을 단 {truck|트럭}이 되어 주었어요.",
+   "개미들은 딱정벌레 등에 짐을 차곡차곡 {load|실었어요}.",
+   "새 {neighborhood|동네}에서는 무당벌레들이 반갑게 손을 흔들었어요.",
+   "개미들은 해가 지기 전에 모든 {unpack|짐을 풀었어요}.",
+   "그날 밤 개미 가족은 새집에서 별을 보며 잠들었어요."
+  ],
+  "pic": {
+   "move house": "an ant family carrying their things toward a new home on top of a hill",
+   "pack": "ants packing seeds and tiny blankets into bundles",
+   "truck": "a big friendly beetle with a cargo rack on its back like a truck",
+   "load": "ants loading bundles onto the beetle's back",
+   "neighborhood": "friendly ladybugs waving hello in a new leafy neighborhood",
+   "unpack": "ants unpacking their bundles in a cozy new underground room"
+  }
+ },
+ {
+  "t": "오빠의 동생 돌보기",
+  "plan": "엄마 아빠가 없는 날 오빠가 세 살 동생을 하루 종일 돌보다 녹초가 돼요.",
+  "w": [
+   [
+    "babysit",
+    "돌보다",
+    "v"
+   ],
+   [
+    "fussy",
+    "까다로운",
+    "a"
+   ],
+   [
+    "spoon-feed",
+    "떠먹이다",
+    "v"
+   ],
+   [
+    "mess",
+    "엉망",
+    "n"
+   ],
+   [
+    "clean up",
+    "치우다",
+    "v"
+   ],
+   [
+    "bath",
+    "목욕",
+    "n"
+   ],
+   [
+    "worn out",
+    "녹초가 된",
+    "a"
+   ]
+  ],
+  "l": [
+   "토요일에 엄마 아빠가 결혼식에 가셔서 집에는 남매만 남았어요.",
+   "열 살 오빠는 하루 동안 세 살 동생을 {babysit|돌보기로} 했어요.",
+   "동생은 밥을 안 먹겠다며 고개를 젓는 {fussy|까다로운} 아기였어요.",
+   "오빠는 비행기 소리를 내며 밥을 한 숟가락씩 {spoon-feed|떠먹였어요}.",
+   "밥을 먹은 동생이 그림을 그리다가 거실은 크레파스로 {mess|엉망}이 되었어요.",
+   "오빠는 땀을 뻘뻘 흘리며 거실을 {clean up|치웠어요}.",
+   "저녁에는 거품을 잔뜩 만들어 동생을 {bath|목욕}시켰어요.",
+   "엄마 아빠가 돌아오자 오빠는 {worn out|녹초가 된} 얼굴로 소파에 쓰러졌어요.",
+   "동생은 오빠 볼에 뽀뽀하며 내일도 같이 놀자고 했어요."
+  ],
+  "pic": {
+   "babysit": "a ten-year-old boy holding hands with his three-year-old little sister at home",
+   "fussy": "the little sister shaking her head and pushing away a bowl of rice",
+   "spoon-feed": "the boy making airplane sounds while feeding his sister a spoonful of rice",
+   "mess": "a living room messy with crayon scribbles on the floor and toys everywhere",
+   "clean up": "the boy sweating as he tidies up the toys and wipes the floor",
+   "bath": "the little sister laughing in a bathtub full of bubbles while the boy helps",
+   "worn out": "the boy lying worn out on the sofa while his sister plays happily"
+  }
+ },
+ {
+  "t": "늦잠 잔 산타 할아버지",
+  "plan": "크리스마스이브에 늦잠을 잔 산타 할아버지가 순록 덕분에 허겁지겁 선물을 나눠 주고 새벽을 맞아요.",
+  "w": [
+   [
+    "alarm clock",
+    "자명종",
+    "n"
+   ],
+   [
+    "reindeer",
+    "순록",
+    "n"
+   ],
+   [
+    "sleigh",
+    "썰매",
+    "n"
+   ],
+   [
+    "sack",
+    "자루",
+    "n"
+   ],
+   [
+    "chimney",
+    "굴뚝",
+    "n"
+   ],
+   [
+    "stocking",
+    "양말",
+    "n"
+   ],
+   [
+    "dawn",
+    "새벽",
+    "n"
+   ]
+  ],
+  "l": [
+   "크리스마스이브에 산타 할아버지가 그만 깜빡 잠이 들었어요.",
+   "머리맡의 {alarm clock|자명종}이 따르릉 울렸지만 일어나지 못했어요.",
+   "보다 못한 {reindeer|순록}들이 할아버지의 수염을 잡아당겼어요.",
+   "할아버지는 허겁지겁 {sleigh|썰매}에 올라탔어요.",
+   "그 위에는 선물이 가득 든 커다란 {sack|자루}가 실려 있었어요.",
+   "할아버지는 집집마다 {chimney|굴뚝}으로 쏙쏙 들어갔어요.",
+   "아이들의 머리맡 {stocking|양말}마다 선물이 하나씩 채워졌어요.",
+   "마지막 집을 나서자 하늘이 밝아 오는 {dawn|새벽}이었어요.",
+   "할아버지는 내년에는 꼭 알람을 두 개 맞추겠다고 다짐했어요."
+  ],
+  "pic": {
+   "alarm clock": "a ringing alarm clock next to Santa Claus sleeping soundly in bed",
+   "reindeer": "reindeer gently tugging Santa's white beard to wake him up",
+   "sleigh": "Santa jumping into his red sleigh in a hurry",
+   "sack": "a huge sack full of presents on the back of the sleigh",
+   "chimney": "Santa sliding down a snowy chimney into a house",
+   "stocking": "Santa filling stockings hanging over a fireplace with presents",
+   "dawn": "Santa's sleigh flying home as the sky turns pink at dawn"
+  }
+ },
+ {
+  "t": "곰 의사 선생님",
+  "plan": "목감기에 걸린 기린이 곰 의사 선생님의 진찰과 시럽 덕분에 다시 건강해져요.",
+  "w": [
+   [
+    "sore throat",
+    "목감기",
+    "n"
+   ],
+   [
+    "cough",
+    "기침하다",
+    "v"
+   ],
+   [
+    "check",
+    "진찰하다",
+    "v"
+   ],
+   [
+    "thermometer",
+    "체온계",
+    "n"
+   ],
+   [
+    "syrup",
+    "시럽",
+    "n"
+   ],
+   [
+    "gargle",
+    "가글하다",
+    "v"
+   ],
+   [
+    "healthy",
+    "건강한",
+    "a"
+   ]
+  ],
+  "l": [
+   "숲속 병원에 목도리를 칭칭 감은 기린이 찾아왔어요.",
+   "기린은 긴 목이 몽땅 아픈 {sore throat|목감기}에 걸렸어요.",
+   "기린은 진료실에서도 콜록콜록 {cough|기침했어요}.",
+   "곰 의사 선생님은 사다리에 올라 기린의 목을 {check|진찰했어요}.",
+   "선생님은 기다란 {thermometer|체온계}로 열도 재 보았어요.",
+   "선생님은 꿀이 든 딸기 {syrup|시럽}을 한 숟가락 먹여 주었어요.",
+   "기린은 집에 가서 하루 세 번 따뜻한 소금물로 {gargle|가글했어요}.",
+   "일주일 뒤 기린은 {healthy|건강한} 목소리로 노래를 부르며 병원에 인사하러 왔어요.",
+   "곰 선생님은 기린이 따 준 높은 나뭇가지의 사과를 맛있게 먹었어요."
+  ],
+  "pic": {
+   "sore throat": "a giraffe with a long scarf around its neck looking miserable in a hospital waiting room",
+   "cough": "the giraffe coughing loudly, its long neck bending",
+   "check": "a bear doctor with a stethoscope on a ladder checking the giraffe's long neck",
+   "thermometer": "the bear doctor holding a very long thermometer up to the giraffe",
+   "syrup": "the bear doctor giving the giraffe a spoonful of pink strawberry syrup",
+   "gargle": "the giraffe gargling warm salt water at home with bubbles rising",
+   "healthy": "the healthy giraffe singing happily outside the forest hospital"
+  }
+ },
+ {
+  "t": "욕심쟁이 거인의 정원",
+  "plan": "이기적인 거인이 정원에 담을 쌓자 봄이 오지 않다가 아이들이 들어오자 정원이 따뜻해져요.",
+  "w": [
+   [
+    "selfish",
+    "이기적인",
+    "a"
+   ],
+   [
+    "garden",
+    "정원",
+    "n"
+   ],
+   [
+    "wall",
+    "담",
+    "n"
+   ],
+   [
+    "forbid",
+    "금지하다",
+    "v"
+   ],
+   [
+    "frost",
+    "서리",
+    "n"
+   ],
+   [
+    "crawl through",
+    "기어 들어오다",
+    "v"
+   ],
+   [
+    "warm",
+    "따뜻해지다",
+    "v"
+   ]
+  ],
+  "l": [
+   "거인의 집 뒤에는 아이들이 뛰어노는 넓은 마당이 있었어요.",
+   "하지만 {selfish|이기적인} 거인은 아이들이 노는 게 싫었어요.",
+   "거인은 자기 {garden|정원}에 아무도 못 들어오게 했어요.",
+   "거인은 마당 둘레에 높은 {wall|담}을 쌓았어요.",
+   "대문에는 들어오는 것을 {forbid|금지한다는} 팻말을 걸었어요.",
+   "그러자 그곳에만 봄이 오지 않고 하얀 {frost|서리}가 내렸어요.",
+   "어느 날 아이들이 작은 구멍으로 {crawl through|기어 들어왔어요}.",
+   "아이들이 웃자 나무에 꽃이 피고 마당이 {warm|따뜻해졌어요}.",
+   "거인은 그날 망치를 들고 높은 벽을 허물었어요."
+  ],
+  "pic": {
+   "selfish": "a grumpy giant shooing children away from his yard with his big hands",
+   "garden": "a beautiful garden with blossoming trees and green grass behind a giant's house",
+   "wall": "the giant building a tall stone wall around his garden",
+   "forbid": "the giant crossing his arms in front of a locked gate with a big red X on it",
+   "frost": "the garden covered in white frost and snow while spring blooms outside the wall",
+   "crawl through": "children crawling through a small hole at the bottom of the wall",
+   "warm": "children laughing in the garden as flowers bloom and the frost melts in warm sunlight"
+  }
+ },
+ {
+  "t": "인어 선생님의 수영 교실",
+  "plan": "여름마다 오는 인어 선생님에게 수영을 배운 민수가 무서움을 이기고 헤엄을 쳐요.",
+  "w": [
+   [
+    "mermaid",
+    "인어",
+    "n"
+   ],
+   [
+    "lesson",
+    "수업",
+    "n"
+   ],
+   [
+    "breathe",
+    "숨을 쉬다",
+    "v"
+   ],
+   [
+    "sink",
+    "가라앉다",
+    "v"
+   ],
+   [
+    "flutter kick",
+    "발차기하다",
+    "v"
+   ],
+   [
+    "afloat",
+    "물에 뜬",
+    "a"
+   ],
+   [
+    "swim",
+    "헤엄치다",
+    "v"
+   ],
+   [
+    "certificate",
+    "수료증",
+    "n"
+   ]
+  ],
+  "l": [
+   "바닷가 마을에는 여름마다 특별한 선생님이 찾아왔어요.",
+   "그 선생님은 꼬리가 반짝이는 {mermaid|인어}였어요.",
+   "아이들은 선생님에게 수영 {lesson|수업}을 받았어요.",
+   "선생님은 먼저 물 위로 고개를 들어 {breathe|숨을 쉬는} 법을 가르쳤어요.",
+   "겁이 난 민수는 자꾸 물속으로 {sink|가라앉았어요}.",
+   "선생님은 민수에게 힘차게 {flutter kick|발차기하라고} 외쳤어요.",
+   "마침내 민수의 몸이 둥실 {afloat|물에 뜬} 채로 앞으로 나아갔어요.",
+   "민수는 친구들과 함께 바다 끝 부표까지 {swim|헤엄쳤어요}.",
+   "여름 마지막 날 아이들은 조개껍데기로 만든 {certificate|수료증}을 받았어요.",
+   "다음 여름에도 아이들은 바닷가에서 꼬리 달린 선생님을 기다렸어요."
+  ],
+  "pic": {
+   "mermaid": "a friendly mermaid with a shimmering teal tail sitting on a rock by a beach",
+   "lesson": "the mermaid teaching a group of children in swimsuits in shallow water",
+   "breathe": "a boy lifting his head out of the water to take a deep breath",
+   "sink": "the boy sinking under the water with a worried face, bubbles rising",
+   "flutter kick": "the boy kicking his legs fast with water splashing behind him",
+   "afloat": "the boy floating on the water with his arms spread out, smiling",
+   "swim": "children swimming together toward a red buoy in the sea",
+   "certificate": "children holding shiny seashell certificates on the beach while the mermaid claps"
+  }
+ },
+ {
+  "t": "복숭아에서 태어난 아이",
+  "plan": "복숭아에서 태어난 아이가 원숭이와 꿩을 친구로 삼아 심술쟁이 섬 주인을 설득해요.",
+  "w": [
+   [
+    "peach",
+    "복숭아",
+    "n"
+   ],
+   [
+    "float down",
+    "떠내려오다",
+    "v"
+   ],
+   [
+    "raise",
+    "키우다",
+    "v"
+   ],
+   [
+    "dumpling",
+    "경단",
+    "n"
+   ],
+   [
+    "monkey",
+    "원숭이",
+    "n"
+   ],
+   [
+    "pheasant",
+    "꿩",
+    "n"
+   ],
+   [
+    "bully",
+    "심술쟁이",
+    "n"
+   ],
+   [
+    "persuade",
+    "설득하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "옛날 냇가에서 빨래하던 할머니가 이상한 것을 보았어요.",
+   "커다란 {peach|복숭아}가 둥둥 떠 있었어요.",
+   "그것은 냇물을 따라 할머니 앞까지 {float down|떠내려왔어요}.",
+   "그 안에서 나온 아기를 할머니와 할아버지는 정성껏 {raise|키웠어요}.",
+   "씩씩하게 자란 아이는 할머니가 빚어 준 {dumpling|경단}을 챙겨 길을 떠났어요.",
+   "가는 길에 배고픈 {monkey|원숭이}에게 간식을 나눠 주자 친구가 되었어요.",
+   "하늘을 날던 {pheasant|꿩}도 간식을 얻어먹고 따라나섰어요.",
+   "셋은 마을 아이들의 장난감을 빼앗는 {bully|심술쟁이} 섬 주인을 찾아갔어요.",
+   "아이는 싸우는 대신 함께 놀자고 섬 주인을 {persuade|설득했어요}.",
+   "그날부터 섬은 마을 아이들 모두가 놀러 가는 놀이터가 되었어요."
+  ],
+  "pic": {
+   "peach": "a giant pink peach bobbing in a clear stream",
+   "float down": "the giant peach floating down the stream toward an old woman washing clothes",
+   "raise": "an old couple happily raising a baby boy in a small wooden house",
+   "dumpling": "the grown boy packing round sweet rice dumplings into a cloth bag",
+   "monkey": "the boy sharing a dumpling with a hungry monkey on the road",
+   "pheasant": "a colorful pheasant flying down to join the boy and the monkey",
+   "bully": "a grumpy island owner hugging a pile of children's toys on an island",
+   "persuade": "the boy talking kindly to the grumpy island owner, who starts to smile"
+  }
+ },
+ {
+  "t": "할아버지와 낚시 가는 날",
+  "plan": "할아버지와 낚시를 간 손자가 끈기 있게 기다려 끌어올린 것은 낡은 장화였어요.",
+  "w": [
+   [
+    "fishing rod",
+    "낚싯대",
+    "n"
+   ],
+   [
+    "bait",
+    "미끼",
+    "n"
+   ],
+   [
+    "throw in",
+    "드리우다",
+    "v"
+   ],
+   [
+    "patiently",
+    "끈기 있게",
+    "d"
+   ],
+   [
+    "nibble",
+    "입질하다",
+    "v"
+   ],
+   [
+    "reel in",
+    "끌어올리다",
+    "v"
+   ]
+  ],
+  "l": [
+   "주말에 손자는 할아버지를 따라 호숫가로 갔어요.",
+   "할아버지는 손자에게 작은 {fishing rod|낚싯대}를 쥐여 주었어요.",
+   "손자는 바늘 끝에 지렁이 {bait|미끼}를 조심스럽게 끼웠어요.",
+   "손자는 호수 한가운데로 낚싯줄을 {throw in|드리웠어요}.",
+   "손자는 한 시간 동안 {patiently|끈기 있게} 기다렸어요.",
+   "그때 찌가 톡톡 움직이며 물고기가 {nibble|입질했어요}.",
+   "손자가 힘껏 {reel in|끌어올리자} 낡은 장화 한 짝이 올라왔어요.",
+   "할아버지와 손자는 장화에 꽃을 심어 집 앞에 놓았어요."
+  ],
+  "pic": {
+   "fishing rod": "a grandfather handing a small fishing rod to his grandson by a calm lake",
+   "bait": "the boy carefully putting a wriggly worm on a fishing hook",
+   "throw in": "the boy casting his fishing line into the middle of the lake",
+   "patiently": "the boy and his grandfather sitting still on a dock, waiting with the line in the water",
+   "nibble": "a red and white bobber twitching on the water as a fish nibbles",
+   "reel in": "the boy pulling up an old muddy boot on his fishing line while his grandfather laughs"
+  }
+ },
+ {
+  "t": "용왕님의 웃음 약",
+  "plan": "병이 든 용왕을 위해 자라가 웃긴 토끼를 데려오고 토끼의 농담에 용왕이 다 나아요.",
+  "w": [
+   [
+    "dragon king",
+    "용왕",
+    "n"
+   ],
+   [
+    "sick",
+    "병이 든",
+    "a"
+   ],
+   [
+    "turtle",
+    "자라",
+    "n"
+   ],
+   [
+    "undersea palace",
+    "용궁",
+    "n"
+   ],
+   [
+    "tell a joke",
+    "농담하다",
+    "v"
+   ],
+   [
+    "cured",
+    "다 나은",
+    "a"
+   ]
+  ],
+  "l": [
+   "깊은 바닷속 왕국에 큰 걱정거리가 생겼어요.",
+   "바다를 다스리는 {dragon king|용왕}이 시름시름 앓았어요.",
+   "{sick|병이 든} 임금님에게는 웃음이 약이라고 의사 물고기가 말했어요.",
+   "충성스러운 {turtle|자라}는 숲에서 가장 웃긴 토끼를 데려오기로 했어요.",
+   "토끼는 바다를 건너 반짝이는 {undersea palace|용궁}에 도착했어요.",
+   "토끼는 임금님 앞에서 하루 종일 우스꽝스럽게 {tell a joke|농담했어요}.",
+   "배꼽을 잡고 웃던 임금님은 금세 {cured|다 나은} 얼굴이 되었어요.",
+   "토끼는 바닷속 웃음 대장이 되어 해마다 바다로 놀러 갔어요."
+  ],
+  "pic": {
+   "dragon king": "an old dragon king with a long white beard lying in bed in an undersea palace",
+   "sick": "the dragon king with a pale face and a cold towel on his forehead, sea creatures looking worried",
+   "turtle": "a soft-shelled turtle swimming up to a beach to find a rabbit",
+   "undersea palace": "a shining coral palace at the bottom of the sea with fish swimming around",
+   "tell a joke": "a rabbit making funny faces and joking in front of the dragon king's bed",
+   "cured": "the dragon king laughing out loud and jumping out of bed, healthy again"
+  }
+ },
+ {
+  "t": "꼬마 마술사 준이",
+  "plan": "꼬마 마술사 준이가 놀이터 공연에서 비둘기를 사라지게 했다가 할머니 모자 위에 다시 나타나게 해요.",
+  "w": [
+   [
+    "magician",
+    "마술사",
+    "n"
+   ],
+   [
+    "audience",
+    "관객",
+    "n"
+   ],
+   [
+    "wand",
+    "마술봉",
+    "n"
+   ],
+   [
+    "vanish",
+    "사라지다",
+    "v"
+   ],
+   [
+    "reappear",
+    "다시 나타나다",
+    "v"
+   ],
+   [
+    "amazed",
+    "놀라워하는",
+    "a"
+   ]
+  ],
+  "l": [
+   "동네 놀이터에서 작은 공연이 열렸어요.",
+   "무대에 선 사람은 열 살 꼬마 {magician|마술사} 준이였어요.",
+   "놀이터 의자에는 동네 아이들이 {audience|관객}으로 앉아 있었어요.",
+   "준이가 반짝이는 {wand|마술봉}을 휘둘렀어요.",
+   "그러자 상자 속 비둘기가 감쪽같이 {vanish|사라졌어요}.",
+   "잠시 뒤 비둘기는 맨 앞에 앉은 할머니의 모자 위에 {reappear|다시 나타났어요}.",
+   "아이들은 손뼉을 치며 {amazed|놀라워하는} 눈으로 준이를 바라보았어요.",
+   "할머니는 그 비둘기를 집에 데려가 이름을 마술이라고 지었어요."
+  ],
+  "pic": {
+   "magician": "a ten-year-old boy magician in a black cape and top hat on a small playground stage",
+   "audience": "neighborhood children sitting on benches as the audience, watching excitedly",
+   "wand": "the boy magician waving a sparkling magic wand",
+   "vanish": "an empty open box with sparkles where a white dove used to be",
+   "reappear": "the white dove suddenly appearing on top of an old woman's hat in the front row",
+   "amazed": "children with amazed faces and open mouths clapping for the boy magician"
+  }
+ },
+ {
+  "t": "고양이 택시 기사",
+  "plan": "고양이 택시 기사가 펭귄 손님을 태우고 막힌 길을 피해 골목으로 돌아가 아이스크림 공장에 데려다줘요.",
+  "w": [
+   [
+    "passenger",
+    "승객",
+    "n"
+   ],
+   [
+    "destination",
+    "목적지",
+    "n"
+   ],
+   [
+    "traffic jam",
+    "교통 체증",
+    "n"
+   ],
+   [
+    "detour",
+    "돌아가다",
+    "v"
+   ],
+   [
+    "fare",
+    "요금",
+    "n"
+   ],
+   [
+    "tip",
+    "팁",
+    "n"
+   ]
+  ],
+  "l": [
+   "도시의 밤거리에는 노란 모자를 쓴 고양이가 택시를 몰았어요.",
+   "어느 날 커다란 가방을 든 펭귄이 {passenger|승객}으로 탔어요.",
+   "펭귄의 {destination|목적지}는 도시 반대편의 아이스크림 공장이었어요.",
+   "그런데 큰길은 자동차들로 꽉 막힌 {traffic jam|교통 체증}이었어요.",
+   "고양이는 꾀를 내어 골목길로 {detour|돌아갔어요}.",
+   "공장 앞에 도착하자 펭귄은 {fare|요금}을 생선 통조림으로 냈어요.",
+   "펭귄은 아이스크림 한 통을 {tip|팁}으로 더 얹어 주었어요.",
+   "그날 밤 고양이는 차 안에서 생선 맛 아이스크림을 먹어 보았어요."
+  ],
+  "pic": {
+   "passenger": "a penguin with a big suitcase getting into a yellow taxi driven by a cat in a cap",
+   "destination": "a big ice cream factory with a giant cone on its roof across the city at night",
+   "traffic jam": "a long traffic jam of cars with red tail lights on a city road at night",
+   "detour": "the yellow taxi turning into a narrow alley to go around the traffic",
+   "fare": "the penguin paying the cat driver with a can of fish",
+   "tip": "the penguin handing the cat driver a tub of ice cream as an extra thank you"
+  }
+ },
+ {
+  "t": "할머니의 스마트폰 공부",
+  "plan": "손녀에게 스마트폰을 배운 할머니가 혼자 영상 통화를 걸자 손녀가 무척 기뻐해요.",
+  "w": [
+   [
+    "smartphone",
+    "스마트폰",
+    "n"
+   ],
+   [
+    "unfamiliar",
+    "낯선",
+    "a"
+   ],
+   [
+    "teach",
+    "가르치다",
+    "v"
+   ],
+   [
+    "touch",
+    "만지다",
+    "v"
+   ],
+   [
+    "video call",
+    "영상 통화",
+    "n"
+   ],
+   [
+    "delighted",
+    "기뻐하는",
+    "a"
+   ]
+  ],
+  "l": [
+   "할머니는 생일 선물로 손녀에게 새 기계를 받았어요.",
+   "그것은 화면이 커다란 {smartphone|스마트폰}이었어요.",
+   "할머니에게 화면 속 그림들은 모두 {unfamiliar|낯선} 것이었어요.",
+   "손녀는 주말마다 할머니께 사용법을 차근차근 {teach|가르쳐} 드렸어요.",
+   "할머니는 돋보기를 쓰고 화면을 손가락으로 살살 {touch|만졌어요}.",
+   "드디어 할머니는 혼자서 손녀에게 {video call|영상 통화}를 걸었어요.",
+   "화면 속 할머니를 본 손녀는 무척 {delighted|기뻐하는} 얼굴이었어요.",
+   "그 뒤로 할머니는 날마다 손녀에게 꽃 사진을 보냈어요."
+  ],
+  "pic": {
+   "smartphone": "a grandmother unwrapping a new smartphone, a gift from her granddaughter",
+   "unfamiliar": "the grandmother squinting at a confusing smartphone screen full of little icons",
+   "teach": "the granddaughter sitting beside her grandmother and showing her how to use the phone",
+   "touch": "the grandmother in glasses touching the screen carefully with one finger",
+   "video call": "the grandmother waving at her granddaughter's face on the smartphone screen during a video call",
+   "delighted": "the granddaughter jumping with joy as she sees her grandmother on her phone"
+  }
+ },
+ {
+  "t": "숲속 마라톤 대회",
+  "plan": "숲속 마라톤에서 다리에 쥐가 난 토끼를 거북이가 주물러 주고 둘이 함께 메달을 받아요.",
+  "w": [
+   [
+    "marathon",
+    "마라톤",
+    "n"
+   ],
+   [
+    "starting line",
+    "출발선",
+    "n"
+   ],
+   [
+    "stamina",
+    "체력",
+    "n"
+   ],
+   [
+    "cramp",
+    "쥐가 나다",
+    "v"
+   ],
+   [
+    "massage",
+    "주무르다",
+    "v"
+   ],
+   [
+    "medal",
+    "메달",
+    "n"
+   ]
+  ],
+  "l": [
+   "가을이 되자 숲속 동물들이 달리기 대회를 열었어요.",
+   "이번 대회는 숲을 한 바퀴 도는 긴 {marathon|마라톤}이었어요.",
+   "토끼와 다람쥐와 거북이가 {starting line|출발선}에 나란히 섰어요.",
+   "토끼는 처음부터 너무 빨리 달려서 금방 {stamina|체력}이 바닥났어요.",
+   "결국 토끼는 다리에 {cramp|쥐가 났어요}.",
+   "뒤따라온 거북이가 주저앉은 토끼의 다리를 정성껏 {massage|주물렀어요}.",
+   "둘은 함께 결승선을 지나 똑같은 {medal|메달}을 목에 걸었어요.",
+   "그날 숲속 신문에는 가장 다정한 달리기 선수들이라는 기사가 실렸어요."
+  ],
+  "pic": {
+   "marathon": "forest animals running a long marathon along a path of autumn leaves",
+   "starting line": "a rabbit, a squirrel and a turtle lined up at a starting line in the forest",
+   "stamina": "the rabbit panting and slowing down, out of energy halfway along the path",
+   "cramp": "the rabbit sitting on the ground holding its stiff leg with a grimace",
+   "massage": "the turtle kindly rubbing the rabbit's leg",
+   "medal": "the rabbit and the turtle smiling, both wearing shiny gold medals"
+  }
+ },
+ {
+  "t": "초콜릿 공장 견학",
+  "plan": "우리 반이 초콜릿 공장을 견학하며 초콜릿이 만들어지는 과정을 보고 맛있게 먹어 봐요.",
+  "w": [
+   [
+    "factory",
+    "공장",
+    "n"
+   ],
+   [
+    "tour",
+    "견학하다",
+    "v"
+   ],
+   [
+    "machine",
+    "기계",
+    "n"
+   ],
+   [
+    "conveyor belt",
+    "컨베이어 벨트",
+    "n"
+   ],
+   [
+    "mold",
+    "틀",
+    "n"
+   ],
+   [
+    "wrap",
+    "포장하다",
+    "v"
+   ],
+   [
+    "sample",
+    "시식하다",
+    "v"
+   ]
+  ],
+  "l": [
+   "우리 반은 버스를 타고 도시 끝으로 체험 학습을 갔어요.",
+   "도착한 곳은 달콤한 냄새가 나는 초콜릿 {factory|공장}이었어요.",
+   "아이들은 안전모를 쓰고 건물 안을 {tour|견학했어요}.",
+   "커다란 {machine|기계}가 초콜릿을 부글부글 녹이고 있었어요.",
+   "녹은 초콜릿은 {conveyor belt|컨베이어 벨트}를 타고 줄지어 이동했어요.",
+   "초콜릿은 별 모양 {mold|틀}에 쏙쏙 담겨 굳었어요.",
+   "직원들은 굳은 초콜릿을 반짝이는 종이로 {wrap|포장했어요}.",
+   "마지막에 아이들은 갓 만든 초콜릿을 하나씩 {sample|시식했어요}.",
+   "그날 저녁 아이들의 입가에는 모두 초콜릿 수염이 남아 있었어요."
+  ],
+  "pic": {
+   "factory": "a big sweet chocolate factory building with chimneys shaped like candy",
+   "tour": "children in yellow hard hats walking through the factory with a guide",
+   "machine": "a giant machine with gears stirring a big vat of melted chocolate",
+   "conveyor belt": "rows of chocolates moving along a long conveyor belt",
+   "mold": "melted chocolate being poured into star-shaped molds",
+   "wrap": "factory workers wrapping chocolates in shiny colorful foil",
+   "sample": "children trying fresh chocolates and smiling with chocolate mustaches"
+  }
+ },
+ {
+  "t": "쌍둥이 별의 다툼",
+  "plan": "누가 더 밝은지 다투던 쌍둥이 별이 길 잃은 뱃사람을 보고 다시 함께 빛나요.",
+  "w": [
+   [
+    "twin",
+    "쌍둥이",
+    "n"
+   ],
+   [
+    "brighter",
+    "더 밝은",
+    "a"
+   ],
+   [
+    "argue",
+    "말다툼하다",
+    "v"
+   ],
+   [
+    "turn away",
+    "등을 돌리다",
+    "v"
+   ],
+   [
+    "sailor",
+    "뱃사람",
+    "n"
+   ],
+   [
+    "direction",
+    "방향",
+    "n"
+   ],
+   [
+    "shine together",
+    "함께 빛나다",
+    "v"
+   ]
+  ],
+  "l": [
+   "밤하늘 한쪽에 나란히 반짝이는 두 별이 살았어요.",
+   "두 별은 똑같이 생긴 {twin|쌍둥이}였어요.",
+   "어느 날 두 별은 누가 {brighter|더 밝은} 별인지 따지기 시작했어요.",
+   "둘은 밤새 큰 소리로 {argue|말다툼했어요}.",
+   "결국 두 별은 서로 {turn away|등을 돌렸어요}.",
+   "그러자 밤바다를 건너던 {sailor|뱃사람}이 길을 잃고 헤맸어요.",
+   "두 별이 짝을 이뤄야 가야 할 {direction|방향}을 알 수 있었거든요.",
+   "미안해진 두 별은 다시 나란히 서서 {shine together|함께 빛났어요}.",
+   "배는 무사히 항구로 돌아갔고 두 별은 그 뒤로 다투지 않았어요."
+  ],
+  "pic": {
+   "twin": "two identical cute stars with faces side by side in the night sky",
+   "brighter": "the two stars puffing up and glowing hard, each trying to be brighter",
+   "argue": "the two stars arguing with angry faces, little sparks flying between them",
+   "turn away": "the two stars turning their backs on each other in the dark sky",
+   "sailor": "a sailor in a small boat lost on a dark sea at night, looking up",
+   "direction": "the sailor holding a compass and unsure which way to go under a dim sky",
+   "shine together": "the two stars holding hands and shining together brightly, lighting a path on the sea"
+  }
+ },
+ {
+  "t": "콩이의 병원 가는 날",
+  "plan": "병원을 싫어하는 강아지 콩이가 주사를 잘 참고 뼈다귀 스티커를 받아 꼬리를 흔들어요.",
+  "w": [
+   [
+    "vet",
+    "수의사",
+    "n"
+   ],
+   [
+    "waiting room",
+    "대기실",
+    "n"
+   ],
+   [
+    "whimper",
+    "낑낑거리다",
+    "v"
+   ],
+   [
+    "injection",
+    "주사",
+    "n"
+   ],
+   [
+    "hold still",
+    "가만히 있다",
+    "v"
+   ],
+   [
+    "sticker",
+    "스티커",
+    "n"
+   ],
+   [
+    "wag",
+    "살랑살랑 흔들다",
+    "v"
+   ]
+  ],
+  "l": [
+   "강아지 콩이는 일 년에 한 번 병원에 가는 날을 제일 싫어했어요.",
+   "동물 병원의 {vet|수의사} 선생님은 커다란 안경을 쓴 곰이었어요.",
+   "{waiting room|대기실}에는 고양이와 토끼도 순서를 기다리고 있었어요.",
+   "콩이는 엄마 품에 얼굴을 묻고 {whimper|낑낑거렸어요}.",
+   "선생님은 아프지 않다며 엉덩이에 살짝 {injection|주사}를 놓았어요.",
+   "콩이는 눈을 꼭 감고 {hold still|가만히 있었어요}.",
+   "선생님은 잘 참았다며 뼈다귀 모양 {sticker|스티커}를 붙여 주었어요.",
+   "콩이는 기분이 좋아져서 꼬리를 {wag|살랑살랑 흔들었어요}.",
+   "그 뒤로 콩이는 병원 가는 날을 선물 받는 날이라고 불렀어요."
+  ],
+  "pic": {
+   "vet": "a friendly bear veterinarian with big round glasses in a white coat",
+   "waiting room": "a cat and a rabbit waiting their turn in a pet hospital waiting room",
+   "whimper": "a small white puppy whimpering and hiding its face in its owner's arms",
+   "injection": "the bear vet giving the puppy a quick vaccine with a tiny needle",
+   "hold still": "the puppy holding very still with its eyes squeezed shut",
+   "sticker": "the bear vet putting a bone-shaped sticker on the puppy's collar",
+   "wag": "the happy puppy wagging its tail wildly"
+  }
+ },
+ {
+  "t": "화성의 감자 텃밭",
+  "plan": "화성에 혼자 사는 우주인 아저씨가 온실을 지어 감자를 키우는 데 성공해요.",
+  "w": [
+   [
+    "base",
+    "기지",
+    "n"
+   ],
+   [
+    "greenhouse",
+    "온실",
+    "n"
+   ],
+   [
+    "soil",
+    "흙",
+    "n"
+   ],
+   [
+    "potato",
+    "감자",
+    "n"
+   ],
+   [
+    "oxygen",
+    "산소",
+    "n"
+   ],
+   [
+    "thrive",
+    "잘 자라다",
+    "v"
+   ],
+   [
+    "success",
+    "성공",
+    "n"
+   ]
+  ],
+  "l": [
+   "화성에 혼자 사는 우주인 아저씨는 신선한 음식이 그리웠어요.",
+   "아저씨는 붉은 모래 위 자기 {base|기지} 옆에 텃밭을 만들기로 했어요.",
+   "아저씨는 투명한 지붕을 씌운 작은 {greenhouse|온실}을 지었어요.",
+   "지구에서 가져온 {soil|흙}을 그 안에 골고루 깔았어요.",
+   "아저씨는 싹이 난 {potato|감자}를 한 알씩 심었어요.",
+   "식물들이 내뿜은 {oxygen|산소} 덕분에 공기도 상쾌해졌어요.",
+   "화성의 햇빛을 받은 싹들은 쑥쑥 {thrive|잘 자랐어요}.",
+   "지구에 보낸 영상 편지에서 아저씨는 텃밭이 {success|성공}했다고 자랑했어요.",
+   "그날 저녁 아저씨는 화성에서 처음으로 직접 키운 것을 쪄 먹었어요."
+  ],
+  "pic": {
+   "base": "a small round space base on the red desert of Mars with an astronaut outside",
+   "greenhouse": "the astronaut building a small greenhouse with a clear dome roof next to the base",
+   "soil": "the astronaut spreading dark brown soil from earth inside the greenhouse",
+   "potato": "the astronaut planting sprouted potatoes in neat rows",
+   "oxygen": "green plants giving off tiny bubbles of fresh air inside the greenhouse",
+   "thrive": "lush green potato plants growing tall inside the greenhouse on Mars",
+   "success": "the astronaut cheering with a basket of potatoes in front of a camera"
+  }
+ },
+ {
+  "t": "청개구리의 반대 놀이",
+  "plan": "엄마 말을 늘 반대로 하는 청개구리에게 엄마가 꾀를 내어 공부하지 말라고 하자 밤새 공부해요.",
+  "w": [
+   [
+    "disobedient",
+    "말을 안 듣는",
+    "a"
+   ],
+   [
+    "opposite",
+    "반대로",
+    "d"
+   ],
+   [
+    "sigh",
+    "한숨을 쉬다",
+    "v"
+   ],
+   [
+    "scheme",
+    "꾀",
+    "n"
+   ],
+   [
+    "study",
+    "공부하다",
+    "v"
+   ],
+   [
+    "obedient",
+    "말 잘 듣는",
+    "a"
+   ],
+   [
+    "chuckle",
+    "빙그레 웃다",
+    "v"
+   ]
+  ],
+  "l": [
+   "연못가에 엄마 개구리와 아들 청개구리가 살았어요.",
+   "청개구리는 엄마 말이라면 무엇이든 {disobedient|말을 안 듣는} 아이였어요.",
+   "엄마가 동쪽으로 가라고 하면 청개구리는 {opposite|반대로} 서쪽으로 갔어요.",
+   "엄마는 오늘도 땅이 꺼지게 {sigh|한숨을 쉬었어요}.",
+   "그러다 엄마에게 좋은 {scheme|꾀}가 떠올랐어요.",
+   "엄마가 오늘은 절대 책을 펴지 말라고 하자 청개구리는 밤새 {study|공부했어요}.",
+   "다음 날 백 점을 받은 청개구리는 처음으로 {obedient|말 잘 듣는} 아들처럼 엄마에게 안겼어요.",
+   "엄마는 청개구리 몰래 {chuckle|빙그레 웃었어요}.",
+   "그 뒤로 엄마는 시키고 싶은 일이 생기면 거꾸로 말했어요."
+  ],
+  "pic": {
+   "disobedient": "a little green frog sticking out its tongue and ignoring its mother by a pond",
+   "opposite": "the little green frog hopping west while its mother points east",
+   "sigh": "the mother frog sighing deeply with her hand on her forehead",
+   "scheme": "the mother frog with a lightbulb above her head and a sly smile",
+   "study": "the little green frog studying books late at night by lamplight",
+   "obedient": "the little green frog proudly hugging its mother and holding a test paper with a gold star",
+   "chuckle": "the mother frog chuckling behind her hand with a twinkle in her eye"
+  }
+ },
+ {
+  "t": "우리 반 축제 부스",
+  "plan": "우리 반이 축제에서 레모네이드 부스를 열어 번 돈을 동물을 돕는 단체에 보내요.",
+  "w": [
+   [
+    "booth",
+    "부스",
+    "n"
+   ],
+   [
+    "sign",
+    "간판",
+    "n"
+   ],
+   [
+    "lemonade",
+    "레모네이드",
+    "n"
+   ],
+   [
+    "squeeze",
+    "짜다",
+    "v"
+   ],
+   [
+    "sugar",
+    "설탕",
+    "n"
+   ],
+   [
+    "advertise",
+    "홍보하다",
+    "v"
+   ],
+   [
+    "earn",
+    "벌다",
+    "v"
+   ],
+   [
+    "charity",
+    "자선 단체",
+    "n"
+   ]
+  ],
+  "l": [
+   "가을 축제를 앞두고 우리 반은 무엇을 팔지 회의를 했어요.",
+   "우리 반은 운동장 한쪽에 작은 {booth|부스}를 차렸어요.",
+   "그림을 잘 그리는 소율이가 노란 {sign|간판}을 그렸어요.",
+   "우리 반이 팔 음료는 시원한 {lemonade|레모네이드}였어요.",
+   "아이들은 레몬을 반으로 잘라 즙을 {squeeze|짰어요}.",
+   "너무 셔서 {sugar|설탕}을 세 숟가락이나 넣었어요.",
+   "남자아이들은 확성기를 들고 운동장을 돌며 {advertise|홍보했어요}.",
+   "그날 우리 반은 오천 원을 {earn|벌었어요}.",
+   "아이들은 그 돈을 모두 동물을 돕는 {charity|자선 단체}에 보냈어요.",
+   "얼마 뒤 단체에서 강아지 사진이 담긴 감사 편지가 왔어요."
+  ],
+  "pic": {
+   "booth": "children setting up a small festival booth with a striped awning on a school playground",
+   "sign": "a bright yellow sign board decorated with a big painted lemon",
+   "lemonade": "a big glass jar of cold lemonade with ice and lemon slices",
+   "squeeze": "children squeezing lemon halves into a pitcher with juice dripping",
+   "sugar": "a child adding spoonfuls of white sugar into the lemonade pitcher",
+   "advertise": "boys walking around the playground with a megaphone and calling people to the booth",
+   "earn": "children happily counting coins and bills in a small cash box",
+   "charity": "the children handing an envelope of money to a smiling worker at an animal shelter with puppies"
+  }
+ },
+ {
+  "t": "이름 맞히기 내기",
+  "plan": "허풍쟁이 방앗간 주인의 딸이 작은 사내의 이름을 엿듣고 알아맞혀 내기에서 이겨요.",
+  "w": [
+   [
+    "miller",
+    "방앗간 주인",
+    "n"
+   ],
+   [
+    "spinning wheel",
+    "물레",
+    "n"
+   ],
+   [
+    "gold thread",
+    "금실",
+    "n"
+   ],
+   [
+    "little man",
+    "작은 사내",
+    "n"
+   ],
+   [
+    "bet",
+    "내기하다",
+    "v"
+   ],
+   [
+    "overhear",
+    "엿듣다",
+    "v"
+   ],
+   [
+    "guess",
+    "알아맞히다",
+    "v"
+   ],
+   [
+    "stomp",
+    "발을 구르다",
+    "v"
+   ]
+  ],
+  "l": [
+   "옛날 어느 마을에 허풍이 심한 아저씨가 살았어요.",
+   "그 사람은 마을 끝의 {miller|방앗간 주인}이었어요.",
+   "그는 자기 딸이 {spinning wheel|물레}로 짚을 금으로 바꿀 수 있다고 떠벌렸어요.",
+   "왕은 딸을 불러 하룻밤 안에 짚으로 {gold thread|금실}을 만들라고 했어요.",
+   "울고 있는 딸 앞에 수염이 긴 {little man|작은 사내}가 나타나 대신 해 주었어요.",
+   "사내는 사흘 안에 자기 이름을 맞히면 아무것도 받지 않겠다고 {bet|내기했어요}.",
+   "딸은 숲속에서 사내가 혼자 부르는 노래를 몰래 {overhear|엿들었어요}.",
+   "사흘째 날 딸은 사내의 이름을 정확히 {guess|알아맞혔어요}.",
+   "깜짝 놀란 사내는 바닥에 쿵쿵 {stomp|발을 구르다가} 연기처럼 사라졌어요.",
+   "딸은 그 뒤로 아버지에게 허풍은 이제 그만 부리라고 신신당부했어요."
+  ],
+  "pic": {
+   "miller": "a boastful miller in a flour-covered apron bragging in front of his old mill",
+   "spinning wheel": "a young woman sitting at a wooden spinning wheel with piles of straw",
+   "gold thread": "glittering gold thread spinning out of the wheel in a dark room",
+   "little man": "a tiny old man with a very long beard and a pointed hat appearing in the room",
+   "bet": "the tiny man holding up three fingers and making a bet with the young woman",
+   "overhear": "the young woman hiding behind a tree, overhearing the tiny man singing and dancing by a fire",
+   "guess": "the young woman pointing and calling out the tiny man's name with a confident smile",
+   "stomp": "the tiny man stomping his feet in anger and vanishing in a puff of smoke"
+  }
+ }
+]
