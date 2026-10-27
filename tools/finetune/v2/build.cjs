@@ -22,6 +22,9 @@ try {
     seenTitle.add(s.t);
     const r = check(p, s.w, s.t, s.l, 48);
     why.push(...r.why, ...r.warn);
+    // 시험 단어의 뜻이 이야기에 지나가듯 나와도 안 돼요 (재기가 부풀어요)
+    why.push(...p.json(`(() => { const T = ${JSON.stringify(TEST_SETS.flat())}, ls = ${JSON.stringify(s.l)}.map(l => l.replace(/\\{[^|}]+\\|([^}]+)\\}/g, '$1'));
+      return T.filter(([en, ko, pos]) => ls.some(l => aiMark(l, en, stLex(en, { en, ko, pos }, SF[0]), ko))).map(([en, ko]) => '시험 단어 뜻이 나옴: ' + ko); })()`));
     if (why.length) { bad++; console.log(`✘ ${s.from} ‘${s.t}’: ${why.join(' / ')}`); continue; }
     out.push({ messages: [{ role: 'user', content: prompt(s.w) }, { role: 'assistant', content: [s.t, ...s.l].join('\n') }] });
   }
