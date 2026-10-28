@@ -15,10 +15,17 @@
 - 만드는 도구는 저장소 밖(`mknb3.py`)에 두었어요. 노트북을 고칠 때는 노트북을 직접 고쳐도 돼요.
 - 학습 전 Gemma(llama.cpp Q8, CPU)로 `v3/eval.cjs base`: **형식 0/30** (한 편 59초쯤). 영어로 `## Story` 같은 마크다운 제목을 달고, 단어마다 번호를 붙여 영어 문장을 써요. 학습 뒤와 견줄 기준이에요.
 
+### 그림 AI 시험 (사용자, 컴퓨터 크롬)
+- SD-Turbo WebGPU 시연이 **돌아가고 그림도 잘 나와요** (사진 같은 풍경 512×512).
+- 처음 받기: unet 280초 + text_encoder 100초 (약 6분, 다음부터는 저장돼요).
+- 한 장: 첫 장 47초 (text_encoder 8.5초 + unet 10.8초 + vae_decoder 27.4초), 둘째 장 31초 (unet 8.6초 + vae_decoder 22.7초). 이야기 한 편(그림 6~8장)이면 3~6분이에요.
+- 가장 오래 걸리는 vae_decoder(99MB)는 작은 판 **TAESD**(`julienkay/taesd`의 `vae_decoder/model.onnx`, 4.9MB, MIT)로 바꾸면 거의 0초가 될 거예요 (SD-Turbo는 SD 2.1 바탕이라 맞아요, 아직 시험 안 함).
+- 아직 모르는 것: 휴대폰에서 열리는지·속도. 이 컴퓨터가 RTX 5060 PC라면 unet 8.6초는 느린 편이라 크롬이 내장 그래픽을 썼을 수도 있어요 (`chrome://gpu`).
+
 ### 다음
 - 사용자: Colab에서 `tools/finetune/v3/train_colab.ipynb`를 열고 런타임 T4 → 모두 실행 → 모델 주소를 Claude에게.
 - Claude: `lora-adapter`를 받아 llama.cpp(Q8 + LoRA, `convert_lora_to_gguf.py`)로 `v3/eval.cjs` 30편을 재고, 이어짐·뜻·그림 설명을 읽어 판정 (기준 27/30). 모자라면 1,000편으로 늘릴지 사용자에게 물어요.
-- 그림 AI(SD-Turbo WebGPU)를 휴대폰에서 열어 본 결과를 사용자에게 받아요.
+- 그림 AI: 휴대폰에서도 열어 본 결과를 사용자에게 받아요. 게임에 넣는다면 TAESD로 바꾼 작은 시험 페이지를 먼저 만들어 속도를 재요 (사이트 변경 전에 사용자에게 물어요).
 
 ## 2026-10-27 밤 (클라우드) — 파인튜닝 3차 시작: 단어 6개 이상 → 제목·줄거리·이야기·그림 설명
 
