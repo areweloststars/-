@@ -5,7 +5,13 @@
 
 ## 2026-10-28 밤 (클라우드) — 파인튜닝 3차 결과: 형식 9/30, 쓸 만한 이야기 3~4편 (기준 27편에 못 미침)
 
-> 다음 세션은 여기부터. 다음 방향(1,000편으로 늘리기 / 더 큰 모델 / 다른 방법)을 사용자에게 물어 둔 상태예요.
+> 다음 세션은 여기부터. 사용자가 **더 큰 모델(E4B) 시험**을 골랐어요. 사용자가 `v3/train_colab_e4b.ipynb`를 Colab에서 돌리기를 기다려요.
+
+### E4B 시험 준비 (사용자가 고름)
+- `tools/finetune/v3/train_colab_e4b.ipynb`: 3차 노트북과 같은 모범 300편·같은 설정(r=16, 3번 돌기, 2e-4)으로 `unsloth/gemma-4-E4B-it`를 **4비트로 불러** 학습해요 (Unsloth 공식 E4B 노트북과 같은 불러오기). **학습 파일(LoRA)만** 내 허깅페이스 `…/gemma-4-E4B-it-wordstory3-lora`에 올려요. 1시간 반~2시간쯤.
+- 앱(크롬)용 MLC 판: `mlc-ai`에는 E4B가 없어요(E2B뿐). 모르는 사람이 올린 판(`welcoma/…-E4B-it-q4f16_1-MLC`)은 있지만 확인 안 했어요. **E4B가 이야기를 잘 이으면** 그때 앱용으로 어떻게 바꿀지(직접 컴파일 등)와 휴대폰 메모리(E4B 4비트 5GB쯤 + 그림 AI 2.5GB, 한 번에 하나씩)를 따져요.
+- 재기: llama.cpp로 `ggml-org/gemma-4-E4B-it-GGUF`의 Q8_0(8GB) + LoRA. 스크립트는 저장소 밖(scratch `lc/v3-e4b.sh`)에 두었어요 — 컨테이너가 바뀌면 `v3-lora.sh`처럼 다시 만들면 돼요 (`convert_lora_to_gguf.py --base`에는 `google/gemma-4-E4B-it`의 config·tokenizer).
+- 노트북은 `mknb3e4b.py`(저장소 밖)로 3차 노트북에서 만들었어요.
 
 ### 한 일
 - 사용자가 Colab에서 학습한 LoRA를 받아 llama.cpp(Q8 + LoRA, CPU 4스레드)로 `v3/eval.cjs lora3` 30편을 쟀어요. 한 편 평균 48초.
