@@ -44,6 +44,8 @@
 ## 사이트 열쇠
 
 - 사이트(`word-game/index.html`)는 게임 전체를 잠근 페이지예요. 열쇠는 공유 링크의 `#` 뒤에만 있고 저장소에는 없어요.
+- 체험판(`word-game/play.html`)은 열쇠 없이 누구나 열어요 (2026-10-29 사용자가 포트폴리오용으로 원함). 같은 게임이지만 주인 단어장은 넣지 않아요. 빌드할 때 함께 다시 써져요.
+- 포트폴리오 페이지는 `portfolio/index.html` (공개 주소 `https://areweloststars.github.io/-/portfolio/`). 사이트 열쇠는 넣지 않아요.
 - 빌드: `SITE_KEY=<공유 링크> npm run build` (열쇠가 없으면 사용자에게 링크를 받아요). `--new-key`는 예전 링크를 못 쓰게 하니 사용자가 바랄 때만.
 
 ## 작업 기록 (대화 요약을 GitHub에)

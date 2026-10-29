@@ -529,8 +529,8 @@ function voiceGate() {
 // 앱 안 화면(Claude 앱·카카오톡·인스타그램 등 앱 속 브라우저): 휴대폰 목소리를 쓸 수 없는 경우가 많아요
 const inApp = /; wv\)|\bClaude\/|KAKAOTALK|NAVER\(inapp|Instagram|FBA[NV]|\bLine\/|DaumApps|everytimeApp/i.test(navigator.userAgent || '');
 const inKakao = /KAKAOTALK/i.test(navigator.userAgent || '');
-// 지금 게임을 여는 링크 (열쇠는 이 기기에 기억된 것)
-function gameLink() { let k = ''; try { k = localStorage.getItem('word-game-site-key') || ''; } catch (e) { } return location.origin + location.pathname + (k ? '#k=' + k : ''); }
+// 지금 게임을 여는 링크 (열쇠는 이 기기에 기억된 것. 열쇠 없이 여는 체험판(play.html)에는 붙이지 않아요)
+function gameLink() { let k = ''; try { if (!/\/play\.html$/.test(location.pathname)) k = localStorage.getItem('word-game-site-key') || ''; } catch (e) { } return location.origin + location.pathname + (k ? '#k=' + k : ''); }
 async function copyLink() {
   const t = gameLink(), told = () => toast('링크를 복사했어요 · Chrome이나 삼성 인터넷 주소창에 붙여 넣어 열어 주세요');
   try { await navigator.clipboard.writeText(t); told(); return; } catch (e) { }

@@ -5,7 +5,7 @@
 
 ```
 npm install                          # 테스트용 jsdom 받기 (게임 실행에는 필요 없음)
-SITE_KEY=<공유 링크> npm run build    # app/src → 잠근 word-game/index.html
+SITE_KEY=<공유 링크> npm run build    # app/src → 잠근 word-game/index.html + 열쇠 없는 체험판 word-game/play.html
 npm test                             # 빌드가 최신인지 + 회귀 테스트 (열쇠 없이 돼요)
 ```
 
@@ -53,7 +53,7 @@ npm test                             # 빌드가 최신인지 + 회귀 테스트
 - 이야기 AI는 크롬이 알려 준 메모리(RAM)가 8GB인 기기에서만 켜요 (모델이 그래픽 메모리를 약 3.4GB 써요. 4~6GB 휴대폰은 올리다가 탭이 꺼져요).
 - 만들거나 받는 동안에는 화면 켜 두기(Screen Wake Lock)를 부탁해요. 쓰다가 그래픽 칩을 잃으면(오류 글에 `mapAsync`·`unmapped`·`Device was lost` 등) 엔진을 버리고 한 번만 다시 준비해서 그 에피소드를 한 번 더 써요. 또 잃으면 단어장을 저장하지 않고 멈춰요.
 - 완성 화면의 **AI가 쓴 글 보기**에 기기(메모리·그래픽 칩), 멈춘 단계(준비·이야기 읽기·글쓰기), 걸린 시간, 토큰 수, 화면이 가려진 횟수가 나와요.
-- `word-game/` 안의 파일(`index.html` 말고)을 바꾸면 `word-game/sw.js`의 `VERSION`을 바꿔요. `npm test`가 새 값을 알려 줘요.
+- `word-game/` 안의 파일(`index.html`·`play.html` 말고)을 바꾸면 `word-game/sw.js`의 `VERSION`을 바꿔요. `npm test`가 새 값을 알려 줘요.
 
 ## 컴퓨터에서 쓰기
 

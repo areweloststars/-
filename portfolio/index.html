@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>그림 스토리 단어 미션 · 포트폴리오</title>
+<meta name="description" content="사진 속 영어 단어를 웃긴 동화 에피소드로 바꾸는 단어 게임. 작동 방식, 잰 결과, 휴대폰 AI 실험, 내린 결정.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="그림 스토리 단어 미션 · 포트폴리오">
+<meta property="og:description" content="사진 속 영어 단어를 웃긴 동화 에피소드로 바꾸는 단어 게임. 작동 방식, 잰 결과, 휴대폰 AI 실험, 내린 결정.">
+<meta property="og:url" content="https://areweloststars.github.io/-/portfolio/">
+<meta property="og:image" content="https://areweloststars.github.io/-/word-game/icons/icon-512.png">
+<link rel="icon" type="image/png" href="../word-game/icons/icon-192.png">
+<style>:root { color-scheme: light; } body { margin: 0; } img { max-width: 100%; } [hidden] { display: none !important; }</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f6f1e7;
+  --paper: #fffcf5;
+  --fg: #1e222b;
+  --muted: #5c616d;
+  --line: #e2d8c4;
+  --accent: #c0442a;
+  --accent-soft: #f6dcd2;
+  --good: #1d6a63;
+  --good-soft: #d6ebe7;
+  --chip: #efe6d3;
+  --bar: #c9bfa9;
+  --serif: "Gowun Batang", "Noto Serif KR", "AppleMyungjo", serif;
+  --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171c; --paper: #1d2027; --fg: #ebe5d8; --muted: #a2a6b0; --line: #2f333c;
+    --accent: #ee7f63; --accent-soft: #3a2420; --good: #62c2b7; --good-soft: #1b3330;
+    --chip: #2a2d35; --bar: #4a4e58; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171c; --paper: #1d2027; --fg: #ebe5d8; --muted: #a2a6b0; --line: #2f333c;
+  --accent: #ee7f63; --accent-soft: #3a2420; --good: #62c2b7; --good-soft: #1b3330;
+  --chip: #2a2d35; --bar: #4a4e58; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--sans); font-size: 16px; line-height: 1.7;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+.wrap {
+  max-width: 1040px; margin: 0 auto;
+  padding-inline: max(20px, env(safe-area-inset-left, 0px));
+  padding-block: 48px 72px;
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.3; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.45rem, 3vw, 1.85rem); }
+h3 { font-size: 1.12rem; }
+p { margin: 0; }
+.label { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em; color: var(--accent); }
+.mono { font-family: var(--mono); }
+.muted { color: var(--muted); }
+section { display: grid; gap: 22px; padding-block: 56px 8px; border-top: 1px solid var(--line); margin-top: 56px; }
+.lede { font-size: 1.12rem; max-width: 36em; }
+.prose { max-width: 40em; display: grid; gap: 12px; }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 48px; align-items: center; }
+.hero-text { display: grid; gap: 20px; min-width: 0; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 26px; margin: 4px 0 0; padding: 0; list-style: none; }
+.facts li { display: grid; gap: 0; }
+.facts b { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+.facts span { font-weight: 600; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--paper); color: var(--fg); text-decoration: none; font-weight: 500; font-size: 0.95rem;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.note { font-size: 0.86rem; color: var(--muted); }
+
+/* episode mock */
+.episode {
+  background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 18px;
+  margin: 0; display: grid; gap: 14px; box-shadow: 0 18px 40px -28px rgba(40, 30, 10, 0.45); min-width: 0;
+}
+.ep-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 0.82rem; }
+.ep-top .label { color: var(--muted); }
+.panel { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--chip); }
+.panel svg { display: block; width: 100%; height: auto; }
+.subtitle { font-family: var(--serif); font-size: 1.05rem; line-height: 1.75; }
+.word {
+  display: inline-block; padding: 0 7px; border-radius: 6px; background: var(--accent-soft);
+  color: var(--accent); font-family: var(--sans); font-weight: 600;
+}
+.ipa { font-size: 0.85rem; color: var(--muted); }
+.timer { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
+.timer i { display: block; height: 100%; width: 62%; background: var(--accent); }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choices span {
+  border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; text-align: center; font-size: 0.95rem;
+}
+.choices .ok { border-color: var(--good); background: var(--good-soft); color: var(--good); font-weight: 600; }
+.caption { font-size: 0.78rem; color: var(--muted); text-align: center; }
+
+/* flow */
+.flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; counter-reset: step; }
+.step { display: grid; gap: 8px; align-content: start; padding-top: 14px; border-top: 3px solid var(--fg); min-width: 0; }
+.step::before { counter-increment: step; content: "0" counter(step); font-family: var(--mono); font-size: 0.8rem; color: var(--accent); }
+.step p { font-size: 0.95rem; color: var(--muted); }
+
+/* numbers */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.stat { display: grid; gap: 4px; align-content: start; padding: 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.stat .num { font-family: var(--serif); font-size: 2rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.stat .num small { font-size: 1rem; color: var(--muted); font-weight: 400; }
+.stat p { font-size: 0.9rem; color: var(--muted); }
+
+/* chart */
+.chart { display: grid; gap: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
+.row { display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr) 3.6em; gap: 12px; align-items: center; font-size: 0.92rem; }
+.row .name { min-width: 0; }
+.row .name small { display: block; color: var(--muted); font-size: 0.78rem; line-height: 1.3; }
+.track { position: relative; height: 18px; background: var(--chip); border-radius: 4px; }
+.track .fill { position: absolute; inset: 0 auto 0 0; background: var(--bar); border-radius: 4px; }
+.track .fill.best { background: var(--good); }
+.track .goal { position: absolute; top: -5px; bottom: -5px; left: 90%; width: 2px; background: var(--accent); }
+.row .val { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.axis { display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr) 3.6em; gap: 12px; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+.axis .ticks { position: relative; height: 1.2em; }
+.axis .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.axis .ticks span:last-child { transform: translateX(-100%); }
+.axis .ticks span:first-child { transform: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.82rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+
+/* tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+table { width: 100%; border-collapse: collapse; font-size: 0.93rem; min-width: 560px; }
+th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td.model { font-weight: 600; white-space: nowrap; }
+.tag { display: inline-block; font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+.tag.pick { background: var(--good-soft); color: var(--good); font-weight: 600; }
+.tag.bad { background: var(--accent-soft); color: var(--accent); }
+
+/* decisions */
+.decisions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; margin: 0; padding: 0; list-style: none; }
+.decisions li { display: grid; grid-template-columns: 2.4em minmax(0, 1fr); gap: 4px 12px; padding-block: 18px; border-bottom: 1px solid var(--line); }
+.decisions .n { font-family: var(--mono); color: var(--accent); font-size: 0.85rem; padding-top: 3px; }
+.decisions p { grid-column: 2; font-size: 0.95rem; color: var(--muted); }
+
+/* two col */
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.cols > div { display: grid; gap: 10px; align-content: start; min-width: 0; }
+ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--chip); padding: 1px 6px; border-radius: 5px; }
+
+footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; font-size: 0.88rem; color: var(--muted); }
+
+@media (max-width: 820px) {
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .flow, .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .decisions, .cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .wrap { padding-block: 32px 56px; }
+  .flow, .stats { grid-template-columns: minmax(0, 1fr); }
+  .row, .axis { grid-template-columns: minmax(0, 1fr) 3.2em; }
+  .row .name { grid-column: 1 / -1; }
+  .axis > span:first-child { display: none; }
+  .chart { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="hero-text">
+    <p class="label">개인 프로젝트 · 2026년 10월</p>
+    <h1>그림 스토리 단어 미션</h1>
+    <p class="lede">단어 목록 사진 한 장을 찍으면, 그 단어들이 웃긴 동화 속 장면으로 나오는 영어 단어 게임이에요. 발음을 듣고, 정해진 시간 안에 뜻을 맞혀요. AI 코딩 도구(Claude Code)와 함께 기획·결정·검증을 맡아 3주 동안 만들었어요.</p>
+    <ul class="facts">
+      <li><b>내 역할</b><span>기획 · 결정 · 실기기 시험</span></li>
+      <li><b>구현</b><span>Claude Code와 함께</span></li>
+      <li><b>기간</b><span>2026.10.09 – 진행 중</span></li>
+      <li><b>형태</b><span>웹 앱 (휴대폰·PC, 오프라인)</span></li>
+    </ul>
+    <div class="links">
+      <a class="btn primary" href="https://areweloststars.github.io/-/word-game/play.html" target="_blank" rel="noopener">게임 해 보기 ↗</a>
+      <a class="btn" href="https://github.com/areweloststars/-" target="_blank" rel="noopener">GitHub 저장소 ↗</a>
+    </div>
+    <p class="note">체험판은 가입이나 설치 없이 바로 열려요. 동화 7편·47단어 기본 단어장이 들어 있고, 크롬에서는 사진으로 내 단어장도 만들 수 있어요.</p>
+  </div>
+
+  <figure class="episode" aria-label="게임 화면 예시">
+    <div class="ep-top"><span class="label">에피소드 3 · 장면 2</span><span class="ipa">7초 남음</span></div>
+    <div class="panel">
+      <svg viewBox="0 0 320 150" role="img" aria-label="어두운 동굴 앞에서 등불을 든 작은 용">
+        <rect width="320" height="150" fill="var(--chip)"/>
+        <path d="M0 150 L0 70 Q60 20 120 60 Q150 30 190 55 Q250 15 320 65 L320 150 Z" fill="var(--bar)" opacity="0.55"/>
+        <ellipse cx="78" cy="118" rx="44" ry="30" fill="var(--fg)" opacity="0.85"/>
+        <circle cx="214" cy="84" r="34" fill="var(--accent)" opacity="0.16"/>
+        <circle cx="214" cy="84" r="20" fill="var(--accent)" opacity="0.22"/>
+        <rect x="206" y="72" width="16" height="22" rx="4" fill="var(--accent)"/>
+        <path d="M209 72 Q214 62 219 72" fill="none" stroke="var(--fg)" stroke-width="2"/>
+        <ellipse cx="180" cy="118" rx="26" ry="20" fill="var(--good)"/>
+        <circle cx="198" cy="98" r="14" fill="var(--good)"/>
+        <circle cx="203" cy="95" r="3" fill="var(--paper)"/>
+        <path d="M156 112 L140 100 L150 120 Z" fill="var(--good)"/>
+        <path d="M172 102 L166 88 L180 98 Z" fill="var(--good)" opacity="0.8"/>
+        <path d="M206 100 L214 92" stroke="var(--good)" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <p class="subtitle">겁 많은 아기 용 쿠쿠는 동굴이 너무 어두워서 마을에 <span class="word">lantern</span>을 빌리러 내려갔어요.</p>
+    <p class="ipa">lantern <span class="mono">/ˈlæn.tərn/</span> · 🔊 발음 듣기</p>
+    <div class="timer" aria-hidden="true"><i></i></div>
+    <div class="choices"><span class="ok">등불</span><span>사다리</span><span>주전자</span><span>담요</span></div>
+    <figcaption class="caption">화면 구성을 다시 그린 예시예요 (일반 낱말 사용).</figcaption>
+  </figure>
+</header>
+
+<section>
+  <p class="label">문제</p>
+  <h2>단어장은 외우기 지루하고, 금방 잊혀요</h2>
+  <div class="prose">
+    <p>학교·학원 단어 목록은 영어와 뜻이 한 줄씩 늘어선 표예요. 눈으로 여러 번 훑어도 맥락이 없어서 기억에 오래 남지 않아요.</p>
+    <p>그래서 단어마다 <strong>이야기 속 한 장면</strong>을 붙이기로 했어요. 명작 동화·전래 동화·신화를 웃기게 비튼 에피소드에 단어가 나오고, 영어 발음을 듣고, 제한 시간 안에 뜻을 고르는 미션을 풀어요. 장면이 떠오르면 단어도 함께 떠오르게요.</p>
+  </div>
+</section>
+
+<section>
+  <p class="label">작동 방식</p>
+  <h2>사진 한 장에서 에피소드까지</h2>
+  <div class="flow">
+    <div class="step"><h3>사진 찍기</h3><p>단어 목록 사진이나 채팅 화면 캡처를 올려요. 표, 가운뎃점 목록, 어두운 채팅 화면도 읽어요.</p></div>
+    <div class="step"><h3>기기 안에서 읽기</h3><p>글자 인식(Tesseract.js)을 두 번 돌려 영어와 뜻을 짝지어요. 사진은 서버로 가지 않아요.</p></div>
+    <div class="step"><h3>확인하고 고치기</h3><p>읽은 결과를 사진 조각과 나란히 보여 주고, 틀린 뜻만 손으로 고쳐요.</p></div>
+    <div class="step"><h3>이야기 미션</h3><p>단어로 에피소드·그림 칸·외우기 팁·예문을 만들고, 발음과 시간 제한 문제로 복습해요.</p></div>
+  </div>
+</section>
+
+<section>
+  <p class="label">검증한 숫자</p>
+  <h2>“좋아진 것 같다” 대신 재서 확인했어요</h2>
+  <div class="stats">
+    <div class="stat"><span class="num">55→81<small>%</small></span><p>합성 시험 사진에서 단어·뜻 짝 맞춤 정확도</p></div>
+    <div class="stat"><span class="num">76→90<small>%</small></span><p>채팅 화면 캡처 14장의 짝 맞춤 정확도 (예전 결과는 그대로 유지)</p></div>
+    <div class="stat"><span class="num">104<small> / 104</small></span><p>자동 시험 통과 (사진 인식·이야기 AI·오프라인·음성)</p></div>
+    <div class="stat"><span class="num">27<small> / 30</small></span><p>이야기 AI를 게임에 넣는 기준: 시험 30편 중 쓸 만한 편 수</p></div>
+  </div>
+  <p class="note">사진 인식 시험은 실제 교재 사진 대신, 같은 모양으로 합성한 화면(일반 사전 낱말 + 직접 쓴 뜻)으로 해요.</p>
+</section>
+
+<section>
+  <p class="label">AI 실험</p>
+  <h2>휴대폰 안에서 이야기를 쓰는 AI를 찾아서</h2>
+  <div class="prose">
+    <p>목표는 인터넷 없이 <strong>휴대폰 브라우저 안에서</strong> 작은 AI가 단어로 이야기를 쓰는 거예요. 가족이 실제로 쓰는 <strong>RAM 8GB 휴대폰</strong>을 기준 기기로 정했어요. 무료 모델만 쓰고, 결과는 매번 같은 시험(30편)으로 재서 비교했어요.</p>
+  </div>
+
+  <div class="chart" role="figure" aria-label="파인튜닝 단계별 쓸 만한 이야기 수, 30편 중">
+    <div class="chart-head">
+      <h3>쓸 만한 이야기 수 (30편 중)</h3>
+      <div class="legend"><span><i style="background:var(--bar)"></i>E2B (2B급)</span><span><i style="background:var(--good)"></i>E4B (4B급)</span><span><i style="background:var(--accent);width:3px"></i>게임에 넣는 기준 27편</span></div>
+    </div>
+    <div class="row"><div class="name">학습 전<small>Gemma 4 E2B 그대로</small></div><div class="track"><span class="goal"></span></div><div class="val">0</div></div>
+    <div class="row"><div class="name">파인튜닝 2차<small>제목·이야기 형식 학습</small></div><div class="track"><span class="fill" style="width:16.67%"></span><span class="goal"></span></div><div class="val">~5</div></div>
+    <div class="row"><div class="name">파인튜닝 3차<small>단어 6개 이상 + 그림 설명</small></div><div class="track"><span class="fill" style="width:11.67%"></span><span class="goal"></span></div><div class="val">3–4</div></div>
+    <div class="row"><div class="name">3차 · 큰 모델<small>Gemma 4 E4B</small></div><div class="track"><span class="fill best" style="width:33.33%"></span><span class="goal"></span></div><div class="val">~10</div></div>
+    <div class="axis"><span></span><div class="ticks"><span style="left:0">0</span><span style="left:33.33%">10</span><span style="left:66.67%">20</span><span style="left:90%">27</span><span style="left:100%">30</span></div><span></span></div>
+    <p class="note">‘쓸 만한 이야기’ = 앞뒤가 이어지고 단어 뜻이 맞게 쓰인 편. 3차는 형식이 더 엄해서(단어 6개 이상, 그림 설명까지) 2차와 그대로 견주기는 어려워요.</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>모델 (무료)</th><th>결과</th><th>판단</th></tr></thead>
+      <tbody>
+        <tr><td class="model">Gemma 4 E2B</td><td>브라우저에서 혼자 쓰면 8편에 1편쯤 쓸 만함. 단어 1개만 줘도 크게 나아지지 않음.</td><td><span class="tag pick">기준 모델</span></td></tr>
+        <tr><td class="model">Gemma 4 E4B</td><td>파인튜닝 후 이야기 잇기가 E2B의 약 3배. 하지만 RAM 4~8GB 폰(갤럭시 A16)에서는 받는 도중 브라우저가 꺼짐.</td><td><span class="tag">상위 폰 시험 중</span></td></tr>
+        <tr><td class="model">Qwen3.5-4B · Qwen3-4B</td><td>한국어 문장이 Gemma보다 더 어색함.</td><td><span class="tag bad">탈락</span></td></tr>
+        <tr><td class="model">Ministral 3 3B</td><td>실행 중 그래픽 칩 연결이 끊겨 끝까지 못 돎.</td><td><span class="tag bad">탈락</span></td></tr>
+        <tr><td class="model">HyperCLOVA X SEED 1.5B</td><td>한국어는 자연스럽지만 지시(줄 수·단어 넣기)를 따르지 않음. 0 / 36.</td><td><span class="tag bad">탈락</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">파인튜닝: 직접 쓴 모범 이야기 300편으로 Colab에서 LoRA 학습 → 크롬용(WebLLM, q4f16) 변환. 지금 게임은 앱이 이야기 틀을 쓰고 AI가 단어 줄을 새로 쓰는 방식으로 돌아가요.</p>
+</section>
+
+<section>
+  <p class="label">내가 내린 결정</p>
+  <h2>무엇을 만들지보다 무엇을 하지 않을지</h2>
+  <ul class="decisions">
+    <li><span class="n">01</span><h3>교재 단어장은 사이트에서 뺐어요</h3><p>책·단어 앱에서 가져온 단어 목록과 예문은 저작권이 있어요. 잠긴 파일에서도 빼고, 교재 단어는 각자 기기 안에서 사진으로 만들게 했어요.</p></li>
+    <li><span class="n">02</span><h3>사진은 기기 밖으로 나가지 않아요</h3><p>글자 인식은 브라우저 안에서만 해요. 단어장 내보내기·공유 기능도 일부러 만들지 않았어요 (개인 공부용).</p></li>
+    <li><span class="n">03</span><h3>AI가 베끼면 실패로 알려요</h3><p>AI가 앱 문장을 그대로 베꼈을 때 앱 문장으로 몰래 채우지 않기로 했어요. 단어 줄의 3분의 2 이상을 AI가 새로 써야 통과예요.</p></li>
+    <li><span class="n">04</span><h3>기준 기기와 합격선을 먼저 정했어요</h3><p>RAM 8GB 휴대폰, 시험 30편 중 27편. 기준을 먼저 정해 두니 “조금 나아졌다”에 머물지 않고 넣을지 말지를 판단할 수 있었어요.</p></li>
+  </ul>
+</section>
+
+<section>
+  <p class="label">일하는 방식</p>
+  <h2>AI와 일하는 규칙도 직접 정했어요</h2>
+  <div class="cols">
+    <div>
+      <h3>여러 자리에서 이어서 일하기</h3>
+      <ul class="plain">
+        <li>클라우드 세션, 내 PC의 명령줄, 두 계정이 번갈아 일해요.</li>
+        <li>일이 한 덩어리 끝날 때마다 <code>docs/work-log.md</code>에 한 일·알아낸 것·남은 일을 적어 다음 자리가 이어받게 했어요.</li>
+        <li>다른 AI 도구도 같은 규칙을 읽도록 <code>AGENTS.md</code>를 두었어요.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>안전하게 바꾸기</h3>
+      <ul class="plain">
+        <li>모든 변경은 작업 브랜치 → PR로 올리고, 사이트 반영은 내가 확인한 뒤에 합쳐요.</li>
+        <li>사용량 한도(5시간 90%, 주간 95%)에 닿기 전에 저장하고 멈춘 뒤, 다시 채워지면 자동으로 이어서 해요.</li>
+        <li>공개 저장소라서 사이트 열쇠·개인 정보·교재 단어는 기록에도 남기지 않아요.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><span class="num">130+</span><p>커밋</p></div>
+    <div class="stat"><span class="num">26</span><p>합친 PR (#2 – #27)</p></div>
+    <div class="stat"><span class="num">~10.9k</span><p>앱 코드 줄 수 (17개 파일)</p></div>
+    <div class="stat"><span class="num">0</span><p>서버 — 모든 처리가 브라우저 안</p></div>
+  </div>
+</section>
+
+<section>
+  <p class="label">다음</p>
+  <h2>남은 일</h2>
+  <ul class="plain prose">
+    <li>상위 휴대폰(갤럭시 S24)에서 큰 모델(E4B)이 열리는지 시험</li>
+    <li>모범 이야기 1,000편을 더 써서 4차 학습 → 27 / 30 기준에 다시 도전</li>
+    <li>기준을 넘지 못하면, AI 대신 사람이 쓴 이야기 틀을 수십 개로 늘려 같은 이야기가 되풀이되지 않게</li>
+  </ul>
+</section>
+
+<footer>
+  <span>그림 스토리 단어 미션 · 기술: 바닐라 JS, Tesseract.js, WebLLM(WebGPU), Web Speech·기기 안 음성 합성(ONNX), 서비스 워커</span>
+  <a href="https://github.com/areweloststars/-" target="_blank" rel="noopener">github.com/areweloststars/-</a>
+</footer>
+
+</div>
+</body>
+</html>

@@ -3,6 +3,16 @@
 세션마다 한 일과 남은 일을 적어요. 두 Claude 계정, 클라우드와 이 컴퓨터(CLI)가 서로 이어받을 수 있게요. 새 기록은 맨 위에 더해요.
 대화 원문은 올리지 않아요. 이 저장소는 공개라서 사이트 열쇠(공유 링크), 이메일 같은 개인 정보, 사진·화면 캡처, 교재 단어는 적지 않아요.
 
+## 2026-10-29 (클라우드) — 공개 포트폴리오 + 열쇠 없는 체험판
+
+- 사용자가 "공개 링크로", "열쇠 링크 없이 들어갈 수 있게"를 원했어요. Claude Artifact의 공개 설정은 Claude가 바꿀 수 없어서 GitHub 사이트에 올렸어요.
+- **포트폴리오**: `portfolio/index.html` → `https://areweloststars.github.io/-/portfolio/` (카카오톡 미리보기용 og 태그 포함).
+- **체험판**: `word-game/play.html` → `https://areweloststars.github.io/-/word-game/play.html`. 잠그지 않은 같은 게임(기본 단어장 동화 7편·47단어, 사진으로 단어장 만들기). 주인 단어장(`decks.enc`)은 넣지 않아요. 잠근 `index.html`과 열쇠 링크는 그대로예요.
+  - `app/build.cjs`가 빌드 때 함께 쓰고 `--check`도 봐요. 설치하면 체험판이 열리도록 `play.webmanifest`(start_url `./play.html`).
+  - `sw.js`: `play.html`도 게임 페이지처럼 인터넷 먼저(따로 저장). `gameLink()`는 체험판에서 열쇠를 붙이지 않아요.
+  - 시험 104개 통과, 크롬으로 체험판이 열쇠 없이 열리고 잠근 페이지는 그대로 잠긴 것을 확인했어요.
+- 이 일로 작업 브랜치를 main에 합쳤어요. 그동안 브랜치에만 있던 `AGENTS.md`, `tools/finetune`, `tools/phone-test`, `tools/story-lab`도 함께 main에 들어갔어요.
+
 ## 2026-10-29 (클라우드) — 포트폴리오 페이지
 
 - 사용자가 "포트폴리오용 링크"를 원해서 Claude Artifact로 한 장짜리 소개 페이지를 만들었어요 (비공개, 주인 계정만 열려요. 남에게 보이려면 페이지의 공유 메뉴에서 열어 줘요).
