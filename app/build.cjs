@@ -7,7 +7,9 @@
 //   node app/build.cjs --decks-in <폴더>           → 폴더의 *.json을 app/decks.enc로 잠그고 다시 빌드
 //   node app/build.cjs --new-key                  → 새 열쇠를 만들어 app/.site-key에 두고 그 열쇠로 쓰기 (예전 링크로는 더 이상 안 열려요)
 //   node app/build.cjs --link                     → 지금 열쇠로 공유 링크 보여 주기
-//   node app/build.cjs --check                    → 지금 index.html이 src·decks.enc와 같은지만 확인 (열쇠 없이 돼요. 다르면 실패)
+//   node app/build.cjs --check                    → 지금 index.html·play.html이 src·decks.enc와 같은지만 확인 (열쇠 없이 돼요. 다르면 실패)
+// 체험판(word-game/play.html): 열쇠 없이 누구나 여는 게임. 주인 단어장은 넣지 않고(빈 채로), 체험판용 앱 정보(play.webmanifest)를 써요.
+//   빌드할 때 index.html과 함께 다시 써요.
 // src/NN-이름.js 파일들은 번호 순서대로 하나의 <script>로 이어 붙여요 (모두 같은 전역 범위에서 돌아요).
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,6 +17,7 @@ const crypto = require('node:crypto');
 
 const src = path.join(__dirname, 'src');
 const out = path.join(__dirname, '..', 'word-game', 'index.html');
+const playOut = path.join(__dirname, '..', 'word-game', 'play.html');
 const keyFile = path.join(__dirname, '.site-key');
 const decksFile = path.join(__dirname, 'decks.enc');
 const SITE_URL = 'https://areweloststars.github.io/-/word-game/';
@@ -34,6 +37,12 @@ function build() {
   const p = parts();
   // 바꿔 넣을 글에 '$'가 있어도 그대로 들어가도록 함수로 바꿈
   return p.shell.replace(MARKS.css, () => p.css).replace(MARKS.js, () => p.js);
+}
+// 체험판: 잠그지 않은 게임 그대로 (주인 단어장 없음). 설치하면 체험판이 열리도록 앱 정보만 바꿔요
+function playPage(html = build()) {
+  const link = '<link rel="manifest" href="manifest.webmanifest">';
+  if (html.split(link).length !== 2) throw new Error('game page needs exactly one ' + link);
+  return html.replace(link, () => '<link rel="manifest" href="play.webmanifest">');
 }
 const sum = text => crypto.createHash('sha256').update(text).digest('hex');
 const b64u = buf => Buffer.from(buf).toString('base64url');
@@ -74,7 +83,7 @@ const sumOf = page => field(page, 'sum') || '';
 const decksSumOf = page => field(page, 'decks') || '';
 // 잠근 페이지를 열쇠로 풀기 (테스트·확인용)
 const unseal = (page, key) => decrypt(JSON.parse(String(page).match(/const SITE = (\{.*?\});/)[1]), key);
-module.exports = { build, parts, out, seal, unseal, sumOf, decksSumOf, sum, keyFrom, linkOf, lockDecks, openDecks };
+module.exports = { build, parts, out, playOut, playPage, seal, unseal, sumOf, decksSumOf, sum, keyFrom, linkOf, lockDecks, openDecks };
 
 if (require.main === module) {
   const html = build(), arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
@@ -85,7 +94,11 @@ if (require.main === module) {
       console.error('word-game/index.html is out of date. Run: SITE_KEY=<링크의 # 뒤 열쇠> node app/build.cjs');
       process.exit(1);
     }
-    console.log('word-game/index.html is up to date');
+    if (!fs.existsSync(playOut) || fs.readFileSync(playOut, 'utf8') !== playPage(html)) {
+      console.error('word-game/play.html is out of date. Run: SITE_KEY=<링크의 # 뒤 열쇠> node app/build.cjs');
+      process.exit(1);
+    }
+    console.log('word-game/index.html and play.html are up to date');
   } else {
     let key = keyFrom(process.env.SITE_KEY) || (fs.existsSync(keyFile) ? keyFrom(fs.readFileSync(keyFile, 'utf8')) : null);
     if (process.argv.includes('--new-key')) {
@@ -115,6 +128,7 @@ if (require.main === module) {
     }
     const dt = decksText();
     fs.writeFileSync(out, seal(html, key, dt ? openDecks(dt, key) : [], dt ? sum(dt) : ''));
-    console.log(`built word-game/index.html (game ${html.length} chars, locked${dt ? ', with private decks' : ''})`);
+    fs.writeFileSync(playOut, playPage(html));
+    console.log(`built word-game/index.html (game ${html.length} chars, locked${dt ? ', with private decks' : ''}) and play.html (open, no private decks)`);
   }
 }

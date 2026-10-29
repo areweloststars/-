@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
-const { build, parts } = require('../build.cjs');
+const { build, parts, playPage } = require('../build.cjs');
 const { bootPage } = require('./page.cjs');
 // 화면이 바뀔 때까지 기다려요 (정해진 짧은 시간만 기다리면 컴퓨터가 바쁠 때 실패해요)
 const until = async (ok, ms = 3000) => { const t = Date.now(); while (!ok() && Date.now() - t < ms) await new Promise(r => setTimeout(r, 15)); };
@@ -13,10 +13,10 @@ const until = async (ok, ms = 3000) => { const t = Date.now(); while (!ok() && D
 const GAME = path.join(__dirname, '..', '..', 'word-game');
 const rd = p => fs.readFileSync(path.join(GAME, p));
 const walk = d => fs.readdirSync(path.join(GAME, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name).split(path.sep).join('/')]);
-// sw.js의 VERSION: 이 폴더 파일들(index.html·sw.js 말고)의 지문. 파일이 바뀌면 저장해 둔 옛 파일을 버리고 새로 받아요
+// sw.js의 VERSION: 이 폴더 파일들(index.html·play.html·sw.js 말고)의 지문. 파일이 바뀌면 저장해 둔 옛 파일을 버리고 새로 받아요
 function staticSum() {
   const h = crypto.createHash('sha256');
-  for (const f of walk('').sort()) if (f !== 'index.html' && f !== 'sw.js') h.update(f + '\0').update(rd(f)).update('\0');
+  for (const f of walk('').sort()) if (f !== 'index.html' && f !== 'play.html' && f !== 'sw.js') h.update(f + '\0').update(rd(f)).update('\0');
   return h.digest('hex').slice(0, 12);
 }
 const SW = rd('sw.js').toString('utf8');
@@ -26,6 +26,18 @@ test('sw.js VERSION matches the static files, and its core files exist', () => {
   assert.equal(v, staticSum(), `word-game/ 파일이 바뀌었어요. word-game/sw.js의 VERSION을 '${staticSum()}'(으)로 바꿔 주세요`);
   const core = JSON.parse(SW.match(/const CORE_FILES = (\[[^\]]*\]);/)[1].replace(/'/g, '"'));
   for (const f of core) if (f !== './') assert.ok(fs.existsSync(path.join(GAME, f)), f);
+});
+
+test('play.html: the open trial is the unlocked game with no private decks, and installs as the trial', () => {
+  const page = rd('play.html').toString('utf8');
+  assert.equal(page, playPage(build()), 'word-game/play.html differs from app/src — run: SITE_KEY=<링크의 # 뒤 열쇠> npm run build');
+  assert.ok(!/const SITE = \{/.test(page), 'the trial must not be the locked page');
+  assert.match(page, /\/\*@@DECKS@@\*\/\[\]/, 'the trial carries no private decks');
+  assert.match(page, /<link rel="manifest" href="play\.webmanifest">/);
+  const m = JSON.parse(rd('play.webmanifest')), base = JSON.parse(rd('manifest.webmanifest'));
+  assert.equal(m.start_url, './play.html'); assert.equal(m.scope, './');
+  assert.deepEqual(m.icons, base.icons);
+  assert.match(SW, /const PLAY = 'play\.html';/);
 });
 
 test('manifest: Korean game name, start_url ./, icons 192/512/maskable with real sizes; pages link it', () => {

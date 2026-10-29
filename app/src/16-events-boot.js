@@ -202,7 +202,7 @@ function swWarm() {
     const seen = new Set();
     for (const e of performance.getEntriesByType('resource')) {
       const u = String(e.name || '').split('#')[0];
-      if (!u.startsWith(base) || u === base || /index\.html|sw\.js|\?/.test(u.slice(base.length)) || seen.has(u)) continue;
+      if (!u.startsWith(base) || u === base || /index\.html|play\.html|sw\.js|\?/.test(u.slice(base.length)) || seen.has(u)) continue;
       seen.add(u);
       fetch(u).then(r => r.arrayBuffer()).catch(() => { });
     }

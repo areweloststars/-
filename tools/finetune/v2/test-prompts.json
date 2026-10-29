@@ -1,0 +1,347 @@
+[
+ {
+  "set": 1,
+  "words": [
+   [
+    "refund",
+    "환불하다",
+    "v"
+   ],
+   [
+    "deliver",
+    "배달하다",
+    "v"
+   ],
+   [
+    "invite",
+    "초대하다",
+    "v"
+   ],
+   [
+    "delay",
+    "미루다",
+    "v"
+   ],
+   [
+    "repair",
+    "수리하다",
+    "v"
+   ],
+   [
+    "confirm",
+    "확인하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 8줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. refund - 환불하다\n2. deliver - 배달하다\n3. invite - 초대하다\n4. delay - 미루다\n5. repair - 수리하다\n6. confirm - 확인하다"
+ },
+ {
+  "set": 2,
+  "words": [
+   [
+    "borrow",
+    "빌리다",
+    "v"
+   ],
+   [
+    "brave",
+    "용감한",
+    "a"
+   ],
+   [
+    "anxious",
+    "불안한",
+    "a"
+   ],
+   [
+    "harvest",
+    "수확",
+    "n"
+   ],
+   [
+    "whisper",
+    "속삭이다",
+    "v"
+   ],
+   [
+    "encourage",
+    "격려하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 8줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. borrow - 빌리다\n2. brave - 용감한\n3. anxious - 불안한\n4. harvest - 수확\n5. whisper - 속삭이다\n6. encourage - 격려하다"
+ },
+ {
+  "set": 3,
+  "words": [
+   [
+    "compare",
+    "비교하다",
+    "v"
+   ],
+   [
+    "reduce",
+    "줄이다",
+    "v"
+   ],
+   [
+    "abandon",
+    "버리다",
+    "v"
+   ],
+   [
+    "survey",
+    "설문 조사",
+    "n"
+   ],
+   [
+    "discover",
+    "발견하다",
+    "v"
+   ],
+   [
+    "celebrate",
+    "축하하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 8줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. compare - 비교하다\n2. reduce - 줄이다\n3. abandon - 버리다\n4. survey - 설문 조사\n5. discover - 발견하다\n6. celebrate - 축하하다"
+ },
+ {
+  "set": 4,
+  "words": [
+   [
+    "rule",
+    "규칙",
+    "n"
+   ],
+   [
+    "permit",
+    "허락하다",
+    "v"
+   ],
+   [
+    "schedule",
+    "일정",
+    "n"
+   ],
+   [
+    "report",
+    "보고서",
+    "n"
+   ],
+   [
+    "examine",
+    "검사하다",
+    "v"
+   ],
+   [
+    "protect",
+    "보호하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 8줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. rule - 규칙\n2. permit - 허락하다\n3. schedule - 일정\n4. report - 보고서\n5. examine - 검사하다\n6. protect - 보호하다"
+ },
+ {
+  "set": 5,
+  "words": [
+   [
+    "honest",
+    "정직한",
+    "a"
+   ],
+   [
+    "rescue",
+    "구조하다",
+    "v"
+   ],
+   [
+    "ancient",
+    "고대의",
+    "a"
+   ],
+   [
+    "explain",
+    "설명하다",
+    "v"
+   ],
+   [
+    "shiver",
+    "떨다",
+    "v"
+   ],
+   [
+    "reward",
+    "보상",
+    "n"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 8줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. honest - 정직한\n2. rescue - 구조하다\n3. ancient - 고대의\n4. explain - 설명하다\n5. shiver - 떨다\n6. reward - 보상"
+ },
+ {
+  "set": 6,
+  "words": [
+   [
+    "contract",
+    "계약",
+    "n"
+   ],
+   [
+    "private",
+    "개인적인",
+    "a"
+   ],
+   [
+    "popular",
+    "인기 있는",
+    "a"
+   ],
+   [
+    "arrange",
+    "정리하다",
+    "v"
+   ],
+   [
+    "refuse",
+    "거절하다",
+    "v"
+   ],
+   [
+    "apologize",
+    "사과하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 8줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. contract - 계약\n2. private - 개인적인\n3. popular - 인기 있는\n4. arrange - 정리하다\n5. refuse - 거절하다\n6. apologize - 사과하다"
+ },
+ {
+  "set": 7,
+  "words": [
+   [
+    "temporary",
+    "임시의",
+    "a"
+   ],
+   [
+    "convenient",
+    "편리한",
+    "a"
+   ],
+   [
+    "previous",
+    "이전의",
+    "a"
+   ],
+   [
+    "require",
+    "요구하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 6줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. temporary - 임시의\n2. convenient - 편리한\n3. previous - 이전의\n4. require - 요구하다"
+ },
+ {
+  "set": 8,
+  "words": [
+   [
+    "predict",
+    "예측하다",
+    "v"
+   ],
+   [
+    "lazy",
+    "게으른",
+    "a"
+   ],
+   [
+    "opinion",
+    "의견",
+    "n"
+   ],
+   [
+    "solve",
+    "해결하다",
+    "v"
+   ],
+   [
+    "quiet",
+    "조용한",
+    "a"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 7줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. predict - 예측하다\n2. lazy - 게으른\n3. opinion - 의견\n4. solve - 해결하다\n5. quiet - 조용한"
+ },
+ {
+  "set": 9,
+  "words": [
+   [
+    "hesitate",
+    "망설이다",
+    "v"
+   ],
+   [
+    "generous",
+    "너그러운",
+    "a"
+   ],
+   [
+    "journey",
+    "여행",
+    "n"
+   ],
+   [
+    "collect",
+    "모으다",
+    "v"
+   ],
+   [
+    "accident",
+    "사고",
+    "n"
+   ],
+   [
+    "forgive",
+    "용서하다",
+    "v"
+   ],
+   [
+    "recover",
+    "회복하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 9줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. hesitate - 망설이다\n2. generous - 너그러운\n3. journey - 여행\n4. collect - 모으다\n5. accident - 사고\n6. forgive - 용서하다\n7. recover - 회복하다"
+ },
+ {
+  "set": 10,
+  "words": [
+   [
+    "invent",
+    "발명하다",
+    "v"
+   ],
+   [
+    "curious",
+    "호기심 많은",
+    "a"
+   ],
+   [
+    "ingredient",
+    "재료",
+    "n"
+   ],
+   [
+    "mix",
+    "섞다",
+    "v"
+   ],
+   [
+    "taste",
+    "맛보다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어 이야기를 써 주세요. 제목 한 줄, 이야기 7줄.\n단어마다 한 줄에 차례대로 {영어|뜻} 꼴로 넣어요.\n1. invent - 발명하다\n2. curious - 호기심 많은\n3. ingredient - 재료\n4. mix - 섞다\n5. taste - 맛보다"
+ }
+]

@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E4B 휴대폰 시험</title>
+<!--
+  큰 이야기 AI(Gemma 4 E4B, 약 4GB)가 이 휴대폰에서 열리는지와 빠르기를 재는 시험 페이지예요. 게임 사이트와 따로 떨어져 있어요.
+  - AI 엔진은 게임과 같은 파일(word-game/llm/web-llm.js·worker.js, 휴대폰용 'word-game patch' 포함)을 써요.
+  - E4B는 mlc-ai 공식 판이 없어서 다른 사람이 만든 판(welcoma/gemma-4-E4B-it-q4f16_1-MLC)을 판 번호로 고정해서 받아요.
+    학습 전 E4B예요: 열리는지·빠르기만 보고, 이야기 형식은 보지 않아요.
+  - 받은 모델은 이 페이지 주소의 브라우저 저장소에만 있어요. 다 재면 '시험 모델 지우기'로 지워요.
+  - 결과는 화면에만 나와요 (어디에도 보내지 않아요). '결과 복사'로 복사해서 Claude에게 붙여 넣어요.
+-->
+<style>
+  :root { --bg: #fffdf8; --fg: #1f1d1a; --sub: #6b655c; --line: #e6dfd2; --card: #ffffff; --accent: #2f6fdf; --ok: #1f8a4c; --bad: #c0392b; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161513; --fg: #f1ede6; --sub: #aaa398; --line: #34312c; --card: #1f1e1b; --accent: #6b9cff; --ok: #4cc27f; --bad: #ff7b6b; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, -apple-system, "Noto Sans KR", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.35rem; margin: .4rem 0 .2rem; }
+  p.sub { color: var(--sub); margin: 0 0 1rem; font-size: .95rem; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 0 0 12px; }
+  h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+  button { font: inherit; width: 100%; padding: 12px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; font-weight: 600; margin-top: 6px; }
+  button.light { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button:disabled { opacity: .45; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px dashed var(--line); font-size: .95rem; }
+  .row:last-child { border-bottom: 0; }
+  .row b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  progress { width: 100%; height: 14px; margin-top: 8px; }
+  #status, #genStatus { margin-top: 6px; font-size: .95rem; color: var(--sub); overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: .88rem; max-height: 340px; overflow: auto; margin: 8px 0 0; }
+  details { margin-top: 8px; color: var(--sub); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>E4B 휴대폰 시험</h1>
+  <p class="sub">큰 이야기 AI(약 4GB)가 이 휴대폰에서 열리는지, 얼마나 빠른지 재요. 게임과는 따로 떨어진 페이지예요. <b>와이파이</b>에서 해 주세요.</p>
+
+  <section>
+    <h2>1. 이 기기</h2>
+    <div id="dev">확인하는 중…</div>
+  </section>
+
+  <section>
+    <h2>2. 모델 받고 올리기</h2>
+    <p class="sub" style="margin:0">처음에는 4GB를 받아서 10~30분쯤 걸려요. 화면을 켜 두세요. 두 번째부터는 저장된 것으로 금방 올라와요.</p>
+    <button id="load">E4B 받고 올리기</button>
+    <progress id="bar" max="1" value="0" hidden></progress>
+    <div id="status"></div>
+  </section>
+
+  <section>
+    <h2>3. 이야기 한 편 써 보기</h2>
+    <p class="sub" style="margin:0">학습 전 모델이라 형식은 엉망일 수 있어요. 빠르기만 봐요.</p>
+    <button id="gen" disabled>써 보기</button>
+    <div id="genStatus"></div>
+    <pre id="out" hidden></pre>
+  </section>
+
+  <section>
+    <h2>4. 결과 보내기</h2>
+    <button id="copy" class="light">결과 복사</button>
+    <pre id="report">아직 잰 것이 없어요.</pre>
+    <button id="drop" class="light">시험 모델 지우기 (4GB 비우기)</button>
+    <details><summary>무엇을 받나요?</summary>
+      AI 엔진은 게임과 같은 파일이에요. E4B 모델은 공식 판이 없어서 허깅페이스의 다른 사람이 만든 판(welcoma/gemma-4-E4B-it-q4f16_1-MLC)을 받아요.
+      이 페이지의 저장소에만 들어가고, 게임의 저장소·단어장과는 섞이지 않아요.
+    </details>
+  </section>
+</main>
+<script type="module">
+import * as webllm from '../../word-game/llm/web-llm.js';
+
+const REPO = 'https://huggingface.co/welcoma/gemma-4-E4B-it-q4f16_1-MLC';
+const REV = '9ef9fa7497cfe8f6c2bd84f6a37bb65e7196ec82';
+const ID = 'gemma-4-E4B-it-q4f16_1-MLC';
+const NEED = 4.4 * 2 ** 30;          // 모델 3.98GiB + 여유
+const BIGGEST = 470 * 2 ** 20;       // 가장 큰 조각(층별 단어 표, 448MB + 여유)
+const PROMPT = `영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.
+단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.
+refund - 환불하다
+deliver - 배달하다
+invite - 초대하다
+delay - 미루다
+repair - 수리하다
+confirm - 확인하다`;
+
+const $ = id => document.getElementById(id);
+const R = { page: 'e4b-test v1', ua: '', gpu: '', f16: null, buf: 0, maxBuf: 0, mem: null, quota: 0, load: null, gen: null, gpuLog: [], err: '' };
+const phone = () => /Android|iPhone|iPad/i.test(navigator.userAgent || '');
+const gb = n => (n / 2 ** 30).toFixed(2) + 'GB';
+const mb = n => Math.round(n / 2 ** 20) + 'MB';
+const sec = ms => (ms / 1000).toFixed(1) + '초';
+let engine = null, worker = null;
+
+function report() {
+  const L = [`[E4B 휴대폰 시험] ${new Date().toISOString().slice(0, 16)} · ${R.page}`,
+    `기기: ${R.ua}`,
+    `그래픽 칩: ${R.gpu || '모름'} · 16비트 ${R.f16 ? '됨' : '안 됨'} · 버퍼 한도 ${mb(R.buf)} (maxBuffer ${mb(R.maxBuf)}) · 메모리 ${R.mem == null ? '모름' : R.mem + 'GB 이상'} · 저장 공간 ${R.quota ? gb(R.quota) : '모름'}`];
+  if (R.load) L.push(`올리기: ${R.load.ok ? '성공' : '실패'} · ${sec(R.load.ms)}${R.load.cached ? ' (저장된 것)' : ''}${R.load.why ? ' · ' + R.load.why : ''}`);
+  if (R.gen) L.push(`써 보기: ${R.gen.ok ? '성공' : '실패'} · 첫 글자까지 ${sec(R.gen.first)} · 쓰기 ${R.gen.tps ? R.gen.tps.toFixed(1) + '토큰/초' : '?'} · 모두 ${sec(R.gen.ms)} · 읽은 ${R.gen.inTok ?? '?'}토큰 · 쓴 ${R.gen.outTok ?? '?'}토큰${R.chunkMax ? ' · 가장 긴 조각 ' + R.chunkMax + 'ms' : ''}${R.gen.why ? ' · ' + R.gen.why : ''}`);
+  if (R.gpuLog.length) L.push('그래픽 칩 소식: ' + R.gpuLog.slice(-6).join(' | '));
+  if (R.err) L.push('오류: ' + R.err);
+  $('report').textContent = L.join('\n');
+}
+
+// 그래픽 칩 소식 (gpu-watch.js가 일꾼 안에서 보내요: 장치를 잃음·오류)
+try {
+  const ch = new BroadcastChannel('wg-ai-gpu');
+  ch.onmessage = e => {
+    const d = e.data || {};
+    if (d.w && d.w !== 'e4b-test') return;
+    if (d.kind === 'chunk') { R.chunkMax = Math.max(R.chunkMax || 0, +d.took || 0); return; }
+    if (['lost', 'error', 'device-fail', 'reject', 'destroy'].includes(d.kind) || (d.kind === 'console' && d.level === 'error')) {
+      R.gpuLog.push(`${d.kind}${d.reason ? '(' + d.reason + ')' : ''}: ${d.msg || d.type || d.by || ''}`.slice(0, 200)); report();
+    }
+  };
+} catch (e) { }
+
+async function device() {
+  R.ua = (navigator.userAgent || '').replace(/\s+/g, ' ').slice(0, 160);
+  R.mem = typeof navigator.deviceMemory === 'number' ? navigator.deviceMemory : null;
+  const rows = [];
+  const row = (k, v, good) => rows.push(`<div class="row"><span>${k}</span><b class="${good == null ? '' : good ? 'ok' : 'bad'}">${v}</b></div>`);
+  let a = null;
+  try { a = navigator.gpu && await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }); } catch (e) { a = null; }
+  if (!navigator.gpu) row('WebGPU', '없음 (최신 크롬으로 열어 주세요)', false);
+  else if (!a) row('WebGPU', '그래픽 칩을 못 찾음', false);
+  else {
+    const inf = a.info || {};
+    R.gpu = [inf.vendor, inf.architecture, inf.device, inf.description].filter(Boolean).join(' / ').slice(0, 100);
+    R.f16 = a.features.has('shader-f16');
+    R.buf = +a.limits.maxStorageBufferBindingSize || 0;
+    R.maxBuf = +a.limits.maxBufferSize || 0;
+    row('그래픽 칩', R.gpu || '이름 모름');
+    row('16비트 계산', R.f16 ? '됨' : '안 됨 (E4B를 못 써요)', R.f16);
+    row('한 번에 다룰 크기', `${mb(R.buf)} (필요 ${mb(BIGGEST)})`, R.buf >= BIGGEST);
+  }
+  row('메모리', R.mem == null ? '모름' : `${R.mem}GB 이상`);
+  try {
+    if (navigator.storage && navigator.storage.persist) await navigator.storage.persist().catch(() => false);
+    const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+    R.quota = est ? (est.quota || 0) - (est.usage || 0) : 0;
+    if (est) row('쓸 수 있는 저장 공간', `${gb(R.quota)} (필요 ${gb(NEED)})`, R.quota >= NEED);
+  } catch (e) { }
+  try { if (await webllm.hasModelInCache(ID, appConfig())) row('저장된 E4B', '있음 (금방 올라와요)', true); } catch (e) { }
+  $('dev').innerHTML = rows.join('');
+  if (!a || !R.f16) $('load').disabled = true;
+  report();
+}
+
+function appConfig() {
+  const o = { context_window_size: 4096, sliding_window_size: -1, attention_sink_size: -1 };
+  // 휴대폰은 게임처럼 32토큰씩 나눠 읽고 조각마다 25ms 쉬어요 (그래픽 칩이 멈춘 것으로 보고 다시 켜지 않게)
+  if (phone()) Object.assign(o, { wg_prefill_chunk: 32, wg_prefill_gap: 25 });
+  return { model_list: [{ model: `${REPO}/resolve/${REV}/`, model_id: ID, model_lib: `${REPO}/resolve/${REV}/libs/${ID}-webgpu.wasm`, required_features: ['shader-f16'], overrides: o }] };
+}
+
+$('load').onclick = async () => {
+  $('load').disabled = true; $('bar').hidden = false; R.err = '';
+  const t0 = Date.now();
+  let cached = false;
+  try { cached = await webllm.hasModelInCache(ID, appConfig()); } catch (e) { }
+  try {
+    worker = new Worker(new URL('../../word-game/llm/worker.js', location.href), { type: 'module', name: 'e4b-test' });
+    engine = await webllm.CreateWebWorkerMLCEngine(worker, ID, {
+      appConfig: appConfig(),
+      initProgressCallback: p => {
+        $('bar').value = Math.max(0, Math.min(1, +p.progress || 0));
+        $('status').textContent = `${sec(Date.now() - t0)} · ${String(p.text || '').slice(0, 120)}`;
+      }
+    });
+    R.load = { ok: true, ms: Date.now() - t0, cached };
+    $('status').innerHTML = `<span class="ok">올렸어요 (${sec(R.load.ms)})</span>`;
+    $('gen').disabled = false;
+  } catch (e) {
+    R.load = { ok: false, ms: Date.now() - t0, cached, why: String((e && e.message) || e).slice(0, 300) };
+    $('status').innerHTML = `<span class="bad">실패: ${R.load.why.replace(/</g, '&lt;')}</span>`;
+    try { worker && worker.terminate(); } catch (x) { }
+    engine = null; $('load').disabled = false;
+  }
+  report();
+};
+
+$('gen').onclick = async () => {
+  $('gen').disabled = true; $('out').hidden = false; $('out').textContent = '';
+  const t0 = Date.now();
+  let first = 0, text = '', usage = null;
+  try {
+    const reply = await engine.chat.completions.create({ messages: [{ role: 'user', content: PROMPT }], temperature: 0.7, top_p: 0.9, max_tokens: 700, stream: true, stream_options: { include_usage: true } });
+    for await (const c of reply) {
+      const d = c.choices && c.choices[0] && c.choices[0].delta && c.choices[0].delta.content;
+      if (d) { if (!first) first = Date.now() - t0; text += d; $('out').textContent = text; }
+      if (c.usage) usage = c.usage;
+      $('genStatus').textContent = first ? `쓰는 중… ${sec(Date.now() - t0)}` : `글을 읽는 중… ${sec(Date.now() - t0)}`;
+    }
+    const ms = Date.now() - t0, ex = (usage && usage.extra) || {};
+    const outTok = usage ? usage.completion_tokens : null;
+    const tps = ex.decode_tokens_per_s || (outTok && ms > first ? outTok / ((ms - first) / 1000) : 0);
+    R.gen = { ok: true, ms, first, tps, inTok: usage ? usage.prompt_tokens : null, outTok };
+    $('genStatus').innerHTML = `<span class="ok">다 썼어요 · 첫 글자까지 ${sec(first)} · ${tps ? tps.toFixed(1) : '?'}토큰/초</span>`;
+  } catch (e) {
+    R.gen = { ok: false, ms: Date.now() - t0, first, why: String((e && e.message) || e).slice(0, 300) };
+    $('genStatus').innerHTML = `<span class="bad">실패: ${R.gen.why.replace(/</g, '&lt;')}</span>`;
+  }
+  $('gen').disabled = false;
+  report();
+};
+
+$('copy').onclick = async () => {
+  const t = $('report').textContent;
+  try { await navigator.clipboard.writeText(t); $('copy').textContent = '복사했어요'; }
+  catch (e) { const r = document.createRange(); r.selectNodeContents($('report')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('copy').textContent = '글을 길게 눌러 복사해 주세요'; }
+  setTimeout(() => { $('copy').textContent = '결과 복사'; }, 2500);
+};
+
+$('drop').onclick = async () => {
+  $('drop').disabled = true;
+  try { if (engine) await engine.unload(); } catch (e) { }
+  try { worker && worker.terminate(); } catch (e) { }
+  engine = null; worker = null; $('gen').disabled = true; $('load').disabled = false;
+  try { await webllm.deleteModelAllInfoInCache(ID, appConfig()); $('drop').textContent = '지웠어요'; }
+  catch (e) { $('drop').textContent = '지우기 실패: ' + String((e && e.message) || e).slice(0, 80); }
+  $('drop').disabled = false;
+  device();
+};
+
+device().catch(e => { R.err = String((e && e.message) || e); report(); });
+</script>
+</body>
+</html>

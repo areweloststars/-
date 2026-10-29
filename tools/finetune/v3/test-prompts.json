@@ -1,0 +1,367 @@
+[
+ {
+  "set": 1,
+  "words": [
+   [
+    "refund",
+    "환불하다",
+    "v"
+   ],
+   [
+    "deliver",
+    "배달하다",
+    "v"
+   ],
+   [
+    "invite",
+    "초대하다",
+    "v"
+   ],
+   [
+    "delay",
+    "미루다",
+    "v"
+   ],
+   [
+    "repair",
+    "수리하다",
+    "v"
+   ],
+   [
+    "confirm",
+    "확인하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\nrefund - 환불하다\ndeliver - 배달하다\ninvite - 초대하다\ndelay - 미루다\nrepair - 수리하다\nconfirm - 확인하다"
+ },
+ {
+  "set": 2,
+  "words": [
+   [
+    "borrow",
+    "빌리다",
+    "v"
+   ],
+   [
+    "brave",
+    "용감한",
+    "a"
+   ],
+   [
+    "anxious",
+    "불안한",
+    "a"
+   ],
+   [
+    "harvest",
+    "수확",
+    "n"
+   ],
+   [
+    "whisper",
+    "속삭이다",
+    "v"
+   ],
+   [
+    "encourage",
+    "격려하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\nborrow - 빌리다\nbrave - 용감한\nanxious - 불안한\nharvest - 수확\nwhisper - 속삭이다\nencourage - 격려하다"
+ },
+ {
+  "set": 3,
+  "words": [
+   [
+    "compare",
+    "비교하다",
+    "v"
+   ],
+   [
+    "reduce",
+    "줄이다",
+    "v"
+   ],
+   [
+    "abandon",
+    "버리다",
+    "v"
+   ],
+   [
+    "survey",
+    "설문 조사",
+    "n"
+   ],
+   [
+    "discover",
+    "발견하다",
+    "v"
+   ],
+   [
+    "celebrate",
+    "축하하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\ncompare - 비교하다\nreduce - 줄이다\nabandon - 버리다\nsurvey - 설문 조사\ndiscover - 발견하다\ncelebrate - 축하하다"
+ },
+ {
+  "set": 4,
+  "words": [
+   [
+    "rule",
+    "규칙",
+    "n"
+   ],
+   [
+    "permit",
+    "허락하다",
+    "v"
+   ],
+   [
+    "schedule",
+    "일정",
+    "n"
+   ],
+   [
+    "report",
+    "보고서",
+    "n"
+   ],
+   [
+    "examine",
+    "검사하다",
+    "v"
+   ],
+   [
+    "protect",
+    "보호하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\nrule - 규칙\npermit - 허락하다\nschedule - 일정\nreport - 보고서\nexamine - 검사하다\nprotect - 보호하다"
+ },
+ {
+  "set": 5,
+  "words": [
+   [
+    "honest",
+    "정직한",
+    "a"
+   ],
+   [
+    "rescue",
+    "구조하다",
+    "v"
+   ],
+   [
+    "ancient",
+    "고대의",
+    "a"
+   ],
+   [
+    "explain",
+    "설명하다",
+    "v"
+   ],
+   [
+    "shiver",
+    "떨다",
+    "v"
+   ],
+   [
+    "reward",
+    "보상",
+    "n"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\nhonest - 정직한\nrescue - 구조하다\nancient - 고대의\nexplain - 설명하다\nshiver - 떨다\nreward - 보상"
+ },
+ {
+  "set": 6,
+  "words": [
+   [
+    "contract",
+    "계약",
+    "n"
+   ],
+   [
+    "private",
+    "개인적인",
+    "a"
+   ],
+   [
+    "popular",
+    "인기 있는",
+    "a"
+   ],
+   [
+    "arrange",
+    "정리하다",
+    "v"
+   ],
+   [
+    "refuse",
+    "거절하다",
+    "v"
+   ],
+   [
+    "apologize",
+    "사과하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\ncontract - 계약\nprivate - 개인적인\npopular - 인기 있는\narrange - 정리하다\nrefuse - 거절하다\napologize - 사과하다"
+ },
+ {
+  "set": 7,
+  "words": [
+   [
+    "temporary",
+    "임시의",
+    "a"
+   ],
+   [
+    "convenient",
+    "편리한",
+    "a"
+   ],
+   [
+    "previous",
+    "이전의",
+    "a"
+   ],
+   [
+    "require",
+    "요구하다",
+    "v"
+   ],
+   [
+    "attend",
+    "참석하다",
+    "v"
+   ],
+   [
+    "cancel",
+    "취소하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\ntemporary - 임시의\nconvenient - 편리한\nprevious - 이전의\nrequire - 요구하다\nattend - 참석하다\ncancel - 취소하다"
+ },
+ {
+  "set": 8,
+  "words": [
+   [
+    "predict",
+    "예측하다",
+    "v"
+   ],
+   [
+    "lazy",
+    "게으른",
+    "a"
+   ],
+   [
+    "opinion",
+    "의견",
+    "n"
+   ],
+   [
+    "solve",
+    "해결하다",
+    "v"
+   ],
+   [
+    "quiet",
+    "조용한",
+    "a"
+   ],
+   [
+    "deny",
+    "부인하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\npredict - 예측하다\nlazy - 게으른\nopinion - 의견\nsolve - 해결하다\nquiet - 조용한\ndeny - 부인하다"
+ },
+ {
+  "set": 9,
+  "words": [
+   [
+    "hesitate",
+    "망설이다",
+    "v"
+   ],
+   [
+    "generous",
+    "너그러운",
+    "a"
+   ],
+   [
+    "journey",
+    "여행",
+    "n"
+   ],
+   [
+    "collect",
+    "모으다",
+    "v"
+   ],
+   [
+    "accident",
+    "사고",
+    "n"
+   ],
+   [
+    "forgive",
+    "용서하다",
+    "v"
+   ],
+   [
+    "recover",
+    "회복하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\nhesitate - 망설이다\ngenerous - 너그러운\njourney - 여행\ncollect - 모으다\naccident - 사고\nforgive - 용서하다\nrecover - 회복하다"
+ },
+ {
+  "set": 10,
+  "words": [
+   [
+    "invent",
+    "발명하다",
+    "v"
+   ],
+   [
+    "curious",
+    "호기심 많은",
+    "a"
+   ],
+   [
+    "ingredient",
+    "재료",
+    "n"
+   ],
+   [
+    "mix",
+    "섞다",
+    "v"
+   ],
+   [
+    "taste",
+    "맛보다",
+    "v"
+   ],
+   [
+    "serve",
+    "대접하다",
+    "v"
+   ]
+  ],
+  "prompt": "영어 단어로 이야기와 그림 설명을 써 주세요. 제목, 줄거리, 이야기, 그림 차례로.\n단어마다 이야기 한 줄에 {영어|뜻}으로 넣고, 단어 차례는 이야기에 맞게 정해요.\ninvent - 발명하다\ncurious - 호기심 많은\ningredient - 재료\nmix - 섞다\ntaste - 맛보다\nserve - 대접하다"
+ }
+]
