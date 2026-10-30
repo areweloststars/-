@@ -8,9 +8,10 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
 
 ## 브랜치
 - `main`은 실제 사이트예요. 사용자에게 묻기 전에는 `main`에 합치지 않아요 (PR도 묻고 나서).
-- 지금 작업은 `claude/word-photo-game-app-16smgx` 브랜치에 있어요. Claude가 이 브랜치에 계속 올려요.
+- 지금 작업은 `claude/gracious-cannon-7stm9g` 브랜치에 있어요 (2026-10-29 `main`에서 새로 시작). Claude가 이 브랜치에 계속 올려요.
+  - 예전 작업 브랜치 `claude/word-photo-game-app-16smgx`는 10-29에 `main`에 합쳐졌어요. 새 일은 거기에 올리지 않아요.
 - 다른 AI나 계정은 그 브랜치에서 **새 브랜치**(예: `codex/<작업 이름>`)를 만들어 일해요. 같은 브랜치에 같이 올리면 서로 충돌해요.
-- 시작하기 전에 늘 최신을 받아요 (`git fetch origin claude/word-photo-game-app-16smgx`).
+- 시작하기 전에 늘 최신을 받아요 (`git fetch origin claude/gracious-cannon-7stm9g`).
 
 ## 프로젝트 한눈에
 - **그림 스토리 단어 미션**: 영어 단어를 이야기(에피소드)로 외우는 게임이에요. 영어 발음이 나오고, 제한 시간 안에 문제를 맞혀요.
@@ -20,19 +21,19 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
   - `--new-key`는 쓰지 않아요. 예전 링크가 모두 못 쓰게 돼요.
 - 휴대폰 안에서 도는 이야기 AI는 Gemma 4 E2B예요 (WebLLM, `word-game/llm/`).
 
-## 지금 하는 일: 이야기 AI 파인튜닝 3차 (`tools/finetune/v3/`)
+## 지금 하는 일: 이야기 AI 파인튜닝 4차 (`tools/finetune/v3/`)
 - 목표: 영어 단어 6개 이상을 주면 제목, 줄거리, 이야기, 단어마다 그림 설명(영어)을 쓰게 해요. 1순위는 이야기가 자연스럽게 이어지는 거예요.
 - 게임에 넣는 기준은 시험 30편 가운데 27편이에요.
 - 도구
-  - 모범 이야기 300편: `stories/*.json`
+  - 모범 이야기 1,000편: `stories/*.json` (3차는 300편, 4차에 1,000편으로 늘렸어요)
   - `node tools/finetune/v3/build.cjs`: 모범 이야기를 점검하고 학습 파일을 만들어요
   - `pick.cjs`: 단어 묶음 뽑기 / `mark.cjs`: 뜻 꼴 시험 / `check.cjs`: 형식 점검 / `eval.cjs`: 모델 재기
-  - Colab 노트북: `train_colab.ipynb`(E2B), `train_colab_e4b.ipynb`(E4B)
+  - Colab 노트북: `train_colab.ipynb`(E2B 3차), `train_colab_e4b.ipynb`(E4B 3차), `train4_colab_e4b.ipynb`(E4B 4차: 1,000편, 허깅페이스에 중간 저장·이어서 학습, 재 보기 30편 저장)
 - 결과와 다음 할 일은 `docs/work-log.md`에 있어요. 요약하면:
   - E2B: 형식 9/30, 자연스러운 이야기 3~4편
   - E4B: 형식 11/30, 자연스러운 이야기 10편쯤
   - 갤럭시 A16에서는 E4B를 받다가 브라우저가 꺼졌어요. 갤럭시 S24 시험이 남았어요 (`tools/phone-test/e4b.html`).
-  - 다음 후보는 모범 이야기를 1,000편으로 늘리기예요.
+  - 4차: 모범 이야기 1,000편을 다 썼어요 (모두 점검 통과). 사용자가 `train4_colab_e4b.ipynb`를 Colab에서 돌리면 재 보기 30편을 앱의 점검으로 재요.
 
 ## 꼭 지킬 것 (자세한 건 `CLAUDE.md`)
 - 교재(책, 단어 앱)의 단어 목록·뜻·예문·사진·화면은 저장소에도, 단어장 파일(`app/decks.enc`)에도 넣지 않아요.
