@@ -5,10 +5,11 @@
 // 낱말 모음은 일반 사전 낱말이고 뜻은 Claude가 썼어요 (교재 단어 아님).
 // 4차(E4B, 모범 이야기 1,000편): 229번부터는 둘째 모음(word-pool-2.json)을 더해 뽑아요. 1~228번은 예전과 똑같이 나와요.
 //   229번부터는 한 벌의 품사를 시험 묶음처럼 동사·형용사 위주로 맞춰요 (6개: 동사 3·형용사 2·명사 1, 일곱째 벌마다 형용사 하나 대신 부사).
+// 1,200편으로 늘리며 929~1128번을 더했어요 (앞 928벌은 그대로: 차례대로 뽑아서 뒤에 더해도 앞이 안 바뀌어요). 38번 파일은 926~950번, 46번 파일은 1126~1128번.
 const fs = require('node:fs'), path = require('node:path');
 const { TEST_SETS, bootPage } = require('./check.cjs');
 
-const SETS = 928, OLD_SETS = 228, PER_FILE = 25, SIZES = [6, 7, 6, 7, 6, 8, 7, 6];
+const SETS = 1128, OLD_SETS = 228, PER_FILE = 25, SIZES = [6, 7, 6, 7, 6, 8, 7, 6];
 const SLOTS = { 6: ['vvvaan'], 7: ['vvvvaan', 'vvvaann'], 8: ['vvvvaann'] };
 const read = f => JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf8'));
 const pool = read('word-pool.json'), pool2 = read('word-pool-2.json'), all = pool.concat(pool2);
