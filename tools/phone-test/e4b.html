@@ -11,6 +11,10 @@
     학습 전 E4B예요: 열리는지·빠르기만 보고, 이야기 형식은 보지 않아요.
   - 받은 모델은 이 페이지 주소의 브라우저 저장소에만 있어요. 다 재면 '시험 모델 지우기'로 지워요.
   - 결과는 화면에만 나와요 (어디에도 보내지 않아요). '결과 복사'로 복사해서 Claude에게 붙여 넣어요.
+  - v2: v1은 8GB 폰에서 받은 모델을 그래픽 칩에 올리다가 6/93조각(1.37GB)에서 탭이 꺼졌어요.
+    그래서 일꾼을 e4b-worker.js로 바꿔 조각을 8MB씩 나눠 올리고(stream-load.js: 게임의 web-llm.js 글을 받아 한 군데를 끼워 넣어 불러요, 게임 파일은 그대로),
+    올리는 동안 어디까지 갔는지 브라우저 저장소(localStorage)에 적어 둬요.
+    탭이 꺼진 뒤 다시 열면 '지난 시도'로 보여 주고 결과에도 넣어요. 저장된 조각 수, 기기 이름(지원하는 브라우저만)도 보여요.
 -->
 <style>
   :root { --bg: #fffdf8; --fg: #1f1d1a; --sub: #6b655c; --line: #e6dfd2; --card: #ffffff; --accent: #2f6fdf; --ok: #1f8a4c; --bad: #c0392b; }
@@ -47,7 +51,9 @@
 
   <section>
     <h2>2. 모델 받고 올리기</h2>
-    <p class="sub" style="margin:0">처음에는 4GB를 받아서 10~30분쯤 걸려요. 화면을 켜 두세요. 두 번째부터는 저장된 것으로 금방 올라와요.</p>
+    <p class="sub" style="margin:0">처음에는 4GB를 받아서 10~30분쯤 걸려요. 화면을 켜 두세요. 두 번째부터는 저장된 것으로 금방 올라와요.
+      메모리를 많이 써요: <b>다른 탭과 앱을 모두 닫고</b> 해 주세요. 탭이 꺼지면 '새로고침'을 누르면 어디서 멈췄는지 보여요.</p>
+    <div id="prev"></div>
     <button id="load">E4B 받고 올리기</button>
     <progress id="bar" max="1" value="0" hidden></progress>
     <div id="status"></div>
@@ -90,18 +96,28 @@ repair - 수리하다
 confirm - 확인하다`;
 
 const $ = id => document.getElementById(id);
-const R = { page: 'e4b-test v1', ua: '', gpu: '', f16: null, buf: 0, maxBuf: 0, mem: null, quota: 0, load: null, gen: null, gpuLog: [], err: '' };
+const R = { page: 'e4b-test v2', ua: '', model: '', gpu: '', f16: null, buf: 0, maxBuf: 0, mem: null, quota: 0, saved: '', prev: '', load: null, gen: null, gpuLog: [], err: '' };
 const phone = () => /Android|iPhone|iPad/i.test(navigator.userAgent || '');
 const gb = n => (n / 2 ** 30).toFixed(2) + 'GB';
 const mb = n => Math.round(n / 2 ** 20) + 'MB';
 const sec = ms => (ms / 1000).toFixed(1) + '초';
 let engine = null, worker = null;
 
+// 지난 시도 기록: 올리는 동안 어디까지 갔는지 적어 둬요. 탭이 꺼지면 '끝'이 없는 기록이 남아요
+const LAST = 'e4b-test-last';
+const keep = o => { try { localStorage.setItem(LAST, JSON.stringify(o)); } catch (e) { } };
+const kept = () => { try { return JSON.parse(localStorage.getItem(LAST) || 'null'); } catch (e) { return null; } };
+const PHASE = { start: '준비', fetch: '받기', load: '그래픽 칩에 올리기', shader: '셰이더 준비' };
+const where = r => `${PHASE[r.phase] || r.phase}${r.n ? ` ${r.i}/${r.n}조각` : ''}${r.mb ? ` · ${r.mb}MB` : ''} (${r.pct}%) · ${r.sec}초째`;
+
 function report() {
   const L = [`[E4B 휴대폰 시험] ${new Date().toISOString().slice(0, 16)} · ${R.page}`,
-    `기기: ${R.ua}`,
-    `그래픽 칩: ${R.gpu || '모름'} · 16비트 ${R.f16 ? '됨' : '안 됨'} · 버퍼 한도 ${mb(R.buf)} (maxBuffer ${mb(R.maxBuf)}) · 메모리 ${R.mem == null ? '모름' : R.mem + 'GB 이상'} · 저장 공간 ${R.quota ? gb(R.quota) : '모름'}`];
-  if (R.load) L.push(`올리기: ${R.load.ok ? '성공' : '실패'} · ${sec(R.load.ms)}${R.load.cached ? ' (저장된 것)' : ''}${R.load.why ? ' · ' + R.load.why : ''}`);
+    `기기: ${R.ua}`];
+  if (R.model) L.push(`기기 이름: ${R.model}`);
+  L.push(`그래픽 칩: ${R.gpu || '모름'} · 16비트 ${R.f16 ? '됨' : '안 됨'} · 버퍼 한도 ${mb(R.buf)} (maxBuffer ${mb(R.maxBuf)}) · 메모리 ${R.mem == null ? '모름' : R.mem + 'GB 이상'} · 저장 공간 ${R.quota ? gb(R.quota) : '모름'}`);
+  if (R.saved) L.push(`저장된 모델: ${R.saved}`);
+  if (R.prev) L.push(`지난 시도: ${R.prev}`);
+  if (R.load) L.push(`올리기: ${R.load.ok ? '성공' : '실패'} · ${sec(R.load.ms)}${R.load.cached ? ' (저장된 것)' : ''} · ${R.load.how}${R.load.why ? ' · ' + R.load.why : ''}`);
   if (R.gen) L.push(`써 보기: ${R.gen.ok ? '성공' : '실패'} · 첫 글자까지 ${sec(R.gen.first)} · 쓰기 ${R.gen.tps ? R.gen.tps.toFixed(1) + '토큰/초' : '?'} · 모두 ${sec(R.gen.ms)} · 읽은 ${R.gen.inTok ?? '?'}토큰 · 쓴 ${R.gen.outTok ?? '?'}토큰${R.chunkMax ? ' · 가장 긴 조각 ' + R.chunkMax + 'ms' : ''}${R.gen.why ? ' · ' + R.gen.why : ''}`);
   if (R.gpuLog.length) L.push('그래픽 칩 소식: ' + R.gpuLog.slice(-6).join(' | '));
   if (R.err) L.push('오류: ' + R.err);
@@ -121,11 +137,35 @@ try {
   };
 } catch (e) { }
 
+// 저장된 조각: WebLLM이 받은 조각을 두는 캐시('webllm/model')에서 이 모델의 조각 목록(tensor-cache.json)과 견줘요
+async function savedShards() {
+  try {
+    const base = `${REPO}/resolve/${REV}/`;
+    const c = await caches.open('webllm/model');
+    const r = await c.match(new URL('tensor-cache.json', base).href);
+    if (!r) return { have: 0, n: 0 };
+    const list = (await r.json()).records || [];
+    const keys = new Set((await c.keys()).map(q => q.url));
+    let have = 0, bytes = 0, total = 0;
+    for (const s of list) { total += s.nbytes; if (keys.has(new URL(s.dataPath, base).href)) { have++; bytes += s.nbytes; } }
+    // 큰 조각 차례 (탭이 몇 번째 조각에서 꺼졌는지 견줘 보려고): 큰 것 6개
+    const big = list.map((s, i) => [i + 1, s.nbytes]).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([i, n]) => `${i}번 ${mb(n)}`).join(', ');
+    return { have, n: list.length, bytes, total, big };
+  } catch (e) { return null; }
+}
+
 async function device() {
   R.ua = (navigator.userAgent || '').replace(/\s+/g, ' ').slice(0, 160);
   R.mem = typeof navigator.deviceMemory === 'number' ? navigator.deviceMemory : null;
   const rows = [];
   const row = (k, v, good) => rows.push(`<div class="row"><span>${k}</span><b class="${good == null ? '' : good ? 'ok' : 'bad'}">${v}</b></div>`);
+  // 기기 이름·안드로이드 판·브라우저 비트 (크롬은 보통 글(UA)에 'Android 10; K'로만 적어서 따로 물어요)
+  try {
+    const h = navigator.userAgentData && navigator.userAgentData.getHighEntropyValues
+      ? await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion', 'bitness']) : null;
+    if (h) R.model = [h.model, h.platformVersion && `${h.platform === 'Android' ? '안드로이드' : h.platform} ${h.platformVersion.split('.')[0]}`, h.bitness && `${h.bitness}비트 브라우저`].filter(Boolean).join(' · ').slice(0, 80);
+  } catch (e) { }
+  if (R.model) row('기기 이름', R.model);
   let a = null;
   try { a = navigator.gpu && await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }); } catch (e) { a = null; }
   if (!navigator.gpu) row('WebGPU', '없음 (최신 크롬으로 열어 주세요)', false);
@@ -147,7 +187,19 @@ async function device() {
     R.quota = est ? (est.quota || 0) - (est.usage || 0) : 0;
     if (est) row('쓸 수 있는 저장 공간', `${gb(R.quota)} (필요 ${gb(NEED)})`, R.quota >= NEED);
   } catch (e) { }
-  try { if (await webllm.hasModelInCache(ID, appConfig())) row('저장된 E4B', '있음 (금방 올라와요)', true); } catch (e) { }
+  const s = await savedShards();
+  if (s && s.n) {
+    R.saved = `${s.n}조각 중 ${s.have} (${gb(s.bytes)} / ${gb(s.total)}) · 큰 조각: ${s.big}`;
+    row('저장된 E4B', s.have === s.n ? `다 있음 (${s.n}조각, 금방 올라와요)` : `${s.have}/${s.n}조각 (누르면 이어서 받아요)`, s.have === s.n);
+  } else R.saved = s ? '없음' : '';
+  // 끝나지 않은 지난 시도 = 그 사이에 탭이 꺼졌어요
+  const last = kept();
+  if (last && !last.end) {
+    R.prev = `${last.at} · ${last.how} · ${where(last)}에서 탭이 꺼짐`;
+    const tip = last.phase === 'fetch' ? '받은 조각은 저장돼 있어요. 다시 누르면 이어서 받아요.'
+      : '메모리가 모자랐을 가능성이 커요. 다른 탭과 앱을 닫고(휴대폰을 껐다 켜면 더 좋아요) 한 번 더 해 볼 수 있어요.';
+    $('prev').innerHTML = `<p class="sub" style="margin:8px 0 0"><span class="bad">지난번 시도는 ${where(last)}에서 탭이 꺼졌어요.</span> ${tip}</p>`;
+  } else $('prev').innerHTML = '';
   $('dev').innerHTML = rows.join('');
   if (!a || !R.f16) $('load').disabled = true;
   report();
@@ -165,24 +217,44 @@ $('load').onclick = async () => {
   const t0 = Date.now();
   let cached = false;
   try { cached = await webllm.hasModelInCache(ID, appConfig()); } catch (e) { }
+  // 일꾼 e4b-worker.js: 게임 일꾼 + 조각을 8MB씩 나눠 올리기. 엔진이 'wg-stream'이라고 알려 오면 그 길로 올리는 거예요
+  const run = { at: new Date().toISOString().slice(0, 16), how: '8MB씩 나눠 올리기(켬)', phase: 'start', i: 0, n: 0, mb: 0, pct: 0, sec: 0, end: '' };
+  keep(run);
   try {
-    worker = new Worker(new URL('../../word-game/llm/worker.js', location.href), { type: 'module', name: 'e4b-test' });
-    engine = await webllm.CreateWebWorkerMLCEngine(worker, ID, {
+    worker = new Worker(new URL('./e4b-worker.js', location.href), { type: 'module', name: 'e4b-test' });
+    // 일꾼이 엔진을 고쳐 부르다 실패하면 (예: 엔진 판이 바뀜) 기다리지 않고 실패로
+    const broke = new Promise((_, no) => worker.addEventListener('error', e => no(new Error('일꾼 오류: ' + (e.message || e.type))), { once: true }));
+    broke.catch(() => { });
+    engine = await Promise.race([broke, webllm.CreateWebWorkerMLCEngine(worker, ID, {
       appConfig: appConfig(),
       initProgressCallback: p => {
+        const text = String(p.text || '');
+        const m = text.match(/^(Fetching param cache|Loading model from cache|Loading GPU shader modules)\[(\d+)\/(\d+)\](?::\s*(\d+)MB)?/);
+        if (/^wg-stream/.test(text)) run.how = '8MB씩 나눠 올림';
+        else if (m) {
+          run.phase = m[1][0] === 'F' ? 'fetch' : /shader/.test(m[1]) ? 'shader' : 'load';
+          run.i = +m[2]; run.n = +m[3];
+          if (m[4]) run.mb = +m[4];
+        }
+        run.pct = Math.round(Math.max(0, Math.min(1, +p.progress || 0)) * 100);
+        run.sec = Math.round((Date.now() - t0) / 1000);
+        keep(run);
         $('bar').value = Math.max(0, Math.min(1, +p.progress || 0));
-        $('status').textContent = `${sec(Date.now() - t0)} · ${String(p.text || '').slice(0, 120)}`;
+        $('status').textContent = `${sec(Date.now() - t0)} · ${text.slice(0, 120)}`;
       }
-    });
-    R.load = { ok: true, ms: Date.now() - t0, cached };
+    })]);
+    R.load = { ok: true, ms: Date.now() - t0, cached, how: run.how };
+    run.end = 'ok'; keep(run);
     $('status').innerHTML = `<span class="ok">올렸어요 (${sec(R.load.ms)})</span>`;
     $('gen').disabled = false;
   } catch (e) {
-    R.load = { ok: false, ms: Date.now() - t0, cached, why: String((e && e.message) || e).slice(0, 300) };
+    R.load = { ok: false, ms: Date.now() - t0, cached, how: run.how, why: `${where(run)}에서 · ${String((e && e.message) || e).slice(0, 300)}` };
+    run.end = 'error'; keep(run);
     $('status').innerHTML = `<span class="bad">실패: ${R.load.why.replace(/</g, '&lt;')}</span>`;
     try { worker && worker.terminate(); } catch (x) { }
     engine = null; $('load').disabled = false;
   }
+  R.prev = ''; $('prev').innerHTML = '';
   report();
 };
 
@@ -225,6 +297,7 @@ $('drop').onclick = async () => {
   engine = null; worker = null; $('gen').disabled = true; $('load').disabled = false;
   try { await webllm.deleteModelAllInfoInCache(ID, appConfig()); $('drop').textContent = '지웠어요'; }
   catch (e) { $('drop').textContent = '지우기 실패: ' + String((e && e.message) || e).slice(0, 80); }
+  try { localStorage.removeItem(LAST); } catch (e) { }
   $('drop').disabled = false;
   device();
 };
