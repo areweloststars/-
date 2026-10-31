@@ -23,9 +23,11 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
 
 ## 지금 하는 일: 이야기를 Cloudflare 서버의 큰 AI에게 맡기기 (2026-10-31~)
 - 파인튜닝(아래)으로는 휴대폰 안 E2B가 줄과 줄 사이를 잇지 못한다고 결론 났어요. 사용자가 **Cloudflare(Workers + Workers AI 공개 모델)**로 정했어요.
-- 원칙: 서버로는 단어 글자(영어·뜻·품사)만 가요. 단어 사진이 아닌 사진은 절대 서버로 보내지 않아요 (단어 사진도 지금은 기기 안에서 읽어요).
-- 서버 코드: `server/story-worker/worker.mjs` (시험 `app/tests/server.test.cjs`), 올리는 법: `server/story-worker/README.md`.
-- 다음: 사용자가 Cloudflare에 올리면 `tools/finetune/v3/eval.cjs`의 서버 모드(`WG_STORY`)로 모델 2~3개를 시험 30편으로 재요 (기준 27편). 좋으면 게임에 붙여요 (사이트 바꾸기는 사용자에게 물은 뒤).
+- 원칙: 서버로는 글자만 가요 (단어 영어·뜻·품사, 고쳐 쓰기 때는 서버가 쓴 이야기 글과 점검기 글). 단어 사진이 아닌 사진은 절대 서버로 보내지 않아요 (단어 사진도 지금은 기기 안에서 읽어요).
+- 원칙: **돈이 드는 것은 쓰지 않아요** (2026-10-31). Cloudflare 무료 요금제만, 결제가 필요한 API·요금제는 제안하지 않아요.
+- 서버 코드: `server/story-worker/worker.mjs` (시험 `app/tests/server.test.cjs`), 올리는 법: `server/story-worker/README.md`. 사용자가 대시보드에 붙여 넣어 올려요.
+- 실험 (사용자가 1~8번 모두 하자고 함): JSON으로 받기·`/fix` 고쳐 쓰기·작가+편집자·뼈대 먼저, 모델 예선(Gemma 4 26B·GLM-4.7-Flash·Nemotron 3 120B 생각 끔/low·gpt-oss-120b·Llama 3.3), 가리고 견주기 페이지, Playground(`server/story-worker/PLAYGROUND.md`).
+  재기는 `tools/finetune/v3/eval-server.cjs` (기준 27/30). 좋으면 게임에 붙여요 (사이트 바꾸기는 사용자에게 물은 뒤).
 - 자세한 것은 `docs/work-log.md` 맨 위 기록에 있어요.
 
 ## 지난 일: 이야기 AI 파인튜닝 4차 (`tools/finetune/v3/`)
