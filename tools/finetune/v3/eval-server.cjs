@@ -1,5 +1,5 @@
 // 이야기 서버 재기 (2026-10-31, 5~8번 실험): 서버(server/story-worker)에 단어를 보내 이야기를 받고, 앱 점검기(check.cjs)로 보고,
-// 틀리면 /fix로 그곳만 고쳐 달라고 해요 (6번). 꼴(text·json, 5번)·뼈대 먼저(plan, 8번)·작가+편집자(drafts·editor, 7번)를 골라 견줘요.
+// 틀리면 /fix로 그곳만 고쳐 달라고 해요 (6번). 점검 전에 앱처럼 표시를 붙여요 (retag: AI가 뜻 말 칸을 문장과 다르게 적어도 앱의 aiMark로 찾아요). 꼴(text·json, 5번)·뼈대 먼저(plan, 8번)·작가+편집자(drafts·editor, 7번)를 골라 견줘요.
 // 이야기가 이어지는지·뜻이 맞는지·재미있는지는 결과 글을 읽고 판정해요 (게임에 넣는 기준: 30편 가운데 27편).
 //
 //   NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt \
@@ -8,7 +8,7 @@
 //     [--drafts=3 --editor=@cf/nvidia/nemotron-3-120b-a12b --editor-effort=none] [--fix=2] [--sets=6,8] [--tries=2] [--regroup]
 // 결과: tools/story-lab/srv-<이름>.txt / .json (저장소에 넣지 않아요). 하루 무료 한도(429)면 멈춰요.
 const fs = require('node:fs'), path = require('node:path');
-const { REPO, TEST_SETS, parse, check, bootPage } = require('./check.cjs');
+const { REPO, TEST_SETS, parse, check, retag, toText, bootPage } = require('./check.cjs');
 
 const arg = (k, d) => { const a = process.argv.find(x => x === '--' + k || x.startsWith('--' + k + '=')); return a == null ? d : a.includes('=') ? a.slice(a.indexOf('=') + 1) : true; };
 const NAME = process.argv.slice(2).find(a => !a.startsWith('--')) || 'run';
@@ -54,14 +54,16 @@ async function main() {
       try {
         const r = await post('/story', { words, ...ASK });
         steps.push(...(r.steps || []));
-        let text = r.text, c = check(p, words, parse(text));
-        Object.assign(run, { skeleton: r.plan, drafts: r.drafts, edited: r.edited, first: { ok: !c.why.length, why: c.why, text } });
+        // 앱처럼 표시를 붙이고 점검해요
+        const look = t => { const o = retag(p, words, parse(t)); return { text: toText(o), c: check(p, words, o), retagged: o.retagged }; };
+        let L = look(r.text), text = L.text, c = L.c;
+        Object.assign(run, { skeleton: r.plan, drafts: r.drafts, edited: r.edited, rawOk: !check(p, words, parse(r.text)).why.length, first: { ok: !c.why.length, why: c.why, text, retagged: L.retagged } });
         const fixes = [];
         for (let f = 0; f < FIX && c.why.length; f++) {
           const x = await post('/fix', { words, story: text, problems: c.why.slice(0, 40).map(w => w.slice(0, 200)), ...(ASK.model ? { model: ASK.model } : {}), ...(ASK.effort ? { effort: ASK.effort } : {}), format: ASK.format || 'json' });
           steps.push(...(x.steps || []));
-          text = x.text; c = check(p, words, parse(text));
-          fixes.push({ ok: !c.why.length, why: c.why });
+          L = look(x.text); text = L.text; c = L.c;
+          fixes.push({ ok: !c.why.length, why: c.why, retagged: L.retagged });
         }
         Object.assign(run, { fixes, ok: !c.why.length, why: c.why, warn: c.warn, text, ...parse(text) });
       } catch (e) {
@@ -70,7 +72,7 @@ async function main() {
       }
       Object.assign(run, { steps, neurons: Math.round(neurons(steps)), ms: Date.now() - t0 });
       runs.push(run); save();
-      say(`\n[묶음 ${s} · ${k + 1}번째] 처음 ${run.first.ok ? '통과' : '실패'} → ${run.ok ? '통과' : '실패'}${run.fixes && run.fixes.length ? ` (고쳐 쓰기 ${run.fixes.length}번)` : ''} · ${run.neurons} Neuron · ${(run.ms / 1000).toFixed(0)}초`);
+      say(`\n[묶음 ${s} · ${k + 1}번째] 처음 ${run.first.ok ? '통과' : '실패'}${run.first.retagged && run.first.retagged.length ? ` (앱이 표시 붙임: ${run.first.retagged.join(', ')})` : ''} → ${run.ok ? '통과' : '실패'}${run.fixes && run.fixes.length ? ` (고쳐 쓰기 ${run.fixes.length}번)` : ''} · ${run.neurons} Neuron · ${(run.ms / 1000).toFixed(0)}초`);
       if (run.err) { say('  오류: ' + run.err); continue; }
       if (!run.first.ok) say('  처음 실패: ' + run.first.why.slice(0, 6).join(' · '));
       if (!run.ok) say('  남은 실패: ' + run.why.slice(0, 6).join(' · '));

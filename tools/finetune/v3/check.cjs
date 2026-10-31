@@ -106,4 +106,37 @@ const CHECK = ({ words, out, strict, PIC_BLOCK_SRC }) => {
 };
 const check = (p, words, out, strict = false) => p.json(`(${CHECK})(${JSON.stringify({ words, out, strict, PIC_BLOCK_SRC: PIC_BLOCK.source })})`);
 
-module.exports = { REPO, TEST_SETS, TRIES, prompt, answer, parse, check, bootPage };
+// 앱처럼 표시 붙이기 (2026-10-31, 이야기 서버): 이야기에 표시가 없는 단어는, 표시가 없는 줄에서 앱의 aiMark로 뜻 자리를 찾아
+// {영어|뜻 말}을 붙여요. 서버 JSON 꼴에서 AI가 뜻 말 칸을 문장과 다르게 적으면(예: 문장은 '거절했어요', 칸은 '거절하다') 표시가 빠지거든요.
+// 가운데 줄부터 찾고, 첫 줄·끝 줄은 마지막에 (거기서 찾으면 점검기가 '첫 줄·끝 줄' 규칙으로 잡아요). 게임에 붙일 때 앱도 이렇게 해요.
+const RETAG = ({ words, lines }) => {
+  const TAG = /\{([^{|}]+)\|([^{|}]+)\}/g, out = lines.slice();
+  const pref = [...out.keys()].slice(1, -1).concat(out.length > 1 ? [0, out.length - 1] : [0]);
+  // 표시가 없는 단어마다, 표시가 없는 줄 가운데 aiMark가 뜻 자리를 찾는 줄 (가운데 줄 먼저)
+  const need = words.filter(([en]) => !out.some(l => [...l.matchAll(TAG)].some(m => m[1].trim().toLowerCase() === en.toLowerCase())))
+    .map(([en, ko, pos]) => {
+      const lex = stLex(en, { en, ko, pos }, SF[0]), cand = [];
+      for (const i of pref) { if (/\{[^{|}]+\|[^{|}]+\}/.test(out[i])) continue; const m = aiMark(out[i], en, lex, ko); if (m) cand.push([i, m]); }
+      return { en, cand };
+    }).sort((a, b) => a.cand.length - b.cand.length);
+  // 한 줄에 단어 하나: 가장 많은 단어가 들어가는 짝을 찾아요 (후보가 적은 단어부터, 단어 10개·줄 14줄이라 다 찾아봐도 금방이에요)
+  let best = [], cur = [];
+  const used = new Set();
+  const go = k => {
+    if (cur.length + (need.length - k) <= best.length) return;
+    if (k === need.length) { best = cur.slice(); return; }
+    for (const [i, m] of need[k].cand) if (!used.has(i)) { used.add(i); cur.push([need[k].en, i, m]); go(k + 1); cur.pop(); used.delete(i); }
+    go(k + 1);
+  };
+  go(0);
+  for (const [, i, m] of best) out[i] = m;
+  return { lines: out, done: best.map(b => b[0]) };
+};
+const retag = (p, words, out) => {
+  const r = p.json(`(${RETAG})(${JSON.stringify({ words, lines: out.lines })})`);
+  return { ...out, lines: r.lines, retagged: r.done };
+};
+// 나눈 답을 다시 앱 꼴 글로
+const toText = out => ['제목: ' + out.title, '줄거리: ' + out.plan, '이야기:', ...out.lines, '그림:', ...out.pics.map(pc => (pc.en ? pc.en + ': ' : '') + pc.text)].join('\n');
+
+module.exports = { REPO, TEST_SETS, TRIES, prompt, answer, parse, check, retag, toText, bootPage };
