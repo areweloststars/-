@@ -54,7 +54,7 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
 | `@cf/openai/gpt-oss-120b` | low | 130 | 60편쯤 |
 | `@cf/google/gemma-4-26b-a4b-it` | 끔 | 45 | 200편쯤 |
 | `@cf/zai-org/glm-4.7-flash` | 끔 | 50 | 200편쯤 |
-| `@cf/nvidia/nemotron-3-120b-a12b` | 끔 | 230 | 40편쯤 |
+| `@cf/nvidia/nemotron-3-120b-a12b` (**쓰는 모델**) | low (기본) | 340 (예선에서 잼) | 30편쯤 |
 | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | 없음 | 260 | 40편쯤 |
 | `@cf/qwen/qwen3.8-27b` | low | 400~ | 20편쯤 |
 

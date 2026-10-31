@@ -55,8 +55,8 @@ ${MODELS.map(([name, id]) => `   - ${name}: https://playground.ai.cloudflare.com
 - 그림 설명이 영어로, 단어 뜻이 떠오르게 쓰였는지
 
 마음에 드는 모델·이야기가 있으면 Claude에게 알려 줘요 (화면을 찍어 보내도 돼요).
-Playground에서는 모델의 생각(추론)이 켜져 있을 수 있어요. 이야기 서버는 생각을 꺼서 써요 (gpt-oss·Qwen은 얕게).
-그래서 Playground가 조금 더 느리고, 이야기가 조금 다를 수 있어요.
+Playground에서는 모델의 생각(추론)이 켜져 있어요 (Nemotron은 보통 생각). 이야기 서버는 Nemotron·gpt-oss·Qwen은 생각을 얕게(low) 켜고,
+나머지는 꺼서 써요. Playground와 같게 하려면 서버에 effort medium을 줘요. 그래서 이야기가 조금 다를 수 있어요.
 
 ## 규칙 글 (Instructions 칸)
 
