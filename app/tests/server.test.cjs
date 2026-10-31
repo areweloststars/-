@@ -89,12 +89,28 @@ test('story server: reads chat, responses and thinking answers; picks a listed m
   // 굵은 제목을 따로 한 줄에 쓰고 줄마다 번호를 붙인 답도 앱이 읽는 꼴로
   assert.equal(w._.clean('**제목**  \n등불 축제  \n\n**줄거리:** 한 줄.\n\n**이야기**\n1. 첫 줄이에요.\n2. 끝 줄이에요.\n\n### 그림\n- lantern: a lantern'),
     '제목: 등불 축제\n줄거리: 한 줄.\n이야기:\n첫 줄이에요.\n끝 줄이에요.\n그림:\nlantern: a lantern');
+  // gpt-oss가 생각 글을 답에 섞으면 마지막 '제목' 줄부터만
+  const clean = '제목: 등불 축제\n줄거리: 한 줄.\n이야기:\n첫 줄이에요.';
+  assert.equal(w._.clean('analysis: We need 제목: 14자 이하.\n제목 rules...\nassistantfinal**제목:** 등불 축제\n줄거리: 한 줄.\n이야기:\n첫 줄이에요.'), clean);
+  assert.equal(w._.clean('analysis: plan the story\n제목: (생각 중)\n...\n제목: 등불 축제\n줄거리: 한 줄.\n이야기:\n첫 줄이에요.'), clean);
   // 망가진 답('!!!!…')이면 한 번 더 물어요
   let n = 0;
   const e0 = fakeEnv(() => (++n === 1 ? { response: '!'.repeat(200) } : { response: STORY }));
   assert.equal((await (await w.fetch(req({ words: WORDS }), e0.env)).json()).text, STORY);
   assert.equal(n, 2);
   assert.equal((await w.fetch(req({ words: WORDS, effort: 'max' }), e0.env)).status, 400);
+  // 빈 답이면 답의 꼴만 돌려줘요 (단어·답 글은 넣지 않아요), 답이 있으면 쓴 토큰 수도
+  const e4 = fakeEnv({ choices: [{ finish_reason: 'length', message: { content: null, reasoning_content: 'x'.repeat(50) } }], usage: { prompt_tokens: 2100, completion_tokens: 4000 } });
+  const r4 = await w.fetch(req({ words: WORDS, model: '@cf/qwen/qwen3.8-27b' }), e4.env);
+  assert.equal(r4.status, 502);
+  const j4 = await r4.json();
+  assert.deepEqual(j4.shape, { keys: ['choices', 'usage'], finish: 'length', content: 'object', reasoning: 50, usage: { in: 2100, out: 4000 } });
+  assert.doesNotMatch(JSON.stringify(j4), /lantern|등불/);
+  assert.match(e4.calls[0].input.messages[1].content, /\/no_think$/);
+  const e5 = fakeEnv({ response: STORY, usage: { prompt_tokens: 2000, completion_tokens: 900 } });
+  const j5 = await (await w.fetch(req({ words: WORDS }), e5.env)).json();
+  assert.deepEqual([j5.tries, j5.usage], [1, { in: 2000, out: 900 }]);
+  assert.equal(e5.calls[0].input.reasoning.effort, 'low');
   // gpt-oss는 Responses 꼴로 묻고, 안 되면 채팅 꼴로 다시
   const { env, calls } = fakeEnv((model, input) => { if (input.input) throw new Error('bad input'); return { response: STORY }; });
   const r = await w.fetch(req({ words: WORDS, model: '@cf/openai/gpt-oss-20b' }), env);

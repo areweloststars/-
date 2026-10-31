@@ -12,7 +12,7 @@
 // 설정 (Cloudflare 대시보드 → 이 Worker → Settings)
 // - Bindings: Workers AI → 이름 AI
 // - Variables and Secrets: WG_TOKEN (Secret, 꼭), WG_MODEL (쓸 모델, 없으면 아래 MODELS의 첫째),
-//   WG_EFFORT (gpt-oss 생각 깊이 low·medium·high, 없으면 medium),
+//   WG_EFFORT (gpt-oss 생각 깊이 low·medium·high, 없으면 low),
 //   WG_MODELS (쉼표로 모델 목록을 바꿀 때만)
 // 쓰는 법은 server/story-worker/README.md를 봐요.
 
@@ -47,8 +47,10 @@ const RULES = `너는 한국 어린이가 영어 단어를 외우는 그림 이�
 - 첫 줄은 주인공과 장소를 소개하고, 끝 줄은 이야기를 마무리해요. 첫 줄과 끝 줄에는 단어를 넣지 않아요.
 - 단어마다 딱 한 번, 한 줄에 표시는 하나만 {영어|뜻}으로 넣어요 (한 줄에 단어 둘을 넣지 않아요). 영어는 받은 그대로, 뜻은 받은 뜻을 문장에 맞는 꼴로 바꿔요.
   예: {shout|외쳤어요}, {bored|심심한}, {villager|마을 사람}들은, {believe|믿어} 주지 않았어요
-- 뜻이 '-하다' 같은 움직임 말이면 표시 안에 끝까지 넣어요: {permit|허락했어요}, {examine|검사하고}. '{permit|허락}을 받아'처럼 이름씨로 바꾸지 않아요.
-- 표시 안의 뜻을 사전 꼴(-다)로 두지 않아요: {borrow|빌리다}는 틀려요 → {borrow|빌렸어요}, {borrow|빌려} 왔어요.
+- 표시 안의 뜻은 받은 뜻 낱말을 그대로 두고 끝(어미)만 바꿔요. 줄이거나, 사이에 말을 끼우거나, '-받다'·'-되다'·'-어지다' 꼴로 바꾸지 않아요.
+  맞음: {praise|칭찬했어요}, {fall asleep|잠들었어요}, {greedy|욕심 많은} 여우, {field trip|현장 학습}을, 접시를 {break|부쉈어요}
+  틀림: {praise|칭찬}을 받았어요, {fall asleep|잠이 들었어요}, {greedy|욕심이 많았어요}, {field trip|학습}을, 접시가 {break|부서졌어요}
+- 움직임 말이 문장 끝에 오면 '-어요' 꼴로 써요: {borrow|빌렸어요}. 사전 꼴({borrow|빌리다})로 두지 않아요.
 - 받은 뜻과 다른 뜻으로 쓰지 않아요. 단어의 뜻을 표시 밖(다른 줄)에 또 쓰지 않아요. 같은 줄이나 같은 시작을 되풀이하지 않아요.
 - 단어 없는 이음 줄은 첫 줄·끝 줄 말고 2개까지 넣을 수 있어요 (까닭·결과를 넣을 자리).
 그림:
@@ -133,11 +135,30 @@ function textOf(r) {
   }
   return '';
 }
+// 답의 꼴만 적어요 (오류를 찾을 때). 받은 단어나 답 글은 넣지 않아요
+function shapeOf(r) {
+  if (r == null || typeof r !== 'object') return { type: typeof r };
+  const c = r.choices && r.choices[0], m = c && c.message, u = r.usage || (r.response && r.response.usage);
+  return {
+    keys: Object.keys(r).slice(0, 10),
+    finish: c ? c.finish_reason : r.status,
+    content: m ? typeof m.content : undefined,
+    reasoning: m ? String(m.reasoning_content || m.reasoning || '').length : undefined,
+    output: Array.isArray(r.output) ? r.output.map(o => o && o.type).slice(0, 6) : undefined,
+    usage: u ? { in: u.prompt_tokens ?? u.input_tokens, out: u.completion_tokens ?? u.output_tokens } : undefined
+  };
+}
 // 생각하는 모델의 생각 부분은 떼고, 앱이 읽는 꼴로 고쳐요:
-// '**제목**' 다음 줄에 제목을 쓴 것 → '제목: …', 줄 앞 번호·글머리표·굵은 글씨 떼기
+// '**제목**' 다음 줄에 제목을 쓴 것 → '제목: …', 줄 앞 번호·글머리표·굵은 글씨 떼기,
+// gpt-oss가 생각 글(analysis…assistantfinal)을 답에 섞으면 마지막 '제목' 줄부터만
 function clean(t) {
-  const ls = String(t || '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^[\s\S]*<\/think>/, '')
+  let s = String(t || '');
+  const fin = s.lastIndexOf('assistantfinal');
+  if (fin >= 0) s = s.slice(fin + 'assistantfinal'.length);
+  let ls = s.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^[\s\S]*<\/think>/, '')
     .split('\n').map(l => l.replace(/\*\*|__/g, '').replace(/^\s*#{1,6}\s*/, '').replace(/^\s*(?:\d+[.)]|[-*•])\s+/, '').trim());
+  const top = ls.map(l => /^제목(\s*[:：]|\s*$)/.test(l)).lastIndexOf(true);
+  if (top > 0) ls = ls.slice(top);
   const out = [];
   for (let i = 0; i < ls.length; i++) {
     const l = ls[i], m = l.match(/^(제목|줄거리|이야기|그림)\s*[:：]?\s*(.*)$/);
@@ -151,8 +172,10 @@ function clean(t) {
 // 같은 글자만 되풀이하는 망가진 답 (gpt-oss가 가끔 '!!!!…'를 줘요)
 const broken = t => !t || !/이야기\s*[:：]/.test(t) || /(.)\1{30,}/.test(t);
 
+// 생각 깊이: medium은 생각 글이 답 자리로 새거나 글자 한도에 걸려 답이 잘렸어요 (2026-10-31 재 봄) → 기본 low
 async function write(env, model, words, effort) {
-  const user = ask(words), maxTokens = 3000;
+  // Qwen은 생각 모드를 끄라고 적어요 (생각에 글자 한도를 다 쓰면 빈 답이 와요)
+  const user = ask(words) + (/qwen/i.test(model) ? ' /no_think' : ''), maxTokens = 4000;
   const asChat = () => env.AI.run(model, {
     messages: [{ role: 'system', content: RULES }, { role: 'user', content: user }],
     max_tokens: maxTokens, temperature: 0.7
@@ -160,15 +183,17 @@ async function write(env, model, words, effort) {
   const asResponses = () => env.AI.run(model, { instructions: RULES, input: user, reasoning: { effort }, max_output_tokens: maxTokens });
   const first = /gpt-oss/.test(model) ? asResponses : asChat, second = first === asChat ? asResponses : asChat;
   const once = async () => {
-    try { return clean(textOf(await first())); } catch (e1) {
-      try { return clean(textOf(await second())); } catch (e2) {
+    let r;
+    try { r = await first(); } catch (e1) {
+      try { r = await second(); } catch (e2) {
         throw new Error(String((e1 && e1.message) || e1).slice(0, 300) + ' / 다른 꼴: ' + String((e2 && e2.message) || e2).slice(0, 120));
       }
     }
+    return { text: clean(textOf(r)), shape: shapeOf(r) };
   };
-  let text = await once();
-  if (broken(text)) text = await once();
-  return text;
+  let got = await once(), tries = 1;
+  if (broken(got.text)) { got = await once(); tries = 2; }
+  return { ...got, tries };
 }
 
 // ---- 문지기 ----
@@ -209,10 +234,10 @@ async function handle(req, env) {
   const model = got.model || env.WG_MODEL || list[0];
   const t0 = Date.now();
   try {
-    const effort = got.effort || (EFFORTS.includes(env.WG_EFFORT) ? env.WG_EFFORT : 'medium');
-    const text = await write(env, model, got.words, effort);
-    if (!text) return reply(req, 502, { error: 'AI가 빈 답을 줬어요', model });
-    return reply(req, 200, { text, model, ms: Date.now() - t0 });
+    const effort = got.effort || (EFFORTS.includes(env.WG_EFFORT) ? env.WG_EFFORT : 'low');
+    const { text, shape, tries } = await write(env, model, got.words, effort);
+    if (!text) return reply(req, 502, { error: 'AI가 빈 답을 줬어요', model, shape });
+    return reply(req, 200, { text, model, ms: Date.now() - t0, tries, usage: shape.usage });
   } catch (e) {
     // 단어는 적지 않고, 오류 종류만 돌려줘요 (하루 무료 한도를 넘으면 여기로 와요)
     const msg = String((e && e.message) || e).slice(0, 450);
@@ -221,4 +246,4 @@ async function handle(req, env) {
 }
 
 // _ 는 시험(app/tests/server.test.cjs)용이에요
-export default { fetch: handle, _: { RULES, ask, readWords, textOf, clean, MODELS, ORIGINS } };
+export default { fetch: handle, _: { RULES, ask, readWords, textOf, clean, shapeOf, MODELS, ORIGINS } };
