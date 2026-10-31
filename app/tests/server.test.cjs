@@ -86,6 +86,15 @@ test('story server: reads chat, responses and thinking answers; picks a listed m
   assert.equal(t({ choices: [{ message: { content: 'b' } }] }), 'b');
   assert.equal(t({ output: [{ type: 'reasoning', content: [{ type: 'reasoning_text', text: 'think' }] }, { type: 'message', content: [{ type: 'output_text', text: 'c' }] }] }), 'c');
   assert.equal(w._.clean('<think>hmm</think>\n제목: x'), '제목: x');
+  // 굵은 제목을 따로 한 줄에 쓰고 줄마다 번호를 붙인 답도 앱이 읽는 꼴로
+  assert.equal(w._.clean('**제목**  \n등불 축제  \n\n**줄거리:** 한 줄.\n\n**이야기**\n1. 첫 줄이에요.\n2. 끝 줄이에요.\n\n### 그림\n- lantern: a lantern'),
+    '제목: 등불 축제\n줄거리: 한 줄.\n이야기:\n첫 줄이에요.\n끝 줄이에요.\n그림:\nlantern: a lantern');
+  // 망가진 답('!!!!…')이면 한 번 더 물어요
+  let n = 0;
+  const e0 = fakeEnv(() => (++n === 1 ? { response: '!'.repeat(200) } : { response: STORY }));
+  assert.equal((await (await w.fetch(req({ words: WORDS }), e0.env)).json()).text, STORY);
+  assert.equal(n, 2);
+  assert.equal((await w.fetch(req({ words: WORDS, effort: 'max' }), e0.env)).status, 400);
   // gpt-oss는 Responses 꼴로 묻고, 안 되면 채팅 꼴로 다시
   const { env, calls } = fakeEnv((model, input) => { if (input.input) throw new Error('bad input'); return { response: STORY }; });
   const r = await w.fetch(req({ words: WORDS, model: '@cf/openai/gpt-oss-20b' }), env);

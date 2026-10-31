@@ -3,7 +3,7 @@
 //   WG_API=http://127.0.0.1:8099 node tools/finetune/v3/eval.cjs [이름]
 //   WG_API: OpenAI 꼴 서버(llama.cpp의 llama-server 등). 생각 모드는 서버에서 꺼요 (--chat-template-kwargs '{"enable_thinking":false}')
 //   서버(Cloudflare 이야기 서버, server/story-worker)로 재기:
-//   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> [WG_MODEL=@cf/...] node tools/finetune/v3/eval.cjs <이름> [--regroup]
+//   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> [WG_MODEL=@cf/...] [WG_EFFORT=low|medium|high] node tools/finetune/v3/eval.cjs <이름> [--regroup]
 //   (서버가 규칙 글을 붙여 묻고, 이 스크립트는 단어만 보내요. 게임과 같은 길이에요)
 //   --regroup: 시험 단어를 주제끼리 다시 묶은 regroup-prompts.json으로 재요
 // 결과: tools/story-lab/v3-eval-<이름>.txt / .json (저장소에 넣지 않아요)
@@ -21,6 +21,7 @@ if (!API && !STORY) { console.error('WG_API=<서버 주소> 또는 WG_STORY=<이
 async function askStory(words) {
   const body = { words };
   if (process.env.WG_MODEL) body.model = process.env.WG_MODEL;
+  if (process.env.WG_EFFORT) body.effort = process.env.WG_EFFORT;
   const r = await fetch(STORY + '/story', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (process.env.WG_TOKEN || '') }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
   if (r.status === 429) { const e = new Error('하루 한도: ' + (j.error || '')); e.stop = true; throw e; }

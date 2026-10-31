@@ -5,23 +5,25 @@
 //
 // 지키는 것 (2026-10-31 사용자가 정함)
 // - 서버로 오는 것은 단어 글자(영어·뜻·품사)뿐이에요. 사진(단어 사진도, 그 밖의 사진도)은 받지 않아요:
-//   JSON이 아니거나, 2KB보다 크거나, 정해진 칸(words, model) 밖의 칸이 있거나, 단어 글자가 아닌 것이 섞이면 거절해요.
+//   JSON이 아니거나, 2KB보다 크거나, 정해진 칸(words, model, effort) 밖의 칸이 있거나, 단어 글자가 아닌 것이 섞이면 거절해요.
 // - 받은 단어는 적지(로그) 않고 저장하지도 않아요. 답을 돌려주면 끝이에요.
 // - 열쇠(WG_TOKEN)가 맞는 요청만 받아요. 열쇠는 Cloudflare의 비밀 값(Secret)에 두고, 저장소에는 넣지 않아요.
 //
 // 설정 (Cloudflare 대시보드 → 이 Worker → Settings)
 // - Bindings: Workers AI → 이름 AI
 // - Variables and Secrets: WG_TOKEN (Secret, 꼭), WG_MODEL (쓸 모델, 없으면 아래 MODELS의 첫째),
+//   WG_EFFORT (gpt-oss 생각 깊이 low·medium·high, 없으면 medium),
 //   WG_MODELS (쉼표로 모델 목록을 바꿀 때만)
 // 쓰는 법은 server/story-worker/README.md를 봐요.
 
 const MODELS = [
   '@cf/openai/gpt-oss-120b',
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
   '@cf/qwen/qwen3.8-27b',
-  '@cf/deepseek-ai/deepseek-v4-flash-0731',
-  '@cf/openai/gpt-oss-20b',
-  '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
+  '@cf/openai/gpt-oss-20b'
 ];
+// deepseek-v4는 무료 요금제에서 못 써요 (2026-10-31 재 봄: 5035 오류)
+const EFFORTS = ['low', 'medium', 'high'];
 const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = 2048;
 
@@ -34,22 +36,26 @@ const RULES = `너는 한국 어린이가 영어 단어를 외우는 그림 이�
 - 쓰기 전에 단어들이 한 이야기에 모일 수 있는 주인공·장소·문제를 먼저 정해요. 단어 차례는 이야기에 맞게 바꿔요.
 - 줄과 줄은 까닭과 결과로 이어져요. 다음 줄은 앞 줄 때문에 일어나요. 앞에서 말하지 않은 인물·물건·사건이 갑자기 나오지 않아요.
 - 단어 뜻이 그 문장에 자연스럽게 맞아야 해요. 뜻을 억지로 끼우지 않아요 (나쁜 예: 자전거를 용서했어요, 선생님께 참석했어요).
-- 명작 동화·전래 동화·신화를 비틀거나 웃긴 상황으로, 밝고 건전하게, 기억에 남게 써요.
+- 명작 동화·전래 동화·신화 가운데 하나를 골라 비틀거나 웃긴 상황으로 바꿔요. 밝고 건전하게, 기억에 남게 써요.
+- 아래 보기는 꼴만 보여 줘요. 보기의 인물·장소·줄거리(양치기·늑대)는 쓰지 말고 새 이야기를 써요.
 
-꼴 (앱이 이 꼴 그대로 읽어요. 다른 말·설명·굵은 글씨는 쓰지 않아요)
+꼴 (앱이 이 꼴 그대로 읽어요. 굵은 글씨(**)·번호·글머리표·다른 설명은 쓰지 않아요. '제목:'과 '줄거리:'는 같은 줄에 바로 이어 써요)
 제목: 14자 이하 한국어 (영어·기호 없이)
 줄거리: 한 문장, 80자 이하
 이야기:
 - 한 줄에 한 문장, '-어요' 말투, 40자 안쪽으로 짧게. 줄 수는 요청에 적힌 대로.
 - 첫 줄은 주인공과 장소를 소개하고, 끝 줄은 이야기를 마무리해요. 첫 줄과 끝 줄에는 단어를 넣지 않아요.
-- 단어마다 딱 한 번, 한 줄에 하나만 {영어|뜻} 표시로 넣어요. 영어는 받은 그대로, 뜻은 받은 뜻을 문장에 맞는 꼴로 바꿔요.
+- 단어마다 딱 한 번, 한 줄에 표시는 하나만 {영어|뜻}으로 넣어요 (한 줄에 단어 둘을 넣지 않아요). 영어는 받은 그대로, 뜻은 받은 뜻을 문장에 맞는 꼴로 바꿔요.
   예: {shout|외쳤어요}, {bored|심심한}, {villager|마을 사람}들은, {believe|믿어} 주지 않았어요
+- 뜻이 '-하다' 같은 움직임 말이면 표시 안에 끝까지 넣어요: {permit|허락했어요}, {examine|검사하고}. '{permit|허락}을 받아'처럼 이름씨로 바꾸지 않아요.
+- 표시 안의 뜻을 사전 꼴(-다)로 두지 않아요: {borrow|빌리다}는 틀려요 → {borrow|빌렸어요}, {borrow|빌려} 왔어요.
 - 받은 뜻과 다른 뜻으로 쓰지 않아요. 단어의 뜻을 표시 밖(다른 줄)에 또 쓰지 않아요. 같은 줄이나 같은 시작을 되풀이하지 않아요.
 - 단어 없는 이음 줄은 첫 줄·끝 줄 말고 2개까지 넣을 수 있어요 (까닭·결과를 넣을 자리).
 그림:
 - 단어마다 한 줄씩, 이야기에 나온 차례로: 영어 단어: 영어 그림 설명
+- 그림 설명은 반드시 영어로만 써요 (한글을 쓰지 않아요). 그림 AI가 영어만 읽어요.
 - 그 단어 줄의 장면을 그려서 그림만 봐도 단어 뜻이 떠오르게. 영어 낱말 8~35개, 장면 하나.
-- 같은 인물은 줄마다 같은 말로 (예: the shepherd boy). 글자·간판·말풍선 글은 그리지 않아요. 다치는 장면·무기·무서운 것은 넣지 않아요.
+- 같은 인물은 줄마다 같은 말로 (예: the shepherd boy). 글자·간판·말풍선·종이에 쓴 글은 그리지 않아요 (says, written, sign, label 같은 말을 쓰지 않아요). 다치는 장면·무기·무서운 것은 넣지 않아요.
 
 보기 (단어 6개 → 이야기 8줄)
 요청:
@@ -89,7 +95,7 @@ const KO = /^[^{}|<>\n\r\t]{1,30}$/;
 const POS = /^[a-z]{0,6}$/;
 function readWords(body, models) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { err: 'JSON 객체가 아니에요' };
-  for (const k of Object.keys(body)) if (k !== 'words' && k !== 'model') return { err: `받지 않는 칸: ${k.slice(0, 20)}` };
+  for (const k of Object.keys(body)) if (!['words', 'model', 'effort'].includes(k)) return { err: `받지 않는 칸: ${k.slice(0, 20)}` };
   const ws = body.words;
   if (!Array.isArray(ws) || ws.length < 3 || ws.length > 10) return { err: '단어는 3~10개예요' };
   const words = [];
@@ -105,7 +111,9 @@ function readWords(body, models) {
   if (new Set(words.map(w => w[0].toLowerCase())).size !== words.length) return { err: '같은 단어가 두 번 있어요' };
   const model = body.model == null ? null : body.model;
   if (model != null && (typeof model !== 'string' || !models.includes(model))) return { err: '쓸 수 없는 모델이에요' };
-  return { words, model };
+  const effort = body.effort == null ? null : body.effort;
+  if (effort != null && !EFFORTS.includes(effort)) return { err: '생각 깊이는 low·medium·high예요' };
+  return { words, model, effort };
 }
 
 // ---- AI에게 묻기 ----
@@ -125,21 +133,41 @@ function textOf(r) {
   }
   return '';
 }
-// 생각하는 모델의 생각 부분은 떼요
-const clean = t => String(t || '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^[\s\S]*<\/think>/, '').trim();
+// 생각하는 모델의 생각 부분은 떼고, 앱이 읽는 꼴로 고쳐요:
+// '**제목**' 다음 줄에 제목을 쓴 것 → '제목: …', 줄 앞 번호·글머리표·굵은 글씨 떼기
+function clean(t) {
+  const ls = String(t || '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^[\s\S]*<\/think>/, '')
+    .split('\n').map(l => l.replace(/\*\*|__/g, '').replace(/^\s*#{1,6}\s*/, '').replace(/^\s*(?:\d+[.)]|[-*•])\s+/, '').trim());
+  const out = [];
+  for (let i = 0; i < ls.length; i++) {
+    const l = ls[i], m = l.match(/^(제목|줄거리|이야기|그림)\s*[:：]?\s*(.*)$/);
+    if (!m) { if (l) out.push(l); continue; }
+    let v = m[2].trim();
+    if (!v && (m[1] === '제목' || m[1] === '줄거리')) { while (i + 1 < ls.length && !ls[i + 1]) i++; if (i + 1 < ls.length) v = ls[++i]; }
+    out.push(`${m[1]}: ${v}`.trim());
+  }
+  return out.join('\n').replace(/^(이야기|그림):$/gm, '$1:').trim();
+}
+// 같은 글자만 되풀이하는 망가진 답 (gpt-oss가 가끔 '!!!!…'를 줘요)
+const broken = t => !t || !/이야기\s*[:：]/.test(t) || /(.)\1{30,}/.test(t);
 
-async function write(env, model, words) {
-  const user = ask(words), maxTokens = 2500;
+async function write(env, model, words, effort) {
+  const user = ask(words), maxTokens = 3000;
   const asChat = () => env.AI.run(model, {
     messages: [{ role: 'system', content: RULES }, { role: 'user', content: user }],
-    max_tokens: maxTokens, temperature: 0.7, top_p: 0.9
+    max_tokens: maxTokens, temperature: 0.7
   });
-  const asResponses = () => env.AI.run(model, { instructions: RULES, input: user, reasoning: { effort: 'low' }, max_output_tokens: maxTokens });
+  const asResponses = () => env.AI.run(model, { instructions: RULES, input: user, reasoning: { effort }, max_output_tokens: maxTokens });
   const first = /gpt-oss/.test(model) ? asResponses : asChat, second = first === asChat ? asResponses : asChat;
-  let r;
-  try { r = await first(); } catch (e) { r = await second(); }
-  let text = clean(textOf(r));
-  if (!text) text = clean(textOf(await second()));
+  const once = async () => {
+    try { return clean(textOf(await first())); } catch (e1) {
+      try { return clean(textOf(await second())); } catch (e2) {
+        throw new Error(String((e1 && e1.message) || e1).slice(0, 300) + ' / 다른 꼴: ' + String((e2 && e2.message) || e2).slice(0, 120));
+      }
+    }
+  };
+  let text = await once();
+  if (broken(text)) text = await once();
   return text;
 }
 
@@ -181,12 +209,13 @@ async function handle(req, env) {
   const model = got.model || env.WG_MODEL || list[0];
   const t0 = Date.now();
   try {
-    const text = await write(env, model, got.words);
+    const effort = got.effort || (EFFORTS.includes(env.WG_EFFORT) ? env.WG_EFFORT : 'medium');
+    const text = await write(env, model, got.words, effort);
     if (!text) return reply(req, 502, { error: 'AI가 빈 답을 줬어요', model });
     return reply(req, 200, { text, model, ms: Date.now() - t0 });
   } catch (e) {
     // 단어는 적지 않고, 오류 종류만 돌려줘요 (하루 무료 한도를 넘으면 여기로 와요)
-    const msg = String((e && e.message) || e).slice(0, 200);
+    const msg = String((e && e.message) || e).slice(0, 450);
     return reply(req, /limit|quota|neuron|429|capacity/i.test(msg) ? 429 : 502, { error: 'AI 오류: ' + msg, model });
   }
 }
