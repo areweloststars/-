@@ -28,12 +28,12 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
   - 모범 이야기 1,200편: `stories/*.json` (3차는 300편, 4차에 1,200편으로 늘렸어요)
   - `node tools/finetune/v3/build.cjs`: 모범 이야기를 점검하고 학습 파일을 만들어요
   - `pick.cjs`: 단어 묶음 뽑기 / `mark.cjs`: 뜻 꼴 시험 / `check.cjs`: 형식 점검 / `eval.cjs`: 모델 재기
-  - Colab 노트북: `train_colab.ipynb`(E2B 3차), `train_colab_e4b.ipynb`(E4B 3차), `train4_colab_e4b.ipynb`(E4B 4차: 1,200편, 허깅페이스에 중간 저장·이어서 학습, 재 보기 30편 저장)
+  - Colab 노트북: `train_colab.ipynb`(E2B 3차), `train_colab_e4b.ipynb`(E4B 3차), `train4_colab.ipynb`(E2B 4차 실험: 1,200편, 허깅페이스에 중간 저장·이어서 학습, 재 보기 30편 저장, 크롬용 변환), `train4_colab_e4b.ipynb`(E4B 4차: 8GB 폰에 안 들어가서 쓰지 않음)
 - 결과와 다음 할 일은 `docs/work-log.md`에 있어요. 요약하면:
   - E2B: 형식 9/30, 자연스러운 이야기 3~4편
   - E4B: 형식 11/30, 자연스러운 이야기 10편쯤
   - 갤럭시 A16에서는 E4B를 받다가 브라우저가 꺼졌어요. 갤럭시 노트20(8GB)은 시험 페이지 v2(조각을 8MB씩 나눠 올리기)로 91%(3.7GB)까지 올리고 그래픽 칩 메모리 한도에 걸렸어요 (E4B는 4GB+). 갤럭시 S24 시험이 남았어요. S24도 안 되면 E2B로 가요 (`tools/phone-test/e4b.html`).
-  - 4차: 모범 이야기 1,200편을 다 썼어요 (모두 점검 통과). 사용자가 `train4_colab_e4b.ipynb`를 Colab에서 돌리면 재 보기 30편을 앱의 점검으로 재요.
+  - 4차: 모범 이야기 1,200편을 다 썼어요 (모두 점검 통과). E4B가 8GB 폰에 안 들어가서, 같은 1,200편으로 **E2B를 실험**해요. 사용자가 `train4_colab.ipynb`를 Colab에서 돌리면 재 보기 30편을 앱의 점검으로 재고 3차 E2B(형식 9/30, 쓸 만한 것 3~4편)와 견줘요.
 
 ## 꼭 지킬 것 (자세한 건 `CLAUDE.md`)
 - 교재(책, 단어 앱)의 단어 목록·뜻·예문·사진·화면은 저장소에도, 단어장 파일(`app/decks.enc`)에도 넣지 않아요.
