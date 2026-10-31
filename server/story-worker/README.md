@@ -1,0 +1,48 @@
+# 이야기 서버 (Cloudflare Worker + Workers AI)
+
+게임이 단어 6~8개로 이야기를 만들 때, 휴대폰 안 작은 AI(Gemma 4 E2B) 대신 서버의 큰 AI에게 부탁하는 작은 프로그램이에요.
+2026-10-31 사용자가 Cloudflare로 정했어요. 먼저 시험 30편으로 이야기를 잘 잇는지 재고(기준 27편), 괜찮으면 게임에 붙여요.
+
+## 무엇이 서버로 가나요
+
+- **가는 것**: 단어 글자뿐이에요. 영어, 뜻, 품사 (예: `["lantern","등불","n"]`).
+- **안 가는 것**: 사진이에요. 단어 사진은 지금처럼 휴대폰 안에서 읽고, 그 밖의 사진(사용자 사진·화면 캡처 등)은 절대 보내지 않아요.
+  서버도 단어 글자가 아닌 것은 받지 않아요. JSON이 아니거나, 2KB보다 크거나, `words`·`model` 밖의 칸이 있거나,
+  영어·뜻에 글자가 아닌 것이 섞이면 AI에게 묻기 전에 거절해요 (`app/tests/server.test.cjs`가 시험해요).
+- 서버는 받은 단어를 적거나 저장하지 않아요. 만든 이야기는 휴대폰에 저장돼서, 놀 때는 인터넷이 없어도 돼요.
+
+## 돈
+
+Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까지 무료이고 한국 시간 오전 9시에 다시 채워져요.
+무료 요금제에서는 넘으면 그날만 오류(429)로 멈춰요. 유료 요금제(Workers Paid)로 바꾸지 않으면 돈이 나가지 않아요.
+
+## 올리는 법 (사용자가 한 번)
+
+1. <https://dash.cloudflare.com/sign-up>에서 가입해요 (무료).
+2. 왼쪽 메뉴 **Workers & Pages**(또는 Compute → Workers) → **Create** → **Hello World**로 시작 → 이름 `wg-story` → **Deploy**.
+3. **Edit code**를 눌러 원래 코드를 모두 지우고, 이 폴더의 `worker.mjs` 전체를 붙여 넣고 **Deploy**.
+   휴대폰에서는 GitHub의 Raw 화면에서 전체 선택·복사하면 돼요.
+4. Worker의 **Settings → Bindings → Add → Workers AI**, 이름(Variable name)은 `AI`.
+5. **Settings → Variables and Secrets → Add**, 종류 **Secret**, 이름 `WG_TOKEN`, 값은 Claude가 준 열쇠.
+   (지금은 시험용 열쇠예요. 게임에 붙일 때는 사이트 열쇠에서 만든 값으로 바꿔요.)
+6. 위쪽에 보이는 주소(`https://wg-story.<계정 이름>.workers.dev`)를 Claude에게 알려 줘요.
+
+선택: `WG_MODEL`(Text)로 기본 모델을 바꿔요. 쓸 수 있는 모델 목록은 `worker.mjs`의 `MODELS`이고,
+Cloudflare에서 이름이 바뀌었으면 `WG_MODELS`(쉼표로 나눈 목록)로 바꿀 수 있어요.
+
+## 재기 (Claude가)
+
+```sh
+WG_STORY=https://wg-story.<계정>.workers.dev WG_TOKEN=<열쇠> WG_MODEL=@cf/openai/gpt-oss-120b \
+  node tools/finetune/v3/eval.cjs cf-gptoss120 [--regroup]
+```
+
+- 시험 단어 10묶음 × 3번 = 30편을 서버에 보내고, 앱과 같은 점검기(`check.cjs`)로 형식을 봐요. 이어짐·뜻은 읽고 판정해요.
+- 결과는 `tools/story-lab/`에 써요 (저장소에 넣지 않아요).
+- 클라우드 세션에서 재려면 세션 네트워크 설정에 `workers.dev`를 더해야 해요.
+
+## 게임에 붙일 때 (재기 결과가 좋으면, 사용자에게 물은 뒤)
+
+- 열쇠: 앱이 사이트 열쇠로 `HMAC-SHA256(사이트 열쇠, "wg-story-server-v1")`를 만들어 보내고, 같은 값을 `WG_TOKEN`에 넣어요.
+  사이트 열쇠 자체는 휴대폰 밖으로 나가지 않아요. 열쇠 없는 체험판(`play.html`)은 서버를 쓰지 않아요.
+- 앱은 서버 답을 휴대폰 안 점검기로 확인하고, 틀리거나 인터넷이 없거나 하루 한도가 넘으면 지금 방식(휴대폰 안)으로 만들어요.
