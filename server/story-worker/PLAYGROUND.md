@@ -4,27 +4,38 @@
 가입·설정이 필요 없고, 우리 계정의 하루 무료 한도도 쓰지 않아요.
 이 파일은 `node server/story-worker/playground.mjs`로 만들어요. 규칙 글을 고치면 같이 다시 만들어요 (`npm test`가 확인해요).
 
-## 하는 법
+## 한 모델씩 써 보기 (Model mode)
 
-1. 모델 하나를 열어요.
-   - Gemma 4 26B: https://playground.ai.cloudflare.com/?model=@cf/google/gemma-4-26b-a4b-it
-   - Nemotron 3 120B: https://playground.ai.cloudflare.com/?model=@cf/nvidia/nemotron-3-120b-a12b
-   - GLM-4.7-Flash: https://playground.ai.cloudflare.com/?model=@cf/zai-org/glm-4.7-flash
-   - gpt-oss-120b: https://playground.ai.cloudflare.com/?model=@cf/openai/gpt-oss-120b
-   - Llama 3.3 70B: https://playground.ai.cloudflare.com/?model=@cf/meta/llama-3.3-70b-instruct-fp8-fast
-2. System(시스템) 칸에 아래 **규칙 글**을 붙여 넣어요. 글상자 오른쪽 위의 복사 단추를 누르면 한 번에 복사돼요.
-3. 메시지 칸에 아래 **단어** 가운데 하나를 붙여 넣고 보내요. 같은 단어를 여러 모델에 보내면 견주기 쉬워요.
-4. 읽어 볼 것
-   - 줄과 줄이 까닭과 결과로 이어지는지 (갑자기 나오는 인물·사건이 없는지)
-   - 단어 뜻이 문장에 자연스럽게 맞는지
-   - 재미있는지 (동화를 비틀거나 웃긴 상황인지)
-   - 그림 설명이 영어로, 단어 뜻이 떠오르게 쓰였는지
-5. 마음에 드는 모델·이야기가 있으면 Claude에게 알려 줘요.
+1. 아래 주소 하나를 새 탭에서 열어요. 그 모델을 고른 채로 열려요.
+   - Gemma 4 26B: https://playground.ai.cloudflare.com/models?model=@cf/google/gemma-4-26b-a4b-it
+   - Nemotron 3 120B: https://playground.ai.cloudflare.com/models?model=@cf/nvidia/nemotron-3-120b-a12b
+   - GLM-4.7-Flash: https://playground.ai.cloudflare.com/models?model=@cf/zai-org/glm-4.7-flash
+   - gpt-oss-120b: https://playground.ai.cloudflare.com/models?model=@cf/openai/gpt-oss-120b
+   - Llama 3.3 70B: https://playground.ai.cloudflare.com/models?model=@cf/meta/llama-3.3-70b-instruct-fp8-fast
+2. 오른쪽 칸 **Parameters → Instructions** 글상자를 눌러, 원래 들어 있는 영어 글을 모두 지워요 (Ctrl+A → Delete).
+3. 이 파일의 **규칙 글** 상자 오른쪽 위 복사 단추를 누르고, Instructions 글상자에 붙여 넣어요 (Ctrl+V).
+4. 이 파일의 **단어** 상자 하나를 복사해서 화면 아래 "Ask anything..." 칸에 붙여 넣고, ↑ 단추를 눌러요.
+5. 다른 모델은 다른 주소를 새 탭에서 열고 2~4를 되풀이해요. 같은 단어를 여러 모델에 보내면 견주기 쉬워요.
 
+## 두 모델 나란히 써 보기 (Compare mode)
+
+1. https://playground.ai.cloudflare.com/compare?modelA=@cf/google/gemma-4-26b-a4b-it&modelB=@cf/nvidia/nemotron-3-120b-a12b 를 열어요.
+   B 칸이 다른 모델(GLM-4.7 Flash 등)로 열리면, B 칸 오른쪽 위 설정 단추 → Model에서 Provider와 Model을 바꿔요.
+2. A 칸 오른쪽 위 설정 단추 → **Parameters → Instructions**에 규칙 글을 붙여 넣어요. B 칸도 똑같이 해요.
+3. 화면 아래 "Ask anything..." 칸에 단어를 붙여 넣고 ↑ 단추를 누르면, 두 모델이 같은 단어로 나란히 써요.
+
+## 읽어 볼 것
+
+- 줄과 줄이 까닭과 결과로 이어지는지 (갑자기 나오는 인물·사건이 없는지)
+- 단어 뜻이 문장에 자연스럽게 맞는지
+- 재미있는지 (동화를 비틀거나 웃긴 상황인지)
+- 그림 설명이 영어로, 단어 뜻이 떠오르게 쓰였는지
+
+마음에 드는 모델·이야기가 있으면 Claude에게 알려 줘요 (화면을 찍어 보내도 돼요).
 Playground에서는 모델의 생각(추론)이 켜져 있을 수 있어요. 이야기 서버는 생각을 꺼서 써요 (gpt-oss·Qwen은 얕게).
 그래서 Playground가 조금 더 느리고, 이야기가 조금 다를 수 있어요.
 
-## 규칙 글 (System 칸)
+## 규칙 글 (Instructions 칸)
 
 ```text
 너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 작가예요.
@@ -89,7 +100,7 @@ believe: a gray wolf near the sheep while the farmers in the village below turn 
 regret: the shepherd boy sitting alone on the hill with his head down, his sheep scattered far away
 ```
 
-## 단어 (메시지 칸)
+## 단어 (Ask anything 칸)
 
 ### 묶음 8 — 어려운 묶음: 서로 관계없는 단어
 
