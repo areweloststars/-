@@ -12,14 +12,15 @@ case "$1" in
     P="--format=json --fix=2 --sets=6,8 --tries=2"
     run pre-gemma --model=$G $P; run pre-glm --model=@cf/zai-org/glm-4.7-flash $P; run pre-nemotron-off --model=$N --effort=none $P
     run pre-gptoss --model=$O --effort=low $P; run pre-llama --model=@cf/meta/llama-3.3-70b-instruct-fp8-fast $P; run pre-nemotron-low --model=$N --effort=low $P ;;
-  ways) # 길 견주기: 작가는 Gemma(싸고 형식이 좋아요), 시험 묶음 10개 × 1편, JSON + 고쳐 쓰기 2번
-    P="--format=json --fix=2 --tries=1"
-    run way-json --model=$G $P
-    run way-plan --model=$G --plan $P
-    run way-team-gemma --model=$G --drafts=3 --editor=$G $P
-    run way-team-nemotron --model=$G --drafts=3 --editor=$N --editor-effort=low $P --sets=1,3,5,7,9
-    run way-team-gptoss --model=$G --drafts=3 --editor=$O --editor-effort=low $P --sets=2,4,6,8,10 ;;
-  final) # 본선: 가장 나은 길로 30편 + 주제 묶음 30편
+  ways) # 길 견주기 (2026-11-01~): 이야기 모델은 사용자가 고른 Nemotron 3 120B. 묶음 2·4·6·8·10 × 1편, 고쳐 쓰기 2번
+    # 한 편에 340~600 Neuron이라 하루 한도 안에서 5편씩. 생각 보통(medium, Playground와 같음)은 서버 6판(글자 한도 12000)부터.
+    P="--model=$N --fix=2 --tries=1 --sets=2,4,6,8,10"
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    run way-nem-low-text --effort=low --format=text $P
+    if [ "${V:-0}" -ge 6 ]; then run way-nem-med-text --effort=medium --format=text $P; else echo "서버가 6판이 아니라 생각 보통(medium)은 건너뛰어요 (답이 잘릴 수 있어요)"; fi
+    run way-nem-low-json --effort=low --format=json $P
+    run way-nem-low-plan --effort=low --format=json --plan $P ;;
+  final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;

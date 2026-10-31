@@ -23,17 +23,19 @@
 // 설정 (Cloudflare 대시보드 → 이 Worker → Settings)
 // - Bindings: Workers AI → 이름 AI
 // - Variables and Secrets: WG_TOKEN (Secret, 꼭), WG_MODEL (쓸 모델, 없으면 아래 MODELS의 첫째),
-//   WG_EFFORT (생각 깊이 none·low·medium·high, 없으면 gpt-oss·qwen은 low, 나머지는 none),
+//   WG_EFFORT (생각 깊이 none·low·medium·high, 없으면 nemotron·gpt-oss·qwen은 low, 나머지는 none),
 //   WG_MODELS (쉼표로 쓸 모델만 잠글 때. 없으면 '@cf/회사/이름' 꼴의 Workers AI 모델은 모두 시험할 수 있어요)
 // 쓰는 법은 server/story-worker/README.md를 봐요.
 
 // 무료 요금제에서 쓸 수 있는 글 모델 (2026-10-31 Cloudflare 문서·요금표). 괄호는 이야기 한 편(입력 2천·출력 1천 토큰쯤)에 드는 Neuron 어림.
 // 하루 무료 10,000 Neuron → gemma·glm은 200편쯤, gpt-oss는 60편쯤, nemotron·llama는 40편쯤, qwen은 20편쯤.
+// 2026-10-31 사용자가 Playground로 직접 읽고 Nemotron 3 120B를 골랐어요 ("유일하게 이야기가 이어져요") → 기본 모델.
+// Playground는 Nemotron의 생각을 켠 채로 썼어요 → 서버도 생각을 켜요 (기본 low, effort medium이면 Playground와 같은 보통 생각)
 const MODELS = [
+  '@cf/nvidia/nemotron-3-120b-a12b',  // 생각 low (340) — 기본
   '@cf/openai/gpt-oss-120b',          // 생각 low (130)
-  '@cf/google/gemma-4-26b-a4b-it',    // 생각 끔 (45) — 휴대폰 게임 AI(Gemma 4 E2B)의 큰 형
+  '@cf/google/gemma-4-26b-a4b-it',    // 생각 끔 (45) — 꼴은 잘 지키지만 사용자 판정: 이야기가 안 이어져요
   '@cf/zai-org/glm-4.7-flash',        // 생각 끔 (50)
-  '@cf/nvidia/nemotron-3-120b-a12b',  // 생각 끔 (230)
   '@cf/meta/llama-3.3-70b-instruct-fp8-fast', // 생각 없음 (260)
   '@cf/qwen/qwen3.8-27b',             // 생각 low (400~, 기본은 xhigh라 빈 답이 왔어요)
   '@cf/openai/gpt-oss-20b'
@@ -46,6 +48,7 @@ const FORMATS = ['text', 'json'];
 const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 2048, '/fix': 16384 };
 const MAX_OUT = 4000;
+const VERSION = 6;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -383,7 +386,9 @@ function broken(t) {
 // 생각 깊이: 생각하는 모델은 생각에 글자 한도를 다 쓰면 답이 잘리거나 비어요 (2026-10-31 재 봄:
 // gpt-oss medium은 생각 글이 새고 3/10, qwen3.8은 기본 xhigh라 빈 답). 모델마다 문서에 적힌 방법으로 정해요.
 const isOss = m => /gpt-oss/i.test(m);
-const defaultEffort = m => (isOss(m) || /qwen3/i.test(m) ? 'low' : 'none');
+const defaultEffort = m => (isOss(m) || /qwen3|nemotron/i.test(m) ? 'low' : 'none');
+// 생각을 보통 이상으로 켜면 생각 글이 길어져요 → 답이 잘리지 않게 글자 한도를 넉넉히 (Nemotron 문서 보기도 16000)
+const maxOut = effort => (effort === 'medium' || effort === 'high' ? 12000 : MAX_OUT);
 function thinking(model, effort) {
   if (/qwen3/i.test(model)) return { reasoning_effort: effort === 'none' ? 'low' : effort === 'high' ? 'xhigh' : effort };
   if (/nemotron/i.test(model)) return { chat_template_kwargs: effort === 'none' ? { enable_thinking: false } : { enable_thinking: true, low_effort: effort === 'low' } };
@@ -402,10 +407,10 @@ const msgs = (system, user) => [{ role: 'system', content: system }, { role: 'us
 async function callAI(env, model, system, user, effort, schema) {
   const tries = [];
   if (isOss(model)) {
-    tries.push(() => env.AI.run(model, { instructions: system, input: user, reasoning: { effort: effort === 'none' ? 'low' : effort }, max_output_tokens: MAX_OUT }));
-    tries.push(() => env.AI.run(model, { messages: msgs(system, user), max_tokens: MAX_OUT, temperature: 0.7, ...(schema ? { response_format: formatOf(model, schema) } : {}) }));
+    tries.push(() => env.AI.run(model, { instructions: system, input: user, reasoning: { effort: effort === 'none' ? 'low' : effort }, max_output_tokens: maxOut(effort) }));
+    tries.push(() => env.AI.run(model, { messages: msgs(system, user), max_tokens: maxOut(effort), temperature: 0.7, ...(schema ? { response_format: formatOf(model, schema) } : {}) }));
   } else {
-    const base = { messages: msgs(system, user), max_tokens: MAX_OUT, temperature: 0.7, ...thinking(model, effort) };
+    const base = { messages: msgs(system, user), max_tokens: maxOut(effort), temperature: 0.7, ...thinking(model, effort) };
     if (schema) tries.push(() => env.AI.run(model, { ...base, response_format: formatOf(model, schema) }));
     tries.push(() => env.AI.run(model, base));
   }
@@ -487,7 +492,7 @@ async function handle(req, env) {
   const url = new URL(req.url), path = url.pathname;
   if (req.method === 'OPTIONS') return new Response(null, { status: cors(req)['access-control-allow-origin'] ? 204 : 403, headers: cors(req) });
   if (req.headers.get('origin') && !cors(req)['access-control-allow-origin']) return reply(req, 403, { error: '허락하지 않은 사이트예요' });
-  if (path === '/' && req.method === 'GET') return reply(req, 200, { ok: true });
+  if (path === '/' && req.method === 'GET') return reply(req, 200, { ok: true, v: VERSION });
   if (!KEYS[path]) return reply(req, 404, { error: '없는 주소예요' });
   if (req.method !== 'POST') return reply(req, 405, { error: 'POST만 받아요' });
   if (!env.WG_TOKEN || !env.AI) return reply(req, 503, { error: '서버 설정이 끝나지 않았어요 (WG_TOKEN, AI 연결)' });

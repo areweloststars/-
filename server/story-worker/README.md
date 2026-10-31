@@ -41,6 +41,12 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
   이야기 글·점검기 글도 글자만 받아요 (6천 자·40줄까지, `data:` 주소 등은 거절).
 - 답: `{text, model, effort, format, ms, steps:[{step, model, ms, in, out}], usage, plan?, drafts?, editor?, edited?}` — `text`는 앱 꼴(제목·줄거리·이야기·그림).
 
+## 쓰는 모델: Nemotron 3 120B (2026-10-31 사용자가 고름)
+
+사용자가 Playground로 직접 읽고 "유일하게 이야기가 이어진다"며 골랐어요. 서버의 기본 모델이에요 (생각 low, effort medium이면 Playground와 같은 보통 생각).
+한 편에 무료 한도 340쯤(하루 30편쯤)이라, 시험은 하루에 조금씩 해요. 게임에서는 단어 30개 한 쪽이 5편이라 하루 쓰기에 넉넉해요.
+문장 속 단어에 `{영어|뜻}` 표시를 잘 안 붙여요 → 앱이 `aiMark`로 표시를 붙여요 (`tools/finetune/v3/check.cjs`의 `retag`).
+
 ## 무료로 쓸 수 있는 모델 (2026-10-31 Cloudflare 문서·요금표)
 
 | 모델 | 생각 | 한 편 Neuron 어림 | 하루 무료로 |

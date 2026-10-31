@@ -127,7 +127,7 @@ test('story server: reads chat, responses and thinking answers; picks a listed m
   assert.doesNotMatch(JSON.stringify(j4), /lantern|등불/);
   assert.equal(e4.calls[0].input.reasoning_effort, 'low');
   const e5 = fakeEnv({ response: STORY, usage: { prompt_tokens: 2000, completion_tokens: 900 } });
-  const j5 = await (await w.fetch(req({ words: WORDS }), e5.env)).json();
+  const j5 = await (await w.fetch(req({ words: WORDS, model: '@cf/openai/gpt-oss-120b' }), e5.env)).json();
   assert.deepEqual([j5.tries, j5.usage], [1, { in: 2000, out: 900 }]);
   assert.equal(e5.calls[0].input.reasoning.effort, 'low');
   // gpt-oss는 Responses 꼴로 묻고, 안 되면 채팅 꼴로 다시
@@ -204,7 +204,7 @@ test('story server: JSON answers (5) become app text, with the response_format e
   assert.deepEqual(f.calls.map(c => !!c.input.response_format), [true, false]);
   // gpt-oss는 Responses 꼴로 묻고 (JSON 칸 없이, 규칙 글에 JSON 꼴), 글에서 JSON을 꺼내요
   const o = fakeEnv({ output: [{ type: 'message', content: [{ type: 'output_text', text: 'analysis… assistantfinal' + JSON.stringify(JSTORY) }] }] });
-  const jo = await (await w.fetch(req({ words: WORDS, format: 'json' }), o.env)).json();
+  const jo = await (await w.fetch(req({ words: WORDS, format: 'json', model: '@cf/openai/gpt-oss-120b' }), o.env)).json();
   assert.equal(jo.text, JTEXT);
   assert.equal(o.calls[0].input.response_format, undefined);
   assert.match(o.calls[0].input.instructions, /"lines"/);
@@ -238,7 +238,7 @@ test('story server: writer + editor (7) — drafts from one model, the editor mo
   const ed = calls[3];
   assert.match(sys(ed), /편집자/);
   assert.match(usr(ed), /초안 3:/);
-  assert.deepEqual(ed.input.chat_template_kwargs, { enable_thinking: false });
+  assert.deepEqual(ed.input.chat_template_kwargs, { enable_thinking: true, low_effort: true });
   assert.equal(j.drafts.length, 3);
   assert.equal(j.editor, E);
   assert.equal(j.edited, true);
@@ -281,4 +281,18 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
   const { playground } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'server', 'story-worker', 'playground.mjs')).href);
   const file = path.join(__dirname, '..', '..', 'server', 'story-worker', 'PLAYGROUND.md');
   assert.equal(fs.readFileSync(file, 'utf8'), playground(), 'PLAYGROUND.md가 규칙 글과 달라요. node server/story-worker/playground.mjs 로 다시 만들어요');
+});
+
+test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
+  const w = await load();
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 6 });
+  const { env, calls } = fakeEnv();
+  const j = await (await w.fetch(req({ words: WORDS }), env)).json();
+  assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
+  assert.equal(j.effort, 'low');
+  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: true, low_effort: true });
+  assert.equal(calls[0].input.max_tokens, 4000);
+  await w.fetch(req({ words: WORDS, effort: 'medium' }), env);
+  assert.deepEqual(calls[1].input.chat_template_kwargs, { enable_thinking: true, low_effort: false });
+  assert.equal(calls[1].input.max_tokens, 12000);
 });
