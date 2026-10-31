@@ -27,8 +27,25 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
    (지금은 시험용 열쇠예요. 게임에 붙일 때는 사이트 열쇠에서 만든 값으로 바꿔요.)
 6. 위쪽에 보이는 주소(`https://wg-story.<계정 이름>.workers.dev`)를 Claude에게 알려 줘요.
 
-선택: `WG_MODEL`(Text)로 기본 모델을 바꿔요. 쓸 수 있는 모델 목록은 `worker.mjs`의 `MODELS`이고,
-Cloudflare에서 이름이 바뀌었으면 `WG_MODELS`(쉼표로 나눈 목록)로 바꿀 수 있어요.
+선택: `WG_MODEL`(Text)로 기본 모델을 바꿔요. 요청에 `model`을 넣으면 `@cf/회사/이름` 꼴의 Workers AI 모델은 코드를 고치지 않고 시험할 수 있어요.
+쓸 모델만 잠그려면 `WG_MODELS`(쉼표로 나눈 목록)를 넣어요 (Workers Paid로 바꾸면 꼭).
+
+## 무료로 쓸 수 있는 모델 (2026-10-31 Cloudflare 문서·요금표)
+
+| 모델 | 생각 | 한 편 Neuron 어림 | 하루 무료로 |
+|---|---|---|---|
+| `@cf/openai/gpt-oss-120b` | low | 130 | 60편쯤 |
+| `@cf/google/gemma-4-26b-a4b-it` | 끔 | 45 | 200편쯤 |
+| `@cf/zai-org/glm-4.7-flash` | 끔 | 50 | 200편쯤 |
+| `@cf/nvidia/nemotron-3-120b-a12b` | 끔 | 230 | 40편쯤 |
+| `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | 없음 | 260 | 40편쯤 |
+| `@cf/qwen/qwen3.8-27b` | low | 400~ | 20편쯤 |
+
+- 한 편 = 입력 2천·출력 1천 토큰쯤으로 어림했어요. 서버 답의 `usage`로 실제 토큰 수를 봐요.
+- 생각하는 모델은 생각에 글자 한도를 다 쓰면 답이 잘리거나 비어요. 그래서 서버가 모델마다 문서에 적힌 방법으로 생각 깊이를 정해요
+  (gpt-oss `reasoning.effort`, qwen `reasoning_effort`(기본 xhigh라 꼭 low로), nemotron·gemma·glm `chat_template_kwargs.enable_thinking`).
+  요청의 `effort`(none·low·medium·high)로 바꿀 수 있어요.
+- DeepSeek V4·GLM-5·Kimi는 무료 요금제에서 못 쓰거나 비싸요.
 
 ## 재기 (Claude가)
 
@@ -39,7 +56,9 @@ WG_STORY=https://wg-story.<계정>.workers.dev WG_TOKEN=<열쇠> WG_MODEL=@cf/op
 
 - 시험 단어 10묶음 × 3번 = 30편을 서버에 보내고, 앱과 같은 점검기(`check.cjs`)로 형식을 봐요. 이어짐·뜻은 읽고 판정해요.
 - 결과는 `tools/story-lab/`에 써요 (저장소에 넣지 않아요).
-- 클라우드 세션에서 재려면 세션 네트워크 설정에 `workers.dev`를 더해야 해요.
+- 클라우드 세션에서 재려면 세션 네트워크 설정에 `workers.dev`를 더하고, Node `fetch`가 프록시를 거치게
+  `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`를 앞에 붙여요.
+- 모델을 견줄 때는 `--tries=1`(묶음마다 1편, 10편)로 하루 무료 한도를 아껴요.
 
 ## 게임에 붙일 때 (재기 결과가 좋으면, 사용자에게 물은 뒤)
 

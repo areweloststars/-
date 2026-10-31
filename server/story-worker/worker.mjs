@@ -12,18 +12,25 @@
 // 설정 (Cloudflare 대시보드 → 이 Worker → Settings)
 // - Bindings: Workers AI → 이름 AI
 // - Variables and Secrets: WG_TOKEN (Secret, 꼭), WG_MODEL (쓸 모델, 없으면 아래 MODELS의 첫째),
-//   WG_EFFORT (gpt-oss 생각 깊이 low·medium·high, 없으면 low),
-//   WG_MODELS (쉼표로 모델 목록을 바꿀 때만)
+//   WG_EFFORT (생각 깊이 none·low·medium·high, 없으면 gpt-oss는 low, 나머지는 none),
+//   WG_MODELS (쉼표로 쓸 모델만 잠글 때. 없으면 '@cf/회사/이름' 꼴의 Workers AI 모델은 모두 시험할 수 있어요)
 // 쓰는 법은 server/story-worker/README.md를 봐요.
 
+// 무료 요금제에서 쓸 수 있는 글 모델 (2026-10-31 Cloudflare 문서·요금표). 괄호는 이야기 한 편(입력 2천·출력 1천 토큰쯤)에 드는 Neuron 어림.
+// 하루 무료 10,000 Neuron → gemma·glm은 200편쯤, gpt-oss는 60편쯤, nemotron·llama는 40편쯤, qwen은 20편쯤.
 const MODELS = [
-  '@cf/openai/gpt-oss-120b',
-  '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-  '@cf/qwen/qwen3.8-27b',
+  '@cf/openai/gpt-oss-120b',          // 생각 low (130)
+  '@cf/google/gemma-4-26b-a4b-it',    // 생각 끔 (45) — 휴대폰 게임 AI(Gemma 4 E2B)의 큰 형
+  '@cf/zai-org/glm-4.7-flash',        // 생각 끔 (50)
+  '@cf/nvidia/nemotron-3-120b-a12b',  // 생각 끔 (230)
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast', // 생각 없음 (260)
+  '@cf/qwen/qwen3.8-27b',             // 생각 low (400~, 기본은 xhigh라 빈 답이 왔어요)
   '@cf/openai/gpt-oss-20b'
 ];
-// deepseek-v4는 무료 요금제에서 못 써요 (2026-10-31 재 봄: 5035 오류)
-const EFFORTS = ['low', 'medium', 'high'];
+// deepseek-v4는 무료 요금제에서 못 써요 (문서·5035 오류). WG_MODELS가 없으면 이 꼴의 다른 모델도 시험할 수 있어요
+// (무료 요금제는 한도를 넘으면 그날 멈출 뿐 돈이 나가지 않아요. Workers Paid로 바꾸면 WG_MODELS로 잠가요)
+const MODEL_ID = /^@cf\/[a-z0-9._-]{1,40}\/[a-z0-9._-]{1,80}$/;
+const EFFORTS = ['none', 'low', 'medium', 'high'];
 const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = 2048;
 
@@ -95,7 +102,7 @@ ${words.map(([en, ko]) => `${en} - ${ko}`).join('\n')}
 const EN = /^[A-Za-z][A-Za-z '’.-]{0,39}$/;
 const KO = /^[^{}|<>\n\r\t]{1,30}$/;
 const POS = /^[a-z]{0,6}$/;
-function readWords(body, models) {
+function readWords(body, allowModel) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { err: 'JSON 객체가 아니에요' };
   for (const k of Object.keys(body)) if (!['words', 'model', 'effort'].includes(k)) return { err: `받지 않는 칸: ${k.slice(0, 20)}` };
   const ws = body.words;
@@ -112,9 +119,9 @@ function readWords(body, models) {
   }
   if (new Set(words.map(w => w[0].toLowerCase())).size !== words.length) return { err: '같은 단어가 두 번 있어요' };
   const model = body.model == null ? null : body.model;
-  if (model != null && (typeof model !== 'string' || !models.includes(model))) return { err: '쓸 수 없는 모델이에요' };
+  if (model != null && (typeof model !== 'string' || !allowModel(model))) return { err: '쓸 수 없는 모델이에요' };
   const effort = body.effort == null ? null : body.effort;
-  if (effort != null && !EFFORTS.includes(effort)) return { err: '생각 깊이는 low·medium·high예요' };
+  if (effort != null && !EFFORTS.includes(effort)) return { err: '생각 깊이는 none·low·medium·high예요' };
   return { words, model, effort };
 }
 
@@ -172,19 +179,29 @@ function clean(t) {
 // 같은 글자만 되풀이하는 망가진 답 (gpt-oss가 가끔 '!!!!…'를 줘요)
 const broken = t => !t || !/이야기\s*[:：]/.test(t) || /(.)\1{30,}/.test(t);
 
-// 생각 깊이: medium은 생각 글이 답 자리로 새거나 글자 한도에 걸려 답이 잘렸어요 (2026-10-31 재 봄) → 기본 low
+// 생각 깊이: 생각하는 모델은 생각에 글자 한도를 다 쓰면 답이 잘리거나 비어요 (2026-10-31 재 봄:
+// gpt-oss medium은 생각 글이 새고 3/10, qwen3.8은 기본 xhigh라 빈 답). 모델마다 문서에 적힌 방법으로 정해요.
+const isOss = m => /gpt-oss/i.test(m);
+const defaultEffort = m => (isOss(m) || /qwen3/i.test(m) ? 'low' : 'none');
+function thinking(model, effort) {
+  if (/qwen3/i.test(model)) return { reasoning_effort: effort === 'none' ? 'low' : effort === 'high' ? 'xhigh' : effort };
+  if (/nemotron/i.test(model)) return { chat_template_kwargs: effort === 'none' ? { enable_thinking: false } : { enable_thinking: true, low_effort: effort === 'low' } };
+  if (/gemma-4|glm-4|glm-5/i.test(model)) return { chat_template_kwargs: { enable_thinking: effort !== 'none' } };
+  return {};
+}
 async function write(env, model, words, effort) {
-  // Qwen은 생각 모드를 끄라고 적어요 (생각에 글자 한도를 다 쓰면 빈 답이 와요)
-  const user = ask(words) + (/qwen/i.test(model) ? ' /no_think' : ''), maxTokens = 4000;
+  const user = ask(words), maxTokens = 4000;
   const asChat = () => env.AI.run(model, {
     messages: [{ role: 'system', content: RULES }, { role: 'user', content: user }],
-    max_tokens: maxTokens, temperature: 0.7
+    max_tokens: maxTokens, temperature: 0.7, ...thinking(model, effort)
   });
-  const asResponses = () => env.AI.run(model, { instructions: RULES, input: user, reasoning: { effort }, max_output_tokens: maxTokens });
-  const first = /gpt-oss/.test(model) ? asResponses : asChat, second = first === asChat ? asResponses : asChat;
+  const asResponses = () => env.AI.run(model, { instructions: RULES, input: user, reasoning: { effort: effort === 'none' ? 'low' : effort }, max_output_tokens: maxTokens });
+  // gpt-oss는 Responses 꼴로 묻고, 안 되면 채팅 꼴로 다시. 나머지는 채팅 꼴만
+  const first = isOss(model) ? asResponses : asChat, second = isOss(model) ? asChat : null;
   const once = async () => {
     let r;
     try { r = await first(); } catch (e1) {
+      if (!second) throw e1;
       try { r = await second(); } catch (e2) {
         throw new Error(String((e1 && e1.message) || e1).slice(0, 300) + ' / 다른 꼴: ' + String((e2 && e2.message) || e2).slice(0, 120));
       }
@@ -227,17 +244,16 @@ async function handle(req, env) {
   if (new TextEncoder().encode(raw).length > MAX_BODY) return reply(req, 413, { error: '요청이 너무 커요 (단어 글자만 보내요)' });
   let body;
   try { body = JSON.parse(raw); } catch { return reply(req, 400, { error: 'JSON이 아니에요' }); }
-  const models = String(env.WG_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
-  const list = models.length ? models : MODELS;
-  const got = readWords(body, list);
+  const locked = String(env.WG_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
+  const got = readWords(body, m => (locked.length ? locked.includes(m) : MODEL_ID.test(m)));
   if (got.err) return reply(req, 400, { error: got.err });
-  const model = got.model || env.WG_MODEL || list[0];
+  const model = got.model || env.WG_MODEL || (locked.length ? locked : MODELS)[0];
   const t0 = Date.now();
   try {
-    const effort = got.effort || (EFFORTS.includes(env.WG_EFFORT) ? env.WG_EFFORT : 'low');
+    const effort = got.effort || (EFFORTS.includes(env.WG_EFFORT) ? env.WG_EFFORT : defaultEffort(model));
     const { text, shape, tries } = await write(env, model, got.words, effort);
     if (!text) return reply(req, 502, { error: 'AI가 빈 답을 줬어요', model, shape });
-    return reply(req, 200, { text, model, ms: Date.now() - t0, tries, usage: shape.usage });
+    return reply(req, 200, { text, model, effort, ms: Date.now() - t0, tries, usage: shape.usage });
   } catch (e) {
     // 단어는 적지 않고, 오류 종류만 돌려줘요 (하루 무료 한도를 넘으면 여기로 와요)
     const msg = String((e && e.message) || e).slice(0, 450);
@@ -246,4 +262,4 @@ async function handle(req, env) {
 }
 
 // _ 는 시험(app/tests/server.test.cjs)용이에요
-export default { fetch: handle, _: { RULES, ask, readWords, textOf, clean, shapeOf, MODELS, ORIGINS } };
+export default { fetch: handle, _: { RULES, ask, readWords, textOf, clean, shapeOf, thinking, MODELS, ORIGINS } };

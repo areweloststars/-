@@ -61,7 +61,9 @@ test('story server: photos and anything that is not word text are refused before
     req({ words: WORDS.slice(0, 2) }),
     req({ words: [...WORDS, ...WORDS] }),
     req({ words: [...WORDS.slice(0, 5), ['lantern', '랜턴']] }),
-    req({ words: WORDS, model: '@cf/someone/else' }),
+    req({ words: WORDS, model: 'gpt-4o' }),
+    req({ words: WORDS, model: '@cf/x/y<script>' }),
+    req({ words: WORDS, effort: 'xhigh' }),
     req('not json'),
     req([1, 2, 3]),
     req(JSON.stringify({ words: WORDS }), { type: 'image/png' }),
@@ -106,7 +108,7 @@ test('story server: reads chat, responses and thinking answers; picks a listed m
   const j4 = await r4.json();
   assert.deepEqual(j4.shape, { keys: ['choices', 'usage'], finish: 'length', content: 'object', reasoning: 50, usage: { in: 2100, out: 4000 } });
   assert.doesNotMatch(JSON.stringify(j4), /lantern|등불/);
-  assert.match(e4.calls[0].input.messages[1].content, /\/no_think$/);
+  assert.equal(e4.calls[0].input.reasoning_effort, 'low');
   const e5 = fakeEnv({ response: STORY, usage: { prompt_tokens: 2000, completion_tokens: 900 } });
   const j5 = await (await w.fetch(req({ words: WORDS }), e5.env)).json();
   assert.deepEqual([j5.tries, j5.usage], [1, { in: 2000, out: 900 }]);
@@ -136,4 +138,26 @@ test('story server: the example story in the rules passes the app checker', asyn
     const r = check(p, words, parse(ex), true);
     assert.deepEqual(r.why, []);
   } finally { p.close(); }
+});
+
+test('story server: thinking is set per model as the Cloudflare docs say, and other @cf models can be tried', async () => {
+  const w = await load(), t = w._.thinking;
+  assert.deepEqual(t('@cf/google/gemma-4-26b-a4b-it', 'none'), { chat_template_kwargs: { enable_thinking: false } });
+  assert.deepEqual(t('@cf/zai-org/glm-4.7-flash', 'none'), { chat_template_kwargs: { enable_thinking: false } });
+  assert.deepEqual(t('@cf/nvidia/nemotron-3-120b-a12b', 'none'), { chat_template_kwargs: { enable_thinking: false } });
+  assert.deepEqual(t('@cf/nvidia/nemotron-3-120b-a12b', 'low'), { chat_template_kwargs: { enable_thinking: true, low_effort: true } });
+  assert.deepEqual(t('@cf/qwen/qwen3.8-27b', 'none'), { reasoning_effort: 'low' });
+  assert.deepEqual(t('@cf/meta/llama-3.3-70b-instruct-fp8-fast', 'none'), {});
+  const { env, calls } = fakeEnv();
+  const j = await (await w.fetch(req({ words: WORDS, model: '@cf/google/gemma-4-26b-a4b-it' }), env)).json();
+  assert.equal(j.effort, 'none');
+  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(calls[0].input.messages[0].role, 'system');
+  // 목록 밖 '@cf/회사/이름' 모델도 시험할 수 있어요 (WG_MODELS로 잠그면 못 써요)
+  assert.equal((await w.fetch(req({ words: WORDS, model: '@cf/new-co/new-model-1' }), env)).status, 200);
+  // 채팅 꼴만 묻는 모델은 오류가 나면 다른 꼴로 다시 묻지 않고 오류를 돌려줘요
+  const e2 = fakeEnv(() => { throw new Error('5006: bad input'); });
+  const r2 = await w.fetch(req({ words: WORDS, model: '@cf/zai-org/glm-4.7-flash' }), e2.env);
+  assert.equal(r2.status, 502);
+  assert.equal(e2.calls.length, 1);
 });
