@@ -8,10 +8,10 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
 
 ## 브랜치
 - `main`은 실제 사이트예요. 사용자에게 묻기 전에는 `main`에 합치지 않아요 (PR도 묻고 나서).
-- 지금 작업은 `claude/gracious-cannon-7stm9g` 브랜치에 있어요 (2026-10-29 `main`에서 새로 시작). Claude가 이 브랜치에 계속 올려요.
-  - 예전 작업 브랜치 `claude/word-photo-game-app-16smgx`는 10-29에 `main`에 합쳐졌어요. 새 일은 거기에 올리지 않아요.
+- 지금 작업은 `ccr-2eed146b-5bh1rn` 브랜치에 있어요 (`claude/gracious-cannon-7stm9g`를 이어받음, 이야기 서버). Claude가 이 브랜치에 계속 올려요.
+  - 예전 작업 브랜치 `claude/word-photo-game-app-16smgx`·`claude/gracious-cannon-7stm9g`에는 새 일을 올리지 않아요.
 - 다른 AI나 계정은 그 브랜치에서 **새 브랜치**(예: `codex/<작업 이름>`)를 만들어 일해요. 같은 브랜치에 같이 올리면 서로 충돌해요.
-- 시작하기 전에 늘 최신을 받아요 (`git fetch origin claude/gracious-cannon-7stm9g`).
+- 시작하기 전에 늘 **모든 브랜치**의 최신을 받아 보고(`git fetch --all`, 브랜치마다 최근 커밋), 가장 최근에 일한 브랜치의 `docs/work-log.md`부터 읽어요. `main`의 기록은 늦을 수 있어요.
 
 ## 프로젝트 한눈에
 - **그림 스토리 단어 미션**: 영어 단어를 이야기(에피소드)로 외우는 게임이에요. 영어 발음이 나오고, 제한 시간 안에 문제를 맞혀요.
