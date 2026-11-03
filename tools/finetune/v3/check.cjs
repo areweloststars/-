@@ -73,11 +73,21 @@ const CHECK = ({ words, out, strict, PIC_BLOCK_SRC }) => {
     if (/[{}|]/.test(rest)) why.push(`${i + 1}줄: 짝 안 맞는 표시`);
     if ((i === 0 || i === lines.length - 1) && tags.length) why.push(`${i + 1}줄: 첫 줄·끝 줄에는 단어를 넣지 않아요`);
     if (tags.length > 1) why.push(`${i + 1}줄: 단어 표시 ${tags.length}개 (한 줄에 하나만)`);
-    for (const [, en, ko] of tags) {
-      const k = idx[en.trim().toLowerCase()];
+    for (const t of tags) {
+      const [, en, ko] = t, k = idx[en.trim().toLowerCase()];
       if (k == null) { why.push(`${i + 1}줄: 없는 단어 ${en.trim()}`); continue; }
       seen[k]++;
-      if (!aiMark(ko.trim(), words[k][0], lex[k], words[k][1])) why.push(`${i + 1}줄: '${ko.trim()}'은(는) ${words[k][1]}의 뜻이 아니에요`);
+      const said = ko.trim();
+      if (!aiMark(said, words[k][0], lex[k], words[k][1])) why.push(`${i + 1}줄: '${said}'은(는) ${words[k][1]}의 뜻이 아니에요`);
+      // 뜻 낱말만 찾으면 통과로 보던 깨진 꼴 (2026-11-04, 서버 Nemotron 답에서 많이 나옴)
+      // - 문장 끝 꼴 뒤에 말이 더 붙음: {permit|허락했어요} 주셨어요 · {schedule|일정했어요}를 · {solve|해결했어요}, 드레스를…
+      //   (움직임·꾸밈 말은 '요'로 끝나면, 이름 말은 '-어요·-아요·-에요' 꼴일 때만: 담요·요요는 이름이에요)
+      const vA = /^[va]$/.test(words[k][2]), final = vA ? /요$/.test(said) : /(어|아|여|에|예)요$/.test(said);
+      if (final && /^\s*,?\s*[가-힣]/.test(l.slice(t.index + t[0].length))) why.push(`${i + 1}줄: '${said}' 뒤에 말이 더 붙었어요 (문장 끝 꼴은 문장 끝에만)`);
+      // - 움직임·꾸밈 말을 받은 뜻 그대로(사전 꼴) 둠: {borrow|빌리다}. · {whisper|속삭이다} 라고 (건너려다·가려다는 괜찮아요)
+      if (vA && /다$/.test(words[k][1]) && said.endsWith(words[k][1])) why.push(`${i + 1}줄: '${said}'은(는) 사전 꼴이에요 ('-어요' 꼴로)`);
+      // - 같은 줄에 뜻을 또 씀: 계약을 {contract|계약했어요} · 사과를 {apologize|사과했어요}
+      if (aiMark(l.replace(TAG, ' '), words[k][0], lex[k], words[k][1])) why.push(`${i + 1}줄: '${words[k][1]}' 뜻을 같은 줄에 또 썼어요`);
     }
     const b = aiLineWhy(plain[i], tags.length ? tags[0][2] : '', { sent: 1, max: 140 });
     if (b) why.push(`${i + 1}줄: ${b}`);
