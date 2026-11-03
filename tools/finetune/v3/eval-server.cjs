@@ -51,19 +51,27 @@ function readSSE(raw) {
   return { text, usage, think, err };
 }
 let W = null; // 서버 코드의 _ (clean·broken): 흘려 받은 글을 서버의 한 번 쓰기와 똑같이 다듬어요
-async function post(route, body) {
+async function postOnce(route, body) {
   const t0 = Date.now();
   const r = await fetch(API + route, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (process.env.WG_TOKEN || '') }, body: JSON.stringify(body) });
   if (r.ok && /event-stream/i.test(r.headers.get('content-type') || '')) {
     const s = readSSE(await r.text());
-    if (!s.text.trim()) throw new Error(`흘려 받은 답이 비었어요${s.err ? ': ' + s.err : ''} (생각 글 ${s.think}자)`);
+    if (!s.text.trim()) throw Object.assign(new Error(`흘려 받은 답이 비었어요${s.err ? ': ' + s.err : ''} (생각 글 ${s.think}자)`), { server: true });
     const u = s.usage || {};
     return { text: W.clean(s.text), stream: true, steps: [{ step: route === '/fix' ? 'fix' : 'write', model: body.model || W.MODELS[0], effort: body.effort, ms: Date.now() - t0, in: u.prompt_tokens, out: u.completion_tokens, think: s.think }] };
   }
   const j = await r.json().catch(() => ({}));
   if (r.status === 429) { const e = new Error('하루 무료 한도: ' + String(j.error || '').slice(0, 160)); e.stop = true; throw e; }
-  if (!r.ok) throw new Error(`서버 ${r.status}: ${String(j.error || '').slice(0, 300)}${j.shape ? ' ' + JSON.stringify(j.shape) : ''}`);
+  if (!r.ok) throw Object.assign(new Error(`서버 ${r.status}: ${String(j.error || '').slice(0, 300)}${j.shape ? ' ' + JSON.stringify(j.shape) : ''}`), { server: true });
   return j;
+}
+// 연결이 끊긴 것(fetch failed·terminated)만 한 번 더 물어요: 이 세션의 프록시가 긴 연결을 끊은 적이 있어요 (2026-11-03, 277초 뒤 server_draining).
+// 서버가 준 오류·하루 한도는 다시 묻지 않아요
+async function post(route, body) {
+  try { return await postOnce(route, body); } catch (e) {
+    if (e.stop || e.server) throw e;
+    return postOnce(route, body);
+  }
 }
 // 흘려 받은 답이 망가졌으면 한 번 더 물어요 (서버가 한 번에 받을 때 writeStory·fix가 하는 것과 같게)
 async function askServer(route, body) {
