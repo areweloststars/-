@@ -6,7 +6,7 @@
 const fs = require('node:fs'), path = require('node:path');
 const { TEST_SETS, bootPage } = require('./check.cjs');
 
-const SETS = 228, PER_FILE = 25, SIZES = [6, 7, 6, 7, 6, 8, 7, 6];
+const SETS = 928, PER_FILE = 25, SIZES = [6, 7, 6, 7, 6, 8, 7, 6];
 const pool = JSON.parse(fs.readFileSync(path.join(__dirname, 'word-pool.json'), 'utf8'));
 const batch = Number(process.argv[2] || 1);
 
