@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 6 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 7 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -295,4 +295,70 @@ test('story server: Nemotron is the default (the user chose it), thinking low, a
   await w.fetch(req({ words: WORDS, effort: 'medium' }), env);
   assert.deepEqual(calls[1].input.chat_template_kwargs, { enable_thinking: true, low_effort: false });
   assert.equal(calls[1].input.max_tokens, 12000);
+});
+
+// 7판 (2026-11-04): 표시 없이 쓰기(plain)와 흘려 받기(stream). Nemotron이 {영어|뜻} 표시 때문에 문장을 깨뜨리고,
+// 생각 보통(medium)은 한 번에 받으면 2분쯤에 끊겨서(3046) 더했어요
+const SHEPHERD = [['shepherd', '양치기', 'n'], ['bored', '심심한', 'a'], ['shout', '외치다', 'v'], ['villager', '마을 사람', 'n'], ['believe', '믿다', 'v'], ['regret', '후회하다', 'v']];
+
+test('story server v7: plain — the writer writes no {} marks, and the app can put the marks back (retag)', async () => {
+  const w = await load();
+  const s = w._.writerSystem('plain');
+  assert.match(s, /\{ \} \| 같은 표시는 쓰지 않아요/);
+  const ex = s.slice(s.lastIndexOf('답:\n') + 3);
+  assert.equal(ex, w._.untag(w._.EXAMPLE_TEXT));
+  assert.doesNotMatch(ex.split('그림:')[0], /[{}|]/);
+  const { parse, check, retag, bootPage } = require('../../tools/finetune/v3/check.cjs');
+  const p = bootPage();
+  try {
+    const o = retag(p, SHEPHERD, parse(ex));
+    assert.equal(o.retagged.length, 6);
+    assert.deepEqual(check(p, SHEPHERD, o, true).why, []);
+  } finally { p.close(); }
+  // 답은 text처럼 다듬어요 (굵은 글씨 떼기)
+  const { env, calls } = fakeEnv({ response: STORY.replace('제목: 등불 축제', '**제목:** 등불 축제') });
+  const j = await (await w.fetch(req({ words: WORDS, format: 'plain' }), env)).json();
+  assert.equal(j.format, 'plain');
+  assert.equal(j.text, STORY);
+  assert.equal(sys(calls[0]), s);
+  // plain으로 고쳐 쓸 때는 앱이 붙인 표시를 떼고 넘겨요
+  await w.fetch(req({ words: WORDS, story: JTEXT, problems: ['whisper: 이야기에 0번'], format: 'plain' }, { url: 'https://s.example/fix' }), env);
+  assert.equal(sys(calls[1]), w._.roleSystem(w._.FIXER, 'plain'));
+  assert.match(usr(calls[1]), /소녀는 이웃에게 등불을 빌렸어요\./);
+  assert.doesNotMatch(usr(calls[1]).split('점검기가 찾은 문제')[0], /\{borrow\|/);
+});
+
+test('story server v7: stream passes the AI stream through as it comes, only for one-call text/plain', async () => {
+  const w = await load();
+  const chunks = ['data: {"choices":[{"delta":{"reasoning_content":"생각"}}]}\n\n', 'data: {"choices":[{"delta":{"content":"제목: 등불"}}]}\n\n',
+    'data: {"choices":[],"usage":{"prompt_tokens":2000,"completion_tokens":3000}}\n\n', 'data: [DONE]\n\n'];
+  const sse = () => new ReadableStream({ start(c) { for (const x of chunks) c.enqueue(new TextEncoder().encode(x)); c.close(); } });
+  const { env, calls } = fakeEnv((m, input) => (input.stream ? sse() : { response: STORY }));
+  const r = await w.fetch(req({ words: WORDS, effort: 'medium', format: 'plain', stream: true }, { origin: 'https://areweloststars.github.io' }), env);
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type'), /^text\/event-stream/);
+  assert.equal(r.headers.get('access-control-allow-origin'), 'https://areweloststars.github.io');
+  assert.equal(await r.text(), chunks.join(''));
+  const input = calls[0].input;
+  assert.equal(input.stream, true);
+  assert.deepEqual(input.stream_options, { include_usage: true });
+  assert.deepEqual(input.chat_template_kwargs, { enable_thinking: true, low_effort: false });
+  assert.equal(input.max_tokens, 12000);
+  assert.equal(input.messages[0].content, w._.writerSystem('plain'));
+  assert.match(input.messages[1].content, /lantern - 등불/);
+  // /fix도 흘려 받아요 (text 꼴이면 표시를 그대로 넘겨요)
+  const f = await w.fetch(req({ words: WORDS, story: JTEXT, problems: ['whisper: 이야기에 0번'], stream: true }, { url: 'https://s.example/fix' }), env);
+  assert.equal(f.status, 200);
+  await f.text();
+  assert.equal(calls[1].input.messages[0].content, w._.roleSystem(w._.FIXER, 'text'));
+  assert.match(calls[1].input.messages[1].content, /\{borrow\|빌렸어요\}/);
+  // 안 되는 것: 참·거짓이 아님, JSON 꼴, 뼈대, 초안, 편집자, gpt-oss → AI를 부르지 않고 거절
+  for (const bad of [{ stream: 'yes' }, { stream: true, format: 'json' }, { stream: true, plan: true }, { stream: true, drafts: 2 }, { stream: true, editor: '@cf/google/gemma-4-26b-a4b-it' }, { stream: true, model: '@cf/openai/gpt-oss-120b' }]) {
+    assert.equal((await w.fetch(req({ words: WORDS, ...bad }), env)).status, 400, JSON.stringify(bad));
+  }
+  assert.equal(calls.length, 2);
+  // 흘려 받기 전에 하루 무료 한도 오류 → 429 (다른 길과 같게), 흘려 받기 답이 아니면 502
+  const lim = fakeEnv(() => { throw new Error('4006: you have used up your daily free allocation of 10,000 neurons'); });
+  assert.equal((await w.fetch(req({ words: WORDS, stream: true }), lim.env)).status, 429);
+  assert.equal((await w.fetch(req({ words: WORDS, stream: true }), fakeEnv({ response: STORY }).env)).status, 502);
 });

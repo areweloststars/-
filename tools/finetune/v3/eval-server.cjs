@@ -6,8 +6,9 @@
 //   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> node tools/finetune/v3/eval-server.cjs <이름> \
 //     --model=@cf/google/gemma-4-26b-a4b-it [--effort=none] [--format=json] [--plan] \
 //     [--drafts=3 --editor=@cf/nvidia/nemotron-3-120b-a12b --editor-effort=none] [--fix=2] [--sets=6,8] [--tries=2] [--regroup]
+//     [--format=plain] [--stream]   ← 서버 7판: 표시 없이 쓰기(점검 전에 앱처럼 표시를 붙여요), 흘려 받기(생각 보통이 끊기지 않게)
 // 결과: tools/story-lab/srv-<이름>.txt / .json (저장소에 넣지 않아요). 하루 무료 한도(429)면 멈춰요.
-const fs = require('node:fs'), path = require('node:path');
+const fs = require('node:fs'), path = require('node:path'), { pathToFileURL } = require('node:url');
 const { REPO, TEST_SETS, parse, check, retag, toText, bootPage } = require('./check.cjs');
 
 const arg = (k, d) => { const a = process.argv.find(x => x === '--' + k || x.startsWith('--' + k + '=')); return a == null ? d : a.includes('=') ? a.slice(a.indexOf('=') + 1) : true; };
@@ -17,7 +18,7 @@ if (!API) { console.error('WG_STORY=<이야기 서버 주소>와 WG_TOKEN=<열�
 const SETS = arg('regroup') ? require('./regroup-prompts.json').map(s => s.words) : TEST_SETS;
 const PICK = String(arg('sets', '')).split(',').map(Number).filter(n => n >= 1 && n <= SETS.length);
 const TRIES = Number(arg('tries', 1)) || 1, FIX = Number(arg('fix', 2)) || 0;
-const ASK = { model: arg('model'), effort: arg('effort'), format: arg('format', 'json'), plan: !!arg('plan'), drafts: Number(arg('drafts', 1)) || 1, editor: arg('editor'), editorEffort: arg('editor-effort') };
+const ASK = { model: arg('model'), effort: arg('effort'), format: arg('format', 'json'), plan: !!arg('plan'), drafts: Number(arg('drafts', 1)) || 1, editor: arg('editor'), editorEffort: arg('editor-effort'), stream: !!arg('stream') };
 for (const k of Object.keys(ASK)) if (ASK[k] == null || ASK[k] === false || (k === 'drafts' && ASK[k] === 1)) delete ASK[k];
 const OUT = path.join(REPO, 'tools', 'story-lab', `srv-${NAME}`);
 
@@ -33,15 +34,47 @@ const PRICES = {
 };
 const neurons = steps => steps.reduce((a, s) => { const p = PRICES[s.model]; return p && s.in != null ? a + (s.in * p[0] + (s.out || 0) * p[1]) / 1e6 : a; }, 0);
 
+// 흘려 받기 글 읽기 (서버 7판 stream): 답 글(content)만 모으고 생각 글(reasoning_content)은 길이만 세요. 쓴 토큰은 마지막 조각(usage)에
+function readSSE(raw) {
+  let text = '', usage = null, think = 0, err = '';
+  for (const line of String(raw).split(/\r?\n/)) {
+    const m = line.match(/^data:\s?(.*)$/), d = m && m[1].trim();
+    if (!d || d === '[DONE]') continue;
+    let j;
+    try { j = JSON.parse(d); } catch { continue; }
+    if (j.error || j.errors) err = JSON.stringify(j.error || j.errors).slice(0, 300);
+    const c = j.choices && j.choices[0], dl = c && (c.delta || c.message);
+    if (dl) { if (typeof dl.content === 'string') text += dl.content; think += String(dl.reasoning_content || dl.reasoning || '').length; }
+    else if (typeof j.response === 'string') text += j.response;
+    if (j.usage) usage = j.usage;
+  }
+  return { text, usage, think, err };
+}
+let W = null; // 서버 코드의 _ (clean·broken): 흘려 받은 글을 서버의 한 번 쓰기와 똑같이 다듬어요
 async function post(route, body) {
+  const t0 = Date.now();
   const r = await fetch(API + route, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (process.env.WG_TOKEN || '') }, body: JSON.stringify(body) });
+  if (r.ok && /event-stream/i.test(r.headers.get('content-type') || '')) {
+    const s = readSSE(await r.text());
+    if (!s.text.trim()) throw new Error(`흘려 받은 답이 비었어요${s.err ? ': ' + s.err : ''} (생각 글 ${s.think}자)`);
+    const u = s.usage || {};
+    return { text: W.clean(s.text), stream: true, steps: [{ step: route === '/fix' ? 'fix' : 'write', model: body.model || W.MODELS[0], effort: body.effort, ms: Date.now() - t0, in: u.prompt_tokens, out: u.completion_tokens, think: s.think }] };
+  }
   const j = await r.json().catch(() => ({}));
   if (r.status === 429) { const e = new Error('하루 무료 한도: ' + String(j.error || '').slice(0, 160)); e.stop = true; throw e; }
   if (!r.ok) throw new Error(`서버 ${r.status}: ${String(j.error || '').slice(0, 300)}${j.shape ? ' ' + JSON.stringify(j.shape) : ''}`);
   return j;
 }
+// 흘려 받은 답이 망가졌으면 한 번 더 물어요 (서버가 한 번에 받을 때 writeStory·fix가 하는 것과 같게)
+async function askServer(route, body) {
+  const r = await post(route, body);
+  if (!r.stream || !W.broken(r.text)) return r;
+  const again = await post(route, body);
+  return { ...again, steps: [...r.steps, ...again.steps.map(s => ({ ...s, step: s.step + '-again' }))] };
+}
 
 async function main() {
+  W = (await import(pathToFileURL(path.join(REPO, 'server', 'story-worker', 'worker.mjs')).href)).default._;
   const p = bootPage(), txt = [], runs = [];
   const say = s => { console.log(s); txt.push(s); fs.writeFileSync(OUT + '.txt', txt.join('\n') + '\n'); };
   const save = () => fs.writeFileSync(OUT + '.json', JSON.stringify({ name: NAME, ask: ASK, fix: FIX, runs }, null, 1));
@@ -52,7 +85,7 @@ async function main() {
       const words = SETS[s - 1], t0 = Date.now(), steps = [];
       const run = { set: s, try: k + 1, words: words.map(w => w[0]) };
       try {
-        const r = await post('/story', { words, ...ASK });
+        const r = await askServer('/story', { words, ...ASK });
         steps.push(...(r.steps || []));
         // 앱처럼 표시를 붙이고 점검해요
         const look = t => { const o = retag(p, words, parse(t)); return { text: toText(o), c: check(p, words, o), retagged: o.retagged }; };
@@ -60,7 +93,7 @@ async function main() {
         Object.assign(run, { skeleton: r.plan, drafts: r.drafts, edited: r.edited, rawOk: !check(p, words, parse(r.text)).why.length, first: { ok: !c.why.length, why: c.why, text, retagged: L.retagged } });
         const fixes = [];
         for (let f = 0; f < FIX && c.why.length; f++) {
-          const x = await post('/fix', { words, story: text, problems: c.why.slice(0, 40).map(w => w.slice(0, 200)), ...(ASK.model ? { model: ASK.model } : {}), ...(ASK.effort ? { effort: ASK.effort } : {}), format: ASK.format || 'json' });
+          const x = await askServer('/fix', { words, story: text, problems: c.why.slice(0, 40).map(w => w.slice(0, 200)), ...(ASK.model ? { model: ASK.model } : {}), ...(ASK.effort ? { effort: ASK.effort } : {}), format: ASK.format || 'json', ...(ASK.stream ? { stream: true } : {}) });
           steps.push(...(x.steps || []));
           L = look(x.text); text = L.text; c = L.c;
           fixes.push({ ok: !c.why.length, why: c.why, retagged: L.retagged });

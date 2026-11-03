@@ -1,7 +1,7 @@
 #!/bin/bash
 # 이야기 서버 재기 차례 (2026-10-31~). 열쇠·주소는 환경 변수로만 (저장소에 넣지 않아요):
 #   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> bash tools/finetune/v3/server-rounds.sh <차례>
-# 차례: prelim(예선) · ways(길 견주기) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
+# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
 # 하루 무료 한도(10,000 Neuron)가 다 차면 그 차례에서 멈춰요 (한국 시간 오전 9시에 다시 채워져요). 결과: tools/story-lab/srv-*.txt
 cd "$(dirname "$0")/../../.."
 export NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-/root/.ccr/ca-bundle.crt} NODE_NO_WARNINGS=1
@@ -20,10 +20,20 @@ case "$1" in
     if [ "${V:-0}" -ge 6 ]; then run way-nem-med-text --effort=medium --format=text $P; else echo "서버가 6판이 아니라 생각 보통(medium)은 건너뛰어요 (답이 잘릴 수 있어요)"; fi
     run way-nem-low-json --effort=low --format=json $P
     run way-nem-low-plan --effort=low --format=json --plan $P ;;
+  ways2) # 7판 길 견주기 (2026-11-04~): 사용자가 가리고 견주며 '모두 별로'가 많았어요 → 두 가지를 바꿔 봐요
+    # - 표시 없이 쓰기(plain): {영어|뜻} 표시를 쓰라고 하면 Nemotron이 문장을 깨뜨려요. 표시는 앱이 붙여요 (Playground에서 표시 없이 쓴 글은 자연스러웠어요)
+    # - 생각 보통(medium, Playground와 같음)은 흘려 받기로: 한 번에 받으면 2분쯤에 끊겨요(3046)
+    # 이어짐을 견주는 차례라 고쳐 쓰기 없이 처음 쓴 글로 (생각 보통 한 편 700 Neuron쯤 → 세 길 × 5편이 하루 한도 안에)
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 7 ] || { echo "서버가 7판이 아니에요 (지금 ${V:-?}판) → 대시보드에 7판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    P="--model=$N --fix=${FIX:-0} --tries=1 --sets=${SETS:-2,4,6,8,10}"
+    run way2-nem-med-plain --effort=medium --format=plain --stream $P
+    run way2-nem-low-plain --effort=low --format=plain $P
+    run way2-nem-med-text --effort=medium --format=text --stream $P ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
-  *) echo "차례: prelim · ways · final"; exit 2 ;;
+  *) echo "차례: prelim · ways · ways2 · final"; exit 2 ;;
 esac
 echo DONE

@@ -33,13 +33,20 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
 
 ## 묻는 법 (주소)
 
-- `POST /story` `{words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?}`
-  - `format`: `text`(AI가 앱 꼴 글을 바로 씀) 또는 `json`(AI는 칸만 채우고 `{영어|뜻}` 표시와 줄 꼴은 서버가 만듦 — 굵은 제목·번호·표시 실수가 없어져요)
+- `POST /story` `{words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?}`
+  - `format`: `text`(AI가 앱 꼴 글을 바로 씀), `json`(AI는 칸만 채우고 `{영어|뜻}` 표시와 줄 꼴은 서버가 만듦 — 굵은 제목·번호·표시 실수가 없어져요),
+    `plain`(7판: 앱 꼴이지만 표시 없이 자연스러운 문장만 씀. 표시는 앱이 `aiMark`로 붙여요)
   - `plan: true`: 먼저 뼈대(비튼 동화·주인공·문제·해결·단어마다 사건)를 짜고 그대로 써요 (두 번 물어요)
   - `drafts: 2~3`, `editor`: 작가 모델이 초안을 여러 편 쓰고, 편집자 모델이 가장 잘 이어지는 것을 골라 다듬어요
-- `POST /fix` `{words, story, problems, model?, effort?, format?}`: 앱 점검기가 찾은 문제(`problems`)가 있는 곳만 고쳐요.
-  이야기 글·점검기 글도 글자만 받아요 (6천 자·40줄까지, `data:` 주소 등은 거절).
+  - `stream: true`(7판): AI 답을 받는 대로 흘려 보내요(`text/event-stream`). 생각 보통(`effort: medium`)은 한 번에 받으면 2분쯤에 끊겨요(3046).
+    `text`·`plain` 꼴의 한 번 쓰기에만 돼요 (JSON·뼈대·초안·편집자·gpt-oss는 안 돼요).
+- `POST /fix` `{words, story, problems, model?, effort?, format?, stream?}`: 앱 점검기가 찾은 문제(`problems`)가 있는 곳만 고쳐요.
+  이야기 글·점검기 글도 글자만 받아요 (6천 자·40줄까지, `data:` 주소 등은 거절). `plain`이면 표시를 떼고 고쳐 써요.
 - 답: `{text, model, effort, format, ms, steps:[{step, model, ms, in, out}], usage, plan?, drafts?, editor?, edited?}` — `text`는 앱 꼴(제목·줄거리·이야기·그림).
+  - `stream`이면 AI의 흘려 받기 글 그대로예요: `data: {"choices":[{"delta":{"content":"…"}}]}` … `data: [DONE]`.
+    `content`만 모아요 (생각 글 `reasoning_content`는 버려요). 쓴 토큰(`usage`)은 마지막 조각에 와요.
+    모은 글은 서버의 `clean`처럼 다듬고(굵은 글씨·번호 떼기), 망가졌으면(`broken`) 한 번 더 물어요 (`eval-server.cjs --stream`이 이렇게 해요).
+- `GET /`: `{ok: true, v: 7}` — 붙여 넣은 서버 판을 봐요 (AI를 부르지 않고, 열쇠도 필요 없어요).
 
 ## 쓰는 모델: Nemotron 3 120B (2026-10-31 사용자가 고름)
 

@@ -28,6 +28,7 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
 - **이야기 모델은 Nemotron 3 120B** (2026-10-31 사용자가 Playground로 직접 읽고 고름). 이야기 질(이어짐)은 사용자 판단이 기준이에요 — Claude는 Gemma가 이어진다고 봤지만 사용자는 아니라고 했어요 (CLAUDE.md).
   Playground는 Nemotron의 생각을 켠 채로 썼어요 → 서버도 생각을 켜요 (기본 low, Playground와 같은 보통 생각은 effort medium).
 - 서버 코드: `server/story-worker/worker.mjs` (시험 `app/tests/server.test.cjs`), 올리는 법: `server/story-worker/README.md`. 사용자가 대시보드에 붙여 넣어 올려요.
+  7판(2026-11-04): 표시 없이 쓰기(`format: plain`, 표시는 앱이 붙여요)·흘려 받기(`stream`, 생각 보통이 120초에 끊기지 않게). 붙여 넣은 판은 `GET /`의 `v`로 봐요.
 - 실험 (사용자가 1~8번 모두 하자고 함): JSON으로 받기·`/fix` 고쳐 쓰기·작가+편집자·뼈대 먼저, 모델 예선(Gemma 4 26B·GLM-4.7-Flash·Nemotron 3 120B 생각 끔/low·gpt-oss-120b·Llama 3.3), 가리고 견주기 페이지, Playground(`server/story-worker/PLAYGROUND.md`).
   재기는 `tools/finetune/v3/eval-server.cjs` (기준 27/30). 좋으면 게임에 붙여요 (사이트 바꾸기는 사용자에게 물은 뒤).
 - 자세한 것은 `docs/work-log.md` 맨 위 기록에 있어요.
