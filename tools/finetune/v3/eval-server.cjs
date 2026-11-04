@@ -91,7 +91,7 @@ async function main() {
   try {
     outer: for (const s of sets) for (let k = 0; k < TRIES; k++) {
       const words = SETS[s - 1], t0 = Date.now(), steps = [];
-      const run = { set: s, try: k + 1, words: words.map(w => w[0]) };
+      const run = { set: s, try: k + 1, words: words.map(w => w[0]), ko: words.map(w => w[1]) };
       try {
         const r = await askServer('/story', { words, ...ASK });
         steps.push(...(r.steps || []));

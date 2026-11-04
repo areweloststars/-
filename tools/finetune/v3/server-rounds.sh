@@ -1,7 +1,7 @@
 #!/bin/bash
 # 이야기 서버 재기 차례 (2026-10-31~). 열쇠·주소는 환경 변수로만 (저장소에 넣지 않아요):
 #   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> bash tools/finetune/v3/server-rounds.sh <차례>
-# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
+# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · ways3(주제 묶음) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
 # 하루 무료 한도(10,000 Neuron)가 다 차면 그 차례에서 멈춰요 (한국 시간 오전 9시에 다시 채워져요). 결과: tools/story-lab/srv-*.txt
 cd "$(dirname "$0")/../../.."
 export NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-/root/.ccr/ca-bundle.crt} NODE_NO_WARNINGS=1
@@ -30,10 +30,16 @@ case "$1" in
     # 2026-11-04 사용자 판정: "생각 low는 별로" → 생각 보통만 견줘요 (보통 한 편 900 Neuron쯤 → 두 길 × 5편이 하루 한도 안)
     run way2-nem-med-plain --effort=medium --format=plain --stream $P
     run way2-nem-med-text --effort=medium --format=text --stream $P ;;
+  ways3) # 주제 묶음 (2026-11-05~): 사용자가 '좋아'라고 한 한 편(묶음 10)만 단어가 한 장면에 모이는 묶음(요리)이었어요 (11-03 low 견주기에서도 묶음 10을 골랐어요)
+    # → 같은 시험 단어를 장면이 비슷한 것끼리 다시 묶어(regroup-prompts.json, Claude가 손으로 묶음) 생각 보통·표시 없이 써 봐요.
+    #   주제 묶음 3(요리)은 묶음 10과 단어가 같아서 빼요 (9편, 8천 Neuron쯤)
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 7 ] || { echo "서버가 7판이 아니에요 (지금 ${V:-?}판)"; exit 2; }
+    run way3-nem-med-plain-regroup --model=$N --effort=medium --format=plain --stream --fix=${FIX:-0} --tries=1 --regroup --sets=${SETS:-1,2,4,5,6,7,8,9,10} ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
-  *) echo "차례: prelim · ways · ways2 · final"; exit 2 ;;
+  *) echo "차례: prelim · ways · ways2 · ways3 · final"; exit 2 ;;
 esac
 echo DONE

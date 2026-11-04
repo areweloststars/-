@@ -144,7 +144,14 @@ const RETAG = ({ words, lines }) => {
 };
 const retag = (p, words, out) => {
   const r = p.json(`(${RETAG})(${JSON.stringify({ words, lines: out.lines })})`);
-  return { ...out, lines: r.lines, retagged: r.done };
+  // 그림 줄 앞에 영어 단어 대신 받은 뜻을 쓴 것 ('게으른: A lazy rabbit …', 서버 plain 꼴에서 5편 가운데 2편, 2026-11-04) → 그 뜻의 영어 단어로 바꿔요
+  const byKo = new Map(words.map(([en, ko]) => [ko.replace(/\s+/g, ''), en]));
+  const pics = out.pics.map(pc => {
+    if (pc.en) return pc;
+    const m = pc.text.match(/^([^:：]{1,20}?)\s*[:：]\s*(.+)$/), en = m && byKo.get(m[1].replace(/\s+/g, ''));
+    return en ? { en, text: m[2].trim() } : pc;
+  });
+  return { ...out, lines: r.lines, pics, retagged: r.done };
 };
 // 나눈 답을 다시 앱 꼴 글로
 const toText = out => ['제목: ' + out.title, '줄거리: ' + out.plan, '이야기:', ...out.lines, '그림:', ...out.pics.map(pc => (pc.en ? pc.en + ': ' : '') + pc.text)].join('\n');
