@@ -50,8 +50,9 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
 
 ## 쓰는 모델: Nemotron 3 120B (2026-10-31 사용자가 고름)
 
-사용자가 Playground로 직접 읽고 "유일하게 이야기가 이어진다"며 골랐어요. 서버의 기본 모델이에요 (생각 low, effort medium이면 Playground와 같은 보통 생각).
-한 편에 무료 한도 340쯤(하루 30편쯤)이라, 시험은 하루에 조금씩 해요. 게임에서는 단어 30개 한 쪽이 5편이라 하루 쓰기에 넉넉해요.
+사용자가 Playground로 직접 읽고 "유일하게 이야기가 이어진다"며 골랐어요. 서버의 기본 모델이에요 (기본 생각은 low, effort medium이면 Playground와 같은 보통 생각).
+2026-11-04 사용자 판정: 생각 low 이야기는 별로 → 생각 보통을 흘려 받기(`stream: true`)로 써요.
+생각 보통은 한 편에 무료 한도 650~1,350(평균 900쯤, 하루 10편쯤)이라, 시험은 하루에 조금씩 해요. 게임에서는 단어 30개 한 쪽이 5편이에요.
 문장 속 단어에 `{영어|뜻}` 표시를 잘 안 붙여요 → 앱이 `aiMark`로 표시를 붙여요 (`tools/finetune/v3/check.cjs`의 `retag`).
 
 ## 무료로 쓸 수 있는 모델 (2026-10-31 Cloudflare 문서·요금표)
@@ -61,7 +62,7 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
 | `@cf/openai/gpt-oss-120b` | low | 130 | 60편쯤 |
 | `@cf/google/gemma-4-26b-a4b-it` | 끔 | 45 | 200편쯤 |
 | `@cf/zai-org/glm-4.7-flash` | 끔 | 50 | 200편쯤 |
-| `@cf/nvidia/nemotron-3-120b-a12b` (**쓰는 모델**) | low (기본) | 340 (예선에서 잼) | 30편쯤 |
+| `@cf/nvidia/nemotron-3-120b-a12b` (**쓰는 모델**) | 보통(흘려 받기) · low | 900 · 340 (재 봄) | 10편쯤 · 30편쯤 |
 | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | 없음 | 260 | 40편쯤 |
 | `@cf/qwen/qwen3.8-27b` | low | 400~ | 20편쯤 |
 
