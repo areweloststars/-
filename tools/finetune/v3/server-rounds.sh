@@ -23,12 +23,12 @@ case "$1" in
   ways2) # 7판 길 견주기 (2026-11-04~): 사용자가 가리고 견주며 '모두 별로'가 많았어요 → 두 가지를 바꿔 봐요
     # - 표시 없이 쓰기(plain): {영어|뜻} 표시를 쓰라고 하면 Nemotron이 문장을 깨뜨려요. 표시는 앱이 붙여요 (Playground에서 표시 없이 쓴 글은 자연스러웠어요)
     # - 생각 보통(medium, Playground와 같음)은 흘려 받기로: 한 번에 받으면 2분쯤에 끊겨요(3046)
-    # 이어짐을 견주는 차례라 고쳐 쓰기 없이 처음 쓴 글로 (생각 보통 한 편 700 Neuron쯤 → 세 길 × 5편이 하루 한도 안에)
+    # 이어짐을 견주는 차례라 고쳐 쓰기 없이 처음 쓴 글로
     V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
     [ "${V:-0}" -ge 7 ] || { echo "서버가 7판이 아니에요 (지금 ${V:-?}판) → 대시보드에 7판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
     P="--model=$N --fix=${FIX:-0} --tries=1 --sets=${SETS:-2,4,6,8,10}"
+    # 2026-11-04 사용자 판정: "생각 low는 별로" → 생각 보통만 견줘요 (보통 한 편 900 Neuron쯤 → 두 길 × 5편이 하루 한도 안)
     run way2-nem-med-plain --effort=medium --format=plain --stream $P
-    run way2-nem-low-plain --effort=low --format=plain $P
     run way2-nem-med-text --effort=medium --format=text --stream $P ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
