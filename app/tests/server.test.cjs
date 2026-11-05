@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 7 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 8 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -361,4 +361,37 @@ test('story server v7: stream passes the AI stream through as it comes, only for
   const lim = fakeEnv(() => { throw new Error('4006: you have used up your daily free allocation of 10,000 neurons'); });
   assert.equal((await w.fetch(req({ words: WORDS, stream: true }), lim.env)).status, 429);
   assert.equal((await w.fetch(req({ words: WORDS, stream: true }), fakeEnv({ response: STORY }).env)).status, 502);
+});
+
+// 8판 (2026-11-05): 흘려 받아도 Workers AI는 120초에서 끊어요. 붐비는 때는 생각 보통이 끝나기 전에 끊겨서(9편 가운데 8편)
+// 앱이 끊긴 흘려 받기에서 모은 생각 글(notes)을 보내고 생각 끔으로 다시 물으면, 그 생각대로 빨리 써요
+test('story server v8: notes — the thinking from a cut stream comes back as notes, only as text, only for one-call text/plain', async () => {
+  const w = await load();
+  const notes = 'Pick a twist on the ant and the grasshopper. Hero: a sleepy grasshopper. Order: lantern, borrow, brave.\n'.repeat(60);
+  const { env, calls } = fakeEnv((m, input) => (input.stream ? new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); c.close(); } }) : { response: STORY }));
+  const r = await w.fetch(req({ words: WORDS, format: 'plain', effort: 'none', stream: true, notes }), env);
+  assert.equal(r.status, 200);
+  await r.text();
+  const u = calls[0].input.messages[1].content;
+  assert.match(u, /lantern - 등불/);
+  assert.ok(u.includes('<메모>\n' + notes.trim() + '\n</메모>'));
+  assert.ok(u.endsWith('</메모>\n답:'));
+  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: false });
+  // 한 번에 받는 길도 메모를 넘겨요
+  const j = await (await w.fetch(req({ words: WORDS, format: 'plain', effort: 'none', notes: 'Hero: a fox.' }), env)).json();
+  assert.equal(j.text, STORY);
+  assert.match(usr(calls[1]), /<메모>\nHero: a fox\.\n<\/메모>/);
+  // 메모가 없는 요청은 지금처럼 단어만이라 2KB까지 (메모 없는 큰 요청은 거절)
+  assert.equal((await w.fetch(req(JSON.stringify({ words: WORDS, effort: 'none', pad: 'x'.repeat(3000) })), env)).status, 413);
+  // 안 되는 것: 글이 아님, 빈 글, 2만 자 넘음, 사진(data:·base64·띄어쓰기 없는 긴 덩어리), JSON 꼴·뼈대·초안·편집자, /fix
+  const blob = 'iVBORw0KGgoAAAANSUhEUgAA'.repeat(10);
+  for (const bad of [{ notes: 5 }, { notes: '  ' }, { notes: 'a '.repeat(10001) }, { notes: 'see data:image/png;base64,AAAA' }, { notes: 'plan ' + blob },
+    { notes: 'x', format: 'json' }, { notes: 'x', plan: true }, { notes: 'x', drafts: 2 }, { notes: 'x', editor: '@cf/google/gemma-4-26b-a4b-it' }]) {
+    assert.equal((await w.fetch(req({ words: WORDS, ...bad }), env)).status, 400, JSON.stringify(bad).slice(0, 80));
+  }
+  assert.equal((await w.fetch(req({ words: WORDS, story: JTEXT, problems: ['x'], notes: 'x' }, { url: 'https://s.example/fix' }), env)).status, 400);
+  assert.equal(calls.length, 2);
+  // 메모가 2만 자 가까이 되어도 받아요 (요청이 2KB를 넘어도)
+  const long = 'The grasshopper plays music while ants work. '.repeat(440).slice(0, w._.MAX_NOTES);
+  assert.equal((await w.fetch(req({ words: WORDS, effort: 'none', notes: long }), env)).status, 200);
 });

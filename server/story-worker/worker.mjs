@@ -13,13 +13,16 @@
 // - 열쇠(WG_TOKEN)가 맞는 요청만 받아요. 열쇠는 Cloudflare의 비밀 값(Secret)에 두고, 저장소에는 넣지 않아요.
 //
 // 주소
-// - POST /story {words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?}
+// - POST /story {words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?, notes?}
 //   format 'text': AI가 앱 꼴 글을 바로 써요 / 'json': AI는 칸(제목·문장·단어·뜻 말·그림)만 채우고, {영어|뜻} 표시와 줄 꼴은 서버가 만들어요
 //          'plain' (7판): 앱 꼴이지만 {영어|뜻} 표시 없이 자연스러운 문장으로만 써요. 표시는 앱이 뜻 말을 찾아 붙여요
 //   plan true: 먼저 뼈대(비튼 동화·주인공·문제·해결·단어마다 사건)를 짜고 그 뼈대대로 써요 (두 번 물어요)
 //   drafts 2~3: 작가 모델이 초안을 여러 편 쓰고, editor 모델이 가장 잘 이어지는 것을 골라 다듬어요
 //   stream true (7판): AI 답을 받는 대로 그대로 흘려 보내요 (text/event-stream). 생각 보통(medium)은 답이 길어
 //          한 번에 받으면 2분쯤에 끊겨요(3046) → 흘려 받으면 끊기지 않아요. text·plain 꼴의 한 번 쓰기에만 돼요
+//          (8판: 흘려 받아도 Workers AI는 120초에서 끊어요. 붐비는 때(2026-11-05 오전 9시)는 생각 보통이 120초 안에 끝나지 않았어요)
+//   notes (8판): 끊긴 흘려 받기에서 모은 AI의 생각 글(이 서버의 AI가 쓴 글). 앱이 생각 끔(effort none)으로 다시 물을 때 보내면
+//          그 생각대로 이야기를 빨리 써요 (생각을 처음부터 다시 하지 않아서 120초 안에 끝나요). text·plain 꼴의 한 번 쓰기에만, 2만 자까지
 // - POST /fix {words, story, problems, model?, effort?, format?, stream?}: 점검기가 찾은 문제가 있는 곳만 고쳐요
 // 답: {text(앱 꼴: 제목·줄거리·이야기·그림), model, effort, format, ms, steps:[{step, model, ms, in, out}], plan?, drafts?}
 //   stream이면 AI의 흘려 받기 글 그대로 (data: {choices:[{delta:{content, reasoning_content}}]} … data: [DONE]).
@@ -51,9 +54,10 @@ const MODEL_ID = /^@cf\/[a-z0-9._-]{1,40}\/[a-z0-9._-]{1,80}$/;
 const EFFORTS = ['none', 'low', 'medium', 'high'];
 const FORMATS = ['text', 'json', 'plain'];
 const ORIGINS = ['https://areweloststars.github.io'];
-const MAX_BODY = { '/story': 2048, '/fix': 16384 };
+const MAX_BODY = { '/story': 65536, '/fix': 16384 }; // /story는 생각 메모(notes)가 있을 때만 60KB까지
+const WORDS_ONLY = 2048; // 생각 메모가 없는 /story는 단어 글자뿐이라 2KB까지
 const MAX_OUT = 4000;
-const VERSION = 7;
+const VERSION = 8;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -162,10 +166,14 @@ ${wordList(EXAMPLE.words)}
 ${EXAMPLE_SHOW[format]}`;
 const RULES = writerSystem('text'); // 앱 꼴로 바로 쓰는 규칙 글 (PLAYGROUND.md에도 써요)
 
-const ask = (words, plan) => `요청 (${linesNote(words)}):
+const ask = (words, plan, notes) => `요청 (${linesNote(words)}):
 ${wordList(words)}${plan ? `
 이야기 뼈대 (이 뼈대대로 써요. 단어 차례도 뼈대대로):
-${JSON.stringify(plan, null, 1)}` : ''}
+${JSON.stringify(plan, null, 1)}` : ''}${notes ? `
+이야기를 짜며 적어 둔 생각 메모예요 (중간에 끊겼을 수 있어요). 메모에서 고른 이야기·인물·단어 차례를 따라, 규칙과 답 꼴대로 이야기 한 편을 써요:
+<메모>
+${notes}
+</메모>` : ''}
 답:`;
 
 // 뼈대 짜기 (8번): 문장은 쓰지 않고 줄거리의 까닭·결과만 정해요
@@ -247,8 +255,11 @@ const EN = /^[A-Za-z][A-Za-z '’.-]{0,39}$/;
 const KO = /^[^{}|<>\n\r\t]{1,30}$/;
 const POS = /^[a-z]{0,6}$/;
 const TEXT_BAD = /data:|base64|<\s*(img|svg|script|iframe|object)|[\u0000-\u0008\u000b\u000c\u000e-\u001f]/i;
+// 띄어쓰기 없이 길게 이어진 영문·숫자 (base64로 바꾼 사진 같은 것): 생각 글에는 이런 덩어리가 없어요
+const BLOB = /[A-Za-z0-9+/=_-]{160,}/;
+const MAX_NOTES = 20000;
 const KEYS = {
-  '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream'],
+  '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes'],
   '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream']
 };
 function readWordList(ws) {
@@ -292,6 +303,12 @@ function readBody(path, body, allowModel) {
   out.stream = body.stream === true;
   // 흘려 받기는 AI에게 한 번 묻고 답 글을 그대로 넘겨요 → 서버가 답을 고쳐 만들어야 하는 길(JSON 꼴·뼈대·초안·편집자)은 안 돼요
   if (out.stream && (out.format === 'json' || out.plan || out.drafts > 1 || out.editor)) return { err: '흘려 받기(stream)는 text·plain 꼴의 한 번 쓰기에만 돼요' };
+  if (body.notes != null) {
+    const n = body.notes;
+    if (typeof n !== 'string' || !n.trim() || n.length > MAX_NOTES || TEXT_BAD.test(n) || BLOB.test(n)) return { err: '생각 메모는 글자(2만 자까지)만 받아요' };
+    if (out.format === 'json' || out.plan || out.drafts > 1 || out.editor) return { err: '생각 메모(notes)는 text·plain 꼴의 한 번 쓰기에만 돼요' };
+    out.notes = n.trim();
+  }
   if (path === '/fix') {
     const s = body.story, ps = body.problems;
     if (typeof s !== 'string' || s.length < 20 || s.length > 6000 || TEXT_BAD.test(s)) return { err: '고칠 이야기는 글자(6천 자까지)만 받아요' };
@@ -457,8 +474,8 @@ async function step(env, steps, name, model, system, user, effort, format, words
   return { text, json, shape };
 }
 // 쓰기: 망가진 답이면 한 번 더 물어요
-async function writeStory(env, steps, model, effort, format, words, plan, name = 'write') {
-  const system = writerSystem(format), user = ask(words, plan), schema = format === 'json' ? STORY_SCHEMA : null;
+async function writeStory(env, steps, model, effort, format, words, plan, name = 'write', notes = null) {
+  const system = writerSystem(format), user = ask(words, plan, notes), schema = format === 'json' ? STORY_SCHEMA : null;
   let got = await step(env, steps, name, model, system, user, effort, format, words, schema);
   if (broken(got.text)) got = await step(env, steps, name + '-again', model, system, user, effort, format, words, schema);
   return got;
@@ -485,7 +502,7 @@ async function story(env, q) {
     out.edited = !broken(e.text);
     return { ...out, text: out.edited ? e.text : good[0], shape: e.shape };
   }
-  const w = await writeStory(env, steps, q.model, q.effort, q.format, q.words, plan);
+  const w = await writeStory(env, steps, q.model, q.effort, q.format, q.words, plan, 'write', q.notes);
   return { ...out, text: w.text, shape: w.shape };
 }
 // plain 꼴은 표시 없는 글로 고쳐 써요: 앱이 표시를 붙인 이야기를 보내도 표시를 떼고 넘겨요
@@ -499,7 +516,7 @@ async function fix(env, q) {
 // 흘려 받기 (7판): 묻는 글은 한 번 쓰기(/story)·고쳐 쓰기(/fix)와 같아요. 쓴 토큰은 마지막 조각에 와요 (include_usage).
 // 서버는 받은 조각을 그대로 넘기기만 해요 → CPU를 거의 안 쓰고, AI를 기다리는 시간은 무료 요금제 CPU 한도(10ms)에 들지 않아요
 function streamInput(path, q) {
-  const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format), fixAsk(q.words, fixStory(q), q.problems)] : [writerSystem(q.format), ask(q.words)];
+  const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format), fixAsk(q.words, fixStory(q), q.problems)] : [writerSystem(q.format), ask(q.words, null, q.notes)];
   return {
     messages: msgs(system, user), max_tokens: maxOut(q.effort), temperature: 0.7, ...thinking(q.model, q.effort),
     stream: true, ...(OPENAI_STYLE.test(q.model) ? { stream_options: { include_usage: true } } : {})
@@ -533,10 +550,11 @@ async function handle(req, env) {
   if (!same(auth.replace(/^Bearer\s+/i, ''), env.WG_TOKEN)) return reply(req, 401, { error: '열쇠가 맞지 않아요' });
   if (!/^application\/json\b/i.test(req.headers.get('content-type') || '')) return reply(req, 415, { error: 'JSON 글만 받아요 (사진은 받지 않아요)' });
   if (Number(req.headers.get('content-length') || 0) > MAX_BODY[path]) return reply(req, 413, { error: '요청이 너무 커요 (글자만 보내요)' });
-  const raw = await req.text();
-  if (new TextEncoder().encode(raw).length > MAX_BODY[path]) return reply(req, 413, { error: '요청이 너무 커요 (글자만 보내요)' });
+  const raw = await req.text(), bytes = new TextEncoder().encode(raw).length;
+  if (bytes > MAX_BODY[path]) return reply(req, 413, { error: '요청이 너무 커요 (글자만 보내요)' });
   let body;
   try { body = JSON.parse(raw); } catch { return reply(req, 400, { error: 'JSON이 아니에요' }); }
+  if (path === '/story' && bytes > WORDS_ONLY && !(body && typeof body.notes === 'string')) return reply(req, 413, { error: '요청이 너무 커요 (글자만 보내요)' });
   const locked = String(env.WG_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
   const q = readBody(path, body, m => (locked.length ? locked.includes(m) : MODEL_ID.test(m)));
   if (q.err) return reply(req, 400, { error: q.err });
@@ -565,5 +583,5 @@ async function handle(req, env) {
 // _ 는 시험(app/tests/server.test.cjs)·PLAYGROUND.md 만들기용이에요
 export default {
   fetch: handle,
-  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
+  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, MAX_NOTES, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
 };

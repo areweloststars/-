@@ -35,7 +35,9 @@ case "$1" in
     #   주제 묶음 3(요리)은 묶음 10과 단어가 같아서 빼요 (9편, 8천 Neuron쯤)
     V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
     [ "${V:-0}" -ge 7 ] || { echo "서버가 7판이 아니에요 (지금 ${V:-?}판)"; exit 2; }
-    run way3-nem-med-plain-regroup --model=$N --effort=medium --format=plain --stream --fix=${FIX:-0} --tries=1 --regroup --sets=${SETS:-1,2,4,5,6,7,8,9,10} ;;
+    # 11-05 오전 9시(붐빔)에는 9편 가운데 8편이 생각 중 120초에서 끊겼어요 → 서버 8판이면 끊긴 생각을 메모로 보내 다시 써요(--rescue)
+    R=""; [ "${V:-0}" -ge 8 ] && R="--rescue"
+    run ${NAME:-way3-nem-med-plain-regroup} --model=$N --effort=medium --format=plain --stream $R --fix=${FIX:-0} --tries=1 --regroup --sets=${SETS:-1,2,4,5,6,7,8,9,10} ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
