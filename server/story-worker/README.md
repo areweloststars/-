@@ -33,7 +33,8 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
 
 ## 묻는 법 (주소)
 
-- `POST /story` `{words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?, notes?}`
+- `POST /story` `{words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?, notes?, style?}`
+  - `style`(10판): `twist`(기본, 명작 비틀기) 또는 `simple`(한 인물이 한 가지 일을 차례로 겪는 쉬운 이야기, 2026-11-06 사용자가 고름. 보기 이야기도 따로 있어요)
   - `format`: `text`(AI가 앱 꼴 글을 바로 씀), `json`(AI는 칸만 채우고 `{영어|뜻}` 표시와 줄 꼴은 서버가 만듦 — 굵은 제목·번호·표시 실수가 없어져요),
     `plain`(7판: 앱 꼴이지만 표시 없이 자연스러운 문장만 씀. 표시는 앱이 `aiMark`로 붙여요)
   - `plan: true`: 먼저 뼈대(비튼 동화·주인공·문제·해결·단어마다 사건)를 짜고 그대로 써요 (두 번 물어요)
@@ -50,7 +51,8 @@ Cloudflare **무료 요금제**로 써요. Workers AI는 하루 10,000 Neuron까
 - `notes`(8판): 끊긴 흘려 받기에서 모은 생각 글(`reasoning_content`, 이 서버의 AI가 쓴 글)을 메모로 보내고 `effort: none`으로 다시 물으면,
   생각을 처음부터 하지 않고 그 메모대로 바로 써요. `text`·`plain` 꼴의 한 번 쓰기에만, 2만 자까지, 글자만 (띄어쓰기 없는 긴 덩어리·`data:`는 거절).
   메모가 없는 `/story`는 지금처럼 2KB까지만 받아요. `eval-server.cjs --rescue`가 이렇게 해요.
-- `GET /`: `{ok: true, v: 8}` — 붙여 넣은 서버 판을 봐요 (AI를 부르지 않고, 열쇠도 필요 없어요).
+  9판부터 Nemotron 생각 끔에 `force_nonempty_content: true`를 넣어요 (8판에서 메모로 다시 쓸 때 짧은 생각 글만 쓰고 답 글 없이 끝난 적이 있어요).
+- `GET /`: `{ok: true, v: 10}` — 붙여 넣은 서버 판을 봐요 (AI를 부르지 않고, 열쇠도 필요 없어요).
 
 ## 쓰는 모델: Nemotron 3 120B (2026-10-31 사용자가 고름)
 

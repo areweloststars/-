@@ -13,7 +13,8 @@
 // - 열쇠(WG_TOKEN)가 맞는 요청만 받아요. 열쇠는 Cloudflare의 비밀 값(Secret)에 두고, 저장소에는 넣지 않아요.
 //
 // 주소
-// - POST /story {words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?, notes?}
+// - POST /story {words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?, notes?, style?}
+//   style (10판): 'twist'(기본, 명작 비틀기) · 'simple'(한 인물이 한 가지 일을 차례로 겪는 쉬운 이야기, 2026-11-06 사용자가 고름)
 //   format 'text': AI가 앱 꼴 글을 바로 써요 / 'json': AI는 칸(제목·문장·단어·뜻 말·그림)만 채우고, {영어|뜻} 표시와 줄 꼴은 서버가 만들어요
 //          'plain' (7판): 앱 꼴이지만 {영어|뜻} 표시 없이 자연스러운 문장으로만 써요. 표시는 앱이 뜻 말을 찾아 붙여요
 //   plan true: 먼저 뼈대(비튼 동화·주인공·문제·해결·단어마다 사건)를 짜고 그 뼈대대로 써요 (두 번 물어요)
@@ -23,7 +24,7 @@
 //          (8판: 흘려 받아도 Workers AI는 120초에서 끊어요. 붐비는 때(2026-11-05 오전 9시)는 생각 보통이 120초 안에 끝나지 않았어요)
 //   notes (8판): 끊긴 흘려 받기에서 모은 AI의 생각 글(이 서버의 AI가 쓴 글). 앱이 생각 끔(effort none)으로 다시 물을 때 보내면
 //          그 생각대로 이야기를 빨리 써요 (생각을 처음부터 다시 하지 않아서 120초 안에 끝나요). text·plain 꼴의 한 번 쓰기에만, 2만 자까지
-// - POST /fix {words, story, problems, model?, effort?, format?, stream?}: 점검기가 찾은 문제가 있는 곳만 고쳐요
+// - POST /fix {words, story, problems, model?, effort?, format?, stream?, style?}: 점검기가 찾은 문제가 있는 곳만 고쳐요
 // 답: {text(앱 꼴: 제목·줄거리·이야기·그림), model, effort, format, ms, steps:[{step, model, ms, in, out}], plan?, drafts?}
 //   stream이면 AI의 흘려 받기 글 그대로 (data: {choices:[{delta:{content, reasoning_content}}]} … data: [DONE]).
 //   앱이 content만 모아 읽어요 (생각 글 reasoning_content는 버려요)
@@ -57,7 +58,7 @@ const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 65536, '/fix': 16384 }; // /story는 생각 메모(notes)가 있을 때만 60KB까지
 const WORDS_ONLY = 2048; // 생각 메모가 없는 /story는 단어 글자뿐이라 2KB까지
 const MAX_OUT = 4000;
-const VERSION = 9;
+const VERSION = 10;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -65,14 +66,29 @@ const VERSION = 9;
 const WRITER = `너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 작가예요.
 영어 단어와 뜻을 받으면, 단어를 모두 넣은 짧은 이야기 한 편과 그림 설명을 써요.`;
 
-const STORY_RULES = `가장 중요한 것: 앞뒤가 이어지는 이야기
+// 이야기 꼴 (10판): 'twist' = 지금까지 쓴 꼴(명작 비틀기) · 'simple' = 쉬운 이야기
+// 2026-11-06 사용자가 'simple'을 골랐어요: 생각 보통 12편 가운데 좋아 2편(요리·사고와 구조)은 둘 다 동화 비틀기가 아니라
+// 한 인물이 한 가지 일을 차례로 겪는 단순한 이야기였어요. 나쁜 예·좋은 예는 시험 단어가 아닌 낱말로 써요 (재기가 부풀지 않게)
+const STYLES = ['twist', 'simple'];
+const STORY_HEAD = {
+  twist: `가장 중요한 것: 앞뒤가 이어지는 이야기
 - 쓰기 전에 단어들이 한 이야기에 모일 수 있는 주인공·장소·문제를 먼저 정해요. 단어 차례는 이야기에 맞게 바꿔요.
 - 줄과 줄은 까닭과 결과로 이어져요. 다음 줄은 앞 줄 때문에 일어나요. 앞에서 말하지 않은 인물·물건·사건이 갑자기 나오지 않아요.
 - 단어 뜻이 그 문장에 자연스럽게 맞아야 해요. 뜻을 억지로 끼우지 않아요 (나쁜 예: 자전거를 용서했어요, 선생님께 참석했어요).
 - 명작 동화·전래 동화·신화 가운데 하나를 골라 비틀거나 웃긴 상황으로 바꿔요. 밝고 건전하게, 기억에 남게 써요.
-- 보기가 있으면 꼴만 보여 주는 거예요. 보기의 인물·장소·줄거리(양치기·늑대)는 쓰지 말고 새 이야기를 써요.
-
-제목: 14자 이하 한국어 (영어·기호 없이). 줄거리: 한 문장, 80자 이하.
+- 보기가 있으면 꼴만 보여 주는 거예요. 보기의 인물·장소·줄거리(양치기·늑대)는 쓰지 말고 새 이야기를 써요.`,
+  simple: `가장 중요한 것: 앞뒤가 이어지는 쉬운 이야기
+- 주인공 한 명이 한 곳에서 한 가지 일을 차례로 겪는 이야기를 써요 (예: 씨앗을 심어 꽃을 피우기, 길 잃은 강아지를 집에 데려다주기).
+- 쓰기 전에 단어마다 그 뜻 그대로 일어나는 구체적인 일(움직임·장면)을 정하고, 일어나는 차례대로 놓아요. 단어 차례는 이야기에 맞게 바꿔요.
+- 다음 줄은 앞 줄 바로 다음에 일어나는 일이에요 (시간 차례, 까닭과 결과). 앞에서 말하지 않은 인물·물건·사건이 갑자기 나오지 않아요.
+- 동화를 비틀거나 반전을 넣지 않아요. 복잡한 줄거리보다, 누구나 그림처럼 떠올릴 수 있는 쉬운 장면이 좋아요.
+- 단어 뜻이 그 문장에 자연스럽게 맞아야 해요. 그 뜻으로 그 문장을 우리말로 자연스럽게 말할 수 없으면 장면을 바꿔요
+  (나쁜 예: 부지런한 의자에 앉았어요 / 망원경으로 수프 맛을 봤어요 / 아기가 아빠를 업어 주었어요).
+- 앞뒤가 어긋나지 않게 해요 (나쁜 예: 배가 몹시 고픈 곰이 꿀을 강물에 던졌어요).
+- 밝고 건전하게 써요.
+- 보기가 있으면 꼴만 보여 주는 거예요. 보기의 인물·장소·줄거리(케이크 만들기)는 쓰지 말고 새 이야기를 써요.`
+};
+const STORY_BODY = `제목: 14자 이하 한국어 (영어·기호 없이). 줄거리: 한 문장, 80자 이하.
 이야기
 - 한 줄에 한 문장, '-어요' 말투, 40자 안쪽으로 짧게. 줄 수는 요청에 적힌 대로.
 - 첫 줄은 주인공과 장소를 소개하고, 끝 줄은 이야기를 마무리해요. 첫 줄과 끝 줄에는 단어를 넣지 않아요.
@@ -86,6 +102,10 @@ const STORY_RULES = `가장 중요한 것: 앞뒤가 이어지는 이야기
 - 단어마다 하나씩, 이야기에 나온 차례로. 반드시 영어로만 써요 (한글을 쓰지 않아요). 그림 AI가 영어만 읽어요.
 - 그 단어 줄의 장면을 그려서 그림만 봐도 단어 뜻이 떠오르게. 영어 낱말 8~35개, 장면 하나.
 - 같은 인물은 줄마다 같은 말로 (예: the shepherd boy). 글자·간판·말풍선·종이에 쓴 글은 그리지 않아요 (says, written, sign, label 같은 말을 쓰지 않아요). 다치는 장면·무기·무서운 것은 넣지 않아요.`;
+const storyRules = (style = 'twist') => `${STORY_HEAD[style]}
+
+${STORY_BODY}`;
+const STORY_RULES = storyRules('twist');
 
 const FORMAT = {
   text: `답 꼴 (앱이 이 꼴 그대로 읽어요. 굵은 글씨(**)·번호·글머리표·다른 설명은 쓰지 않아요. '제목:'과 '줄거리:'는 같은 줄에 바로 이어 써요)
@@ -136,34 +156,59 @@ const EXAMPLE = {
     ['regret', 'the shepherd boy sitting alone on the hill with his head down, his sheep scattered far away']
   ]
 };
-const exampleJSON = () => ({
-  title: EXAMPLE.title, plan: EXAMPLE.plan,
-  lines: EXAMPLE.lines.map(([text, word = '', meaning = '']) => ({ text, word, meaning })),
-  pictures: EXAMPLE.pictures.map(([word, scene]) => ({ word, scene }))
+// 쉬운 이야기 보기 (10판, 일반 사전 낱말로 Claude가 새로 쓴 모범 이야기, 시험 단어 아님): 한 인물이 한 가지 일을 차례로
+const EXAMPLE_SIMPLE = {
+  words: [['apron', '앞치마'], ['flour', '밀가루'], ['oven', '오븐'], ['careful', '조심스러운'], ['decorate', '장식하다'], ['surprise', '깜짝 놀라게 하다']],
+  title: '할머니를 위한 케이크',
+  plan: '할머니 생신날 지우가 혼자 케이크를 만들어 할머니를 깜짝 놀라게 해요.',
+  lines: [
+    ['할머니 생신날 아침, 지우는 혼자 부엌에 들어갔어요.'],
+    ['지우는 엄마의 앞치마를 허리에 단단히 둘렀어요.', 'apron', '앞치마'],
+    ['그릇에 밀가루와 달걀을 넣고 힘껏 저었어요.', 'flour', '밀가루'],
+    ['반죽을 틀에 담아 따뜻한 오븐에 넣었어요.', 'oven', '오븐'],
+    ['다 구워지자 조심스러운 손길로 케이크를 꺼냈어요.', 'careful', '조심스러운'],
+    ['식은 케이크를 딸기와 초로 예쁘게 장식했어요.', 'decorate', '장식했어요'],
+    ['지우는 케이크를 들고 나가 할머니를 깜짝 놀라게 했어요.', 'surprise', '깜짝 놀라게 했어요'],
+    ['할머니는 지우를 꼭 안아 주며 활짝 웃으셨어요.']
+  ],
+  pictures: [
+    ['apron', 'a young girl tying a big yellow apron around her waist in a bright kitchen'],
+    ['flour', 'the young girl stirring white flour and eggs in a large bowl with a wooden spoon'],
+    ['oven', 'the young girl sliding a round cake pan into a warm glowing oven'],
+    ['careful', 'the young girl in oven mitts slowly and carefully lifting a hot golden cake out of the oven'],
+    ['decorate', 'the young girl placing red strawberries and small candles on top of a round cake'],
+    ['surprise', 'an old grandmother gasping with joy as the young girl walks in holding a cake with lit candles']
+  ]
+};
+const EXAMPLES = { twist: EXAMPLE, simple: EXAMPLE_SIMPLE };
+const exampleJSON = (ex = EXAMPLE) => ({
+  title: ex.title, plan: ex.plan,
+  lines: ex.lines.map(([text, word = '', meaning = '']) => ({ text, word, meaning })),
+  pictures: ex.pictures.map(([word, scene]) => ({ word, scene }))
 });
-const EXAMPLE_TEXT = storyText(exampleJSON(), EXAMPLE.words);
+const exampleText = ex => storyText(exampleJSON(ex), ex.words);
+const EXAMPLE_TEXT = exampleText(EXAMPLE);
+const EXAMPLE_SIMPLE_TEXT = exampleText(EXAMPLE_SIMPLE);
 // 표시를 떼요: {영어|뜻 말} → 뜻 말 (plain 꼴 보기, plain 꼴로 고쳐 쓸 이야기)
 const untag = t => String(t).replace(/\{[^{}|]+\|([^{}|]+)\}/g, '$1');
-const EXAMPLE_SHOW = {
-  text: EXAMPLE_TEXT,
-  plain: untag(EXAMPLE_TEXT),
-  json: '{"title": ' + JSON.stringify(EXAMPLE.title) + ', "plan": ' + JSON.stringify(EXAMPLE.plan) + ',\n "lines": [\n' +
-    exampleJSON().lines.map(l => '  ' + JSON.stringify(l)).join(',\n') + '\n ],\n "pictures": [\n' +
-    exampleJSON().pictures.map(p => '  ' + JSON.stringify(p)).join(',\n') + '\n ]}'
-};
+const exampleShow = (ex, format) => (format === 'json'
+  ? '{"title": ' + JSON.stringify(ex.title) + ', "plan": ' + JSON.stringify(ex.plan) + ',\n "lines": [\n' +
+    exampleJSON(ex).lines.map(l => '  ' + JSON.stringify(l)).join(',\n') + '\n ],\n "pictures": [\n' +
+    exampleJSON(ex).pictures.map(p => '  ' + JSON.stringify(p)).join(',\n') + '\n ]}'
+  : format === 'plain' ? untag(exampleText(ex)) : exampleText(ex));
 const wordList = words => words.map(([en, ko]) => `${en} - ${ko}`).join('\n');
 const linesNote = words => `단어 ${words.length}개 → 이야기 ${words.length + 2}~${words.length + 4}줄`;
-const writerSystem = format => `${WRITER}
+const writerSystem = (format, style = 'twist') => `${WRITER}
 
-${STORY_RULES}
+${storyRules(style)}
 
 ${FORMAT[format]}
 
 보기 (단어 6개 → 이야기 8줄)
 요청:
-${wordList(EXAMPLE.words)}
+${wordList(EXAMPLES[style].words)}
 답:
-${EXAMPLE_SHOW[format]}`;
+${exampleShow(EXAMPLES[style], format)}`;
 const RULES = writerSystem('text'); // 앱 꼴로 바로 쓰는 규칙 글 (PLAYGROUND.md에도 써요)
 
 const ask = (words, plan, notes) => `요청 (${linesNote(words)}):
@@ -222,9 +267,9 @@ ${story}
 ${problems.map(p => '- ' + p).join('\n')}
 
 고친 이야기 전체 (답 꼴대로):`;
-const roleSystem = (role, format) => `${role}
+const roleSystem = (role, format, style = 'twist') => `${role}
 
-${STORY_RULES}
+${storyRules(style)}
 
 ${FORMAT[format]}`;
 
@@ -259,8 +304,8 @@ const TEXT_BAD = /data:|base64|<\s*(img|svg|script|iframe|object)|[\u0000-\u0008
 const BLOB = /[A-Za-z0-9+/=_-]{160,}/;
 const MAX_NOTES = 20000;
 const KEYS = {
-  '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes'],
-  '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream']
+  '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes', 'style'],
+  '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream', 'style']
 };
 function readWordList(ws) {
   if (!Array.isArray(ws) || ws.length < 3 || ws.length > 10) return { err: '단어는 3~10개예요' };
@@ -295,6 +340,8 @@ function readBody(path, body, allowModel) {
   }
   if (body.format != null && !FORMATS.includes(body.format)) return { err: '꼴은 text·json·plain이에요' };
   out.format = body.format || 'text';
+  if (body.style != null && !STYLES.includes(body.style)) return { err: '이야기 꼴(style)은 twist·simple이에요' };
+  out.style = body.style || 'twist';
   if (body.plan != null && typeof body.plan !== 'boolean') return { err: 'plan은 true·false예요' };
   out.plan = body.plan === true;
   if (body.drafts != null && !(Number.isInteger(body.drafts) && body.drafts >= 1 && body.drafts <= 3)) return { err: '초안은 1~3편이에요' };
@@ -476,8 +523,8 @@ async function step(env, steps, name, model, system, user, effort, format, words
   return { text, json, shape };
 }
 // 쓰기: 망가진 답이면 한 번 더 물어요
-async function writeStory(env, steps, model, effort, format, words, plan, name = 'write', notes = null) {
-  const system = writerSystem(format), user = ask(words, plan, notes), schema = format === 'json' ? STORY_SCHEMA : null;
+async function writeStory(env, steps, model, effort, format, words, plan, name = 'write', notes = null, style = 'twist') {
+  const system = writerSystem(format, style), user = ask(words, plan, notes), schema = format === 'json' ? STORY_SCHEMA : null;
   let got = await step(env, steps, name, model, system, user, effort, format, words, schema);
   if (broken(got.text)) got = await step(env, steps, name + '-again', model, system, user, effort, format, words, schema);
   return got;
@@ -485,7 +532,7 @@ async function writeStory(env, steps, model, effort, format, words, plan, name =
 const validPlan = j => (j && typeof j === 'object' && Array.isArray(j.beats) && j.beats.length ? j : null);
 
 async function story(env, q) {
-  const steps = [], out = { model: q.model, effort: q.effort, format: q.format, steps };
+  const steps = [], out = { model: q.model, effort: q.effort, format: q.format, style: q.style, steps };
   let plan = null;
   if (q.plan) {
     const p = await step(env, steps, 'plan', q.model, PLANNER, planAsk(q.words), q.effort, q.format, q.words, PLAN_SCHEMA);
@@ -494,23 +541,23 @@ async function story(env, q) {
   }
   if (q.drafts > 1 || q.editor) {
     const editor = q.editor || q.model, editorEffort = q.editorEffort || defaultEffort(editor);
-    const drafts = await Promise.all(Array.from({ length: q.drafts }, (_, i) => writeStory(env, steps, q.model, q.effort, q.format, q.words, plan, 'draft' + (i + 1))));
+    const drafts = await Promise.all(Array.from({ length: q.drafts }, (_, i) => writeStory(env, steps, q.model, q.effort, q.format, q.words, plan, 'draft' + (i + 1), null, q.style)));
     const good = drafts.map(d => d.text).filter(t => !broken(t));
     out.drafts = good;
     out.editor = editor;
     if (!good.length) return { ...out, text: '', shape: drafts[0] && drafts[0].shape };
     const schema = q.format === 'json' ? STORY_SCHEMA : null;
-    const e = await step(env, steps, 'edit', editor, roleSystem(EDITOR, q.format), editAsk(q.words, good), editorEffort, q.format, q.words, schema);
+    const e = await step(env, steps, 'edit', editor, roleSystem(EDITOR, q.format, q.style), editAsk(q.words, good), editorEffort, q.format, q.words, schema);
     out.edited = !broken(e.text);
     return { ...out, text: out.edited ? e.text : good[0], shape: e.shape };
   }
-  const w = await writeStory(env, steps, q.model, q.effort, q.format, q.words, plan, 'write', q.notes);
+  const w = await writeStory(env, steps, q.model, q.effort, q.format, q.words, plan, 'write', q.notes, q.style);
   return { ...out, text: w.text, shape: w.shape };
 }
 // plain 꼴은 표시 없는 글로 고쳐 써요: 앱이 표시를 붙인 이야기를 보내도 표시를 떼고 넘겨요
 const fixStory = q => (q.format === 'plain' ? untag(q.story) : q.story);
 async function fix(env, q) {
-  const steps = [], schema = q.format === 'json' ? STORY_SCHEMA : null, system = roleSystem(FIXER, q.format), user = fixAsk(q.words, fixStory(q), q.problems);
+  const steps = [], schema = q.format === 'json' ? STORY_SCHEMA : null, system = roleSystem(FIXER, q.format, q.style), user = fixAsk(q.words, fixStory(q), q.problems);
   let got = await step(env, steps, 'fix', q.model, system, user, q.effort, q.format, q.words, schema);
   if (broken(got.text)) got = await step(env, steps, 'fix-again', q.model, system, user, q.effort, q.format, q.words, schema);
   return { model: q.model, effort: q.effort, format: q.format, text: got.text, shape: got.shape, steps };
@@ -518,7 +565,7 @@ async function fix(env, q) {
 // 흘려 받기 (7판): 묻는 글은 한 번 쓰기(/story)·고쳐 쓰기(/fix)와 같아요. 쓴 토큰은 마지막 조각에 와요 (include_usage).
 // 서버는 받은 조각을 그대로 넘기기만 해요 → CPU를 거의 안 쓰고, AI를 기다리는 시간은 무료 요금제 CPU 한도(10ms)에 들지 않아요
 function streamInput(path, q) {
-  const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format), fixAsk(q.words, fixStory(q), q.problems)] : [writerSystem(q.format), ask(q.words, null, q.notes)];
+  const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format, q.style), fixAsk(q.words, fixStory(q), q.problems)] : [writerSystem(q.format, q.style), ask(q.words, null, q.notes)];
   return {
     messages: msgs(system, user), max_tokens: maxOut(q.effort), temperature: 0.7, ...thinking(q.model, q.effort),
     stream: true, ...(OPENAI_STYLE.test(q.model) ? { stream_options: { include_usage: true } } : {})
@@ -585,5 +632,5 @@ async function handle(req, env) {
 // _ 는 시험(app/tests/server.test.cjs)·PLAYGROUND.md 만들기용이에요
 export default {
   fetch: handle,
-  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, MAX_NOTES, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
+  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, MAX_NOTES, STYLES, storyRules, EXAMPLE_SIMPLE_TEXT, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
 };

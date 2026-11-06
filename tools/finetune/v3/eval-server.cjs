@@ -7,6 +7,7 @@
 //     --model=@cf/google/gemma-4-26b-a4b-it [--effort=none] [--format=json] [--plan] \
 //     [--drafts=3 --editor=@cf/nvidia/nemotron-3-120b-a12b --editor-effort=none] [--fix=2] [--sets=6,8] [--tries=2] [--regroup]
 //     [--format=plain] [--stream]   ← 서버 7판: 표시 없이 쓰기(점검 전에 앱처럼 표시를 붙여요), 흘려 받기(생각 보통이 끊기지 않게)
+//     [--style=simple]   ← 서버 10판: 쉬운 이야기 꼴 (한 인물이 한 가지 일을 차례로)
 //     [--rescue]   ← 서버 8판: 흘려 받기가 120초에서 끊겨 답이 없거나 망가지면, 모은 생각 글을 메모(notes)로 보내 생각 끔으로 다시 써요
 // 결과: tools/story-lab/srv-<이름>.txt / .json (저장소에 넣지 않아요). 하루 무료 한도(429)면 멈춰요.
 const fs = require('node:fs'), path = require('node:path'), { pathToFileURL } = require('node:url');
@@ -19,7 +20,7 @@ if (!API) { console.error('WG_STORY=<이야기 서버 주소>와 WG_TOKEN=<열�
 const SETS = arg('regroup') ? require('./regroup-prompts.json').map(s => s.words) : TEST_SETS;
 const PICK = String(arg('sets', '')).split(',').map(Number).filter(n => n >= 1 && n <= SETS.length);
 const TRIES = Number(arg('tries', 1)) || 1, FIX = Number(arg('fix', 2)) || 0, RESCUE = !!arg('rescue');
-const ASK = { model: arg('model'), effort: arg('effort'), format: arg('format', 'json'), plan: !!arg('plan'), drafts: Number(arg('drafts', 1)) || 1, editor: arg('editor'), editorEffort: arg('editor-effort'), stream: !!arg('stream') };
+const ASK = { model: arg('model'), effort: arg('effort'), format: arg('format', 'json'), plan: !!arg('plan'), drafts: Number(arg('drafts', 1)) || 1, editor: arg('editor'), editorEffort: arg('editor-effort'), stream: !!arg('stream'), style: arg('style') };
 for (const k of Object.keys(ASK)) if (ASK[k] == null || ASK[k] === false || (k === 'drafts' && ASK[k] === 1)) delete ASK[k];
 const OUT = path.join(REPO, 'tools', 'story-lab', `srv-${NAME}`);
 
@@ -123,7 +124,7 @@ async function main() {
         Object.assign(run, { skeleton: r.plan, drafts: r.drafts, edited: r.edited, rescued: r.rescued, thinking: r.rescued ? r.notes : r.reasoning, rawOk: !check(p, words, parse(r.text)).why.length, first: { ok: !c.why.length, why: c.why, text, retagged: L.retagged } });
         const fixes = [];
         for (let f = 0; f < FIX && c.why.length; f++) {
-          const x = await askServer('/fix', { words, story: text, problems: c.why.slice(0, 40).map(w => w.slice(0, 200)), ...(ASK.model ? { model: ASK.model } : {}), ...(ASK.effort ? { effort: ASK.effort } : {}), format: ASK.format || 'json', ...(ASK.stream ? { stream: true } : {}) });
+          const x = await askServer('/fix', { words, story: text, problems: c.why.slice(0, 40).map(w => w.slice(0, 200)), ...(ASK.model ? { model: ASK.model } : {}), ...(ASK.effort ? { effort: ASK.effort } : {}), format: ASK.format || 'json', ...(ASK.stream ? { stream: true } : {}), ...(ASK.style ? { style: ASK.style } : {}) });
           steps.push(...(x.steps || []));
           L = look(x.text); text = L.text; c = L.c;
           fixes.push({ ok: !c.why.length, why: c.why, retagged: L.retagged });

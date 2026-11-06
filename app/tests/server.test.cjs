@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 9 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 10 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -394,4 +394,41 @@ test('story server v8: notes — the thinking from a cut stream comes back as no
   // 메모가 2만 자 가까이 되어도 받아요 (요청이 2KB를 넘어도)
   const long = 'The grasshopper plays music while ants work. '.repeat(440).slice(0, w._.MAX_NOTES);
   assert.equal((await w.fetch(req({ words: WORDS, effort: 'none', notes: long }), env)).status, 200);
+});
+
+// 10판 (2026-11-06): 이야기 꼴 style — 사용자가 'simple'(한 인물이 한 가지 일을 차례로 겪는 쉬운 이야기)을 골랐어요.
+// 지금까지의 꼴(twist, 명작 비틀기)이 기본이고 규칙 글·PLAYGROUND.md는 그대로예요
+test('story server v10: style simple — easy step-by-step stories with their own example; twist stays the default', async () => {
+  const w = await load();
+  const s = w._.writerSystem('plain', 'simple');
+  assert.match(s, /가장 중요한 것: 앞뒤가 이어지는 쉬운 이야기/);
+  assert.match(s, /동화를 비틀거나 반전을 넣지 않아요/);
+  assert.doesNotMatch(s, /명작 동화·전래 동화·신화 가운데 하나를 골라 비틀거나/);
+  assert.ok(s.endsWith('답:\n' + w._.untag(w._.EXAMPLE_SIMPLE_TEXT)));
+  assert.equal(w._.writerSystem('text'), w._.RULES);
+  assert.equal(w._.storyRules(), w._.storyRules('twist'));
+  // 쉬운 보기 이야기도 앱 점검기를 통과하고, 표시를 떼도 앱이 다시 붙여요
+  const { parse, check, retag, bootPage } = require('../../tools/finetune/v3/check.cjs');
+  const words = [['apron', '앞치마', 'n'], ['flour', '밀가루', 'n'], ['oven', '오븐', 'n'], ['careful', '조심스러운', 'a'], ['decorate', '장식하다', 'v'], ['surprise', '깜짝 놀라게 하다', 'v']];
+  const p = bootPage();
+  try {
+    assert.deepEqual(check(p, words, parse(w._.EXAMPLE_SIMPLE_TEXT), true).why, []);
+    const o = retag(p, words, parse(w._.untag(w._.EXAMPLE_SIMPLE_TEXT)));
+    assert.equal(o.retagged.length, 6);
+    assert.deepEqual(check(p, words, o, true).why, []);
+  } finally { p.close(); }
+  // 요청: /story·/fix·흘려 받기 모두 이야기 꼴을 따라요, 모르는 꼴은 거절
+  const sse = () => new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); c.close(); } });
+  const { env, calls } = fakeEnv((m, input) => (input.stream ? sse() : { response: STORY }));
+  const j = await (await w.fetch(req({ words: WORDS, style: 'simple' }), env)).json();
+  assert.equal(j.style, 'simple');
+  assert.equal(sys(calls[0]), w._.writerSystem('text', 'simple'));
+  await (await w.fetch(req({ words: WORDS, style: 'simple', format: 'plain', effort: 'medium', stream: true }), env)).text();
+  assert.equal(calls[1].input.messages[0].content, s);
+  await w.fetch(req({ words: WORDS, story: JTEXT, problems: ['whisper: 이야기에 0번'], format: 'plain', style: 'simple' }, { url: 'https://s.example/fix' }), env);
+  assert.equal(sys(calls[2]), w._.roleSystem(w._.FIXER, 'plain', 'simple'));
+  await w.fetch(req({ words: WORDS }), env);
+  assert.equal(sys(calls[3]), w._.RULES);
+  assert.equal((await w.fetch(req({ words: WORDS, style: 'fancy' }), env)).status, 400);
+  assert.equal(calls.length, 4);
 });
