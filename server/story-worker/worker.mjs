@@ -57,7 +57,7 @@ const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 65536, '/fix': 16384 }; // /story는 생각 메모(notes)가 있을 때만 60KB까지
 const WORDS_ONLY = 2048; // 생각 메모가 없는 /story는 단어 글자뿐이라 2KB까지
 const MAX_OUT = 4000;
-const VERSION = 8;
+const VERSION = 9;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -430,7 +430,9 @@ const defaultEffort = m => (isOss(m) || /qwen3|nemotron/i.test(m) ? 'low' : 'non
 const maxOut = effort => (effort === 'medium' || effort === 'high' ? 12000 : MAX_OUT);
 function thinking(model, effort) {
   if (/qwen3/i.test(model)) return { reasoning_effort: effort === 'none' ? 'low' : effort === 'high' ? 'xhigh' : effort };
-  if (/nemotron/i.test(model)) return { chat_template_kwargs: effort === 'none' ? { enable_thinking: false } : { enable_thinking: true, low_effort: effort === 'low' } };
+  // Nemotron 생각 끔: 9판부터 force_nonempty_content (문서: 답 글이 비지 않게). 8판에서 생각 메모로 다시 쓸 때 2번 다
+  // 짧은 생각 글만 쓰고 답 글 없이 끝났어요 (2026-11-06)
+  if (/nemotron/i.test(model)) return { chat_template_kwargs: effort === 'none' ? { enable_thinking: false, force_nonempty_content: true } : { enable_thinking: true, low_effort: effort === 'low' } };
   if (/gemma-4|glm-4|glm-5/i.test(model)) return { chat_template_kwargs: { enable_thinking: effort !== 'none' } };
   return {};
 }

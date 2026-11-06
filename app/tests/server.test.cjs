@@ -162,7 +162,7 @@ test('story server: thinking is set per model as the Cloudflare docs say, and ot
   const w = await load(), t = w._.thinking;
   assert.deepEqual(t('@cf/google/gemma-4-26b-a4b-it', 'none'), { chat_template_kwargs: { enable_thinking: false } });
   assert.deepEqual(t('@cf/zai-org/glm-4.7-flash', 'none'), { chat_template_kwargs: { enable_thinking: false } });
-  assert.deepEqual(t('@cf/nvidia/nemotron-3-120b-a12b', 'none'), { chat_template_kwargs: { enable_thinking: false } });
+  assert.deepEqual(t('@cf/nvidia/nemotron-3-120b-a12b', 'none'), { chat_template_kwargs: { enable_thinking: false, force_nonempty_content: true } });
   assert.deepEqual(t('@cf/nvidia/nemotron-3-120b-a12b', 'low'), { chat_template_kwargs: { enable_thinking: true, low_effort: true } });
   assert.deepEqual(t('@cf/qwen/qwen3.8-27b', 'none'), { reasoning_effort: 'low' });
   assert.deepEqual(t('@cf/meta/llama-3.3-70b-instruct-fp8-fast', 'none'), {});
@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 8 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 9 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -376,7 +376,7 @@ test('story server v8: notes — the thinking from a cut stream comes back as no
   assert.match(u, /lantern - 등불/);
   assert.ok(u.includes('<메모>\n' + notes.trim() + '\n</메모>'));
   assert.ok(u.endsWith('</메모>\n답:'));
-  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: false });
+  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: false, force_nonempty_content: true });
   // 한 번에 받는 길도 메모를 넘겨요
   const j = await (await w.fetch(req({ words: WORDS, format: 'plain', effort: 'none', notes: 'Hero: a fox.' }), env)).json();
   assert.equal(j.text, STORY);

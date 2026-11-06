@@ -93,9 +93,14 @@ async function askServer(route, body) {
 }
 async function rescue(body, reasoning, before) {
   const notes = String(reasoning || '').trim().slice(-W.MAX_NOTES).trim();
-  if (!notes) throw Object.assign(new Error('끊긴 흘려 받기에 생각 글도 없어요'), { server: true });
-  const x = await post('/story', { ...body, effort: 'none', notes });
-  return { ...x, rescued: true, notes, steps: [...before, ...x.steps.map(s => ({ ...s, step: 'rescue' }))] };
+  if (!notes) throw Object.assign(new Error('끊긴 흘려 받기에 생각 글도 없어요'), { server: true, steps: before });
+  try {
+    const x = await post('/story', { ...body, effort: 'none', notes });
+    return { ...x, rescued: true, notes, steps: [...before, ...x.steps.map(s => ({ ...s, step: 'rescue' }))] };
+  } catch (e) {
+    // 다시 쓰기도 안 되면 끊긴 첫 요청과 다시 쓰기 요청을 모두 세고, 다시 쓰기의 생각 글을 남겨요 (까닭을 보려고)
+    throw Object.assign(e, { message: '생각 메모로 다시 썼지만 ' + e.message, steps: [...before, ...(e.step ? [{ ...e.step, step: 'rescue' }] : [])], rescueThinking: e.reasoning, notes, step: undefined });
+  }
 }
 
 async function main() {
@@ -126,8 +131,8 @@ async function main() {
         Object.assign(run, { fixes, ok: !c.why.length, why: c.why, warn: c.warn, text, ...parse(text) });
       } catch (e) {
         if (e.stop) { say('\n' + e.message + ' → 멈춰요 (한국 시간 오전 9시에 다시 채워져요)'); break outer; }
-        if (e.step) steps.push(e.step); // 끊긴 요청도 무료 한도를 써요 (어림)
-        Object.assign(run, { ok: false, err: String((e && e.message) || e), first: { ok: false, why: [] } });
+        if (e.steps) steps.push(...e.steps); else if (e.step) steps.push(e.step); // 끊긴 요청도 무료 한도를 써요 (어림)
+        Object.assign(run, { ok: false, err: String((e && e.message) || e), first: { ok: false, why: [] }, ...(e.notes ? { thinking: e.notes, rescueThinking: e.rescueThinking } : {}) });
       }
       Object.assign(run, { steps, neurons: Math.round(neurons(steps)), ms: Date.now() - t0 });
       runs.push(run); save();
