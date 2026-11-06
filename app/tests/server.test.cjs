@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 10 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 11 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -430,5 +430,50 @@ test('story server v10: style simple — easy step-by-step stories with their ow
   await w.fetch(req({ words: WORDS }), env);
   assert.equal(sys(calls[3]), w._.RULES);
   assert.equal((await w.fetch(req({ words: WORDS, style: 'fancy' }), env)).status, 400);
+  assert.equal(calls.length, 4);
+});
+
+// 11판 (2026-11-06): /group — 단어장 전체를 6개씩, 한 장면에 어울리는 묶음으로 (사용자: 뉴런을 묶는 데 집중).
+// /story의 scene — 그 묶음의 장면과 단어마다 일어나는 일대로 써요
+const DECK = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar',
+  'papa', 'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray', 'yankee', 'zulu', 'apple', 'banana', 'cherry', 'grape'].map((en, i) => [en, '뜻' + (i + 1), 'n']);
+test('story server v11: /group splits a whole word list into one-scene groups of six; /story follows a group scene', async () => {
+  const w = await load();
+  const GROUPS = JSON.stringify({ groups: [{ scene: '소녀가 부엌에서 케이크를 만들어요.', words: DECK.slice(0, 6).map(([word]) => ({ word, event: word + ' 일이 일어나요.' })) }] });
+  const sse = () => new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); c.close(); } });
+  const answer = input => (input.messages[0].content === w._.GROUPER ? GROUPS : STORY);
+  const { env, calls } = fakeEnv((m, input) => (input.stream ? sse() : { choices: [{ message: { content: answer(input) } }], usage: { prompt_tokens: 900, completion_tokens: 2000 } }));
+  const url = 'https://s.example/group';
+  const j = await (await w.fetch(req({ words: DECK, effort: 'medium' }, { url }), env)).json();
+  assert.equal(j.text, GROUPS);
+  assert.equal(j.steps[0].step, 'group');
+  assert.equal(sys(calls[0]), w._.GROUPER);
+  assert.match(usr(calls[0]), /단어 30개 → 6개씩 묶음 5개/);
+  assert.match(usr(calls[0]), /grape - 뜻30/);
+  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: true, low_effort: false });
+  // 두 번째 생각: 앞서 받은 묶음을 따져 보고 바꿔요
+  const r2 = await (await w.fetch(req({ words: DECK, effort: 'medium', draft: GROUPS }, { url }), env)).json();
+  assert.equal(r2.steps[0].step, 'review');
+  assert.ok(usr(calls[1]).includes('<초안>\n' + GROUPS + '\n</초안>'));
+  // 흘려 받기도 돼요 (생각 보통이 120초 안에 끝나게)
+  const s = await w.fetch(req({ words: DECK, effort: 'medium', stream: true }, { url }), env);
+  assert.match(s.headers.get('content-type'), /^text\/event-stream/);
+  await s.text();
+  assert.equal(calls[2].input.messages[0].content, w._.GROUPER);
+  // 안 되는 것: 단어 6개 미만·40개 넘음, 이야기 칸(format), 사진 같은 초안, 초안 없이 큰 요청
+  const many = Array.from({ length: 41 }, (_, i) => ['w' + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26)), '뜻', 'n']);
+  for (const bad of [{ words: DECK.slice(0, 5) }, { words: many }, { words: DECK, format: 'plain' }, { words: DECK, draft: 'x ' + 'QUJD'.repeat(50) }, { words: DECK, draft: 7 }]) {
+    assert.equal((await w.fetch(req(bad, { url }), env)).status, 400, JSON.stringify(bad).slice(0, 60));
+  }
+  assert.equal((await w.fetch(req(JSON.stringify({ words: DECK, pad: 'x'.repeat(7000) }), { url }), env)).status, 413);
+  assert.equal(calls.length, 3);
+  // /story의 장면: 묶음의 장면·일대로 써요 (메모 없이도 2KB를 넘을 수 있어요)
+  const scene = '장면: 소녀가 부엌에서 케이크를 만들어요.\n' + WORDS.map(([en]) => `- ${en}: ${en}을 써요.`).join('\n') + '\n' + '덧붙임 '.repeat(200);
+  const st = await (await w.fetch(req({ words: WORDS, format: 'plain', effort: 'medium', scene }), env)).json();
+  assert.equal(st.text, STORY);
+  assert.ok(usr(calls[3]).includes('<장면>\n' + scene.trim() + '\n</장면>'));
+  for (const bad of [{ scene: 'x', format: 'json' }, { scene: 'x', plan: true }, { scene: 'ㄱ'.repeat(3001) }, { scene: '' }]) {
+    assert.equal((await w.fetch(req({ words: WORDS, ...bad }), env)).status, 400, JSON.stringify(bad).slice(0, 60));
+  }
   assert.equal(calls.length, 4);
 });

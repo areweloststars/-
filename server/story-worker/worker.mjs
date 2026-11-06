@@ -15,6 +15,10 @@
 // 주소
 // - POST /story {words, model?, effort?, format?, plan?, drafts?, editor?, editorEffort?, stream?, notes?, style?}
 //   style (10판): 'twist'(기본, 명작 비틀기) · 'simple'(한 인물이 한 가지 일을 차례로 겪는 쉬운 이야기, 2026-11-06 사용자가 고름)
+//   scene (11판): /group이 짠 그 묶음의 장면과 단어마다 일어나는 일(글자). 이 장면 안에서 그 일들이 차례로 이어지게 써요
+// - POST /group {words(6~40개), model?, effort?, stream?, notes?, draft?} (11판): 단어장 전체를 6개씩, 한 장면에 어울리는 묶음으로 나눠요.
+//   2026-11-06 사용자가 정함: "뉴런은 단어들을 한 장면에 어울리는 묶음으로 모으는 것에 집중" (좋아를 받은 2편은 단어가 처음부터 한 장면에 모이는 묶음이었어요).
+//   draft: 앞서 받은 묶음(JSON 글)을 따져 보고 어울리지 않는 단어를 바꿔요 (두 번째 생각). 답 text는 JSON 글 {"groups":[{scene, words:[{word, event}]}]}
 //   format 'text': AI가 앱 꼴 글을 바로 써요 / 'json': AI는 칸(제목·문장·단어·뜻 말·그림)만 채우고, {영어|뜻} 표시와 줄 꼴은 서버가 만들어요
 //          'plain' (7판): 앱 꼴이지만 {영어|뜻} 표시 없이 자연스러운 문장으로만 써요. 표시는 앱이 뜻 말을 찾아 붙여요
 //   plan true: 먼저 뼈대(비튼 동화·주인공·문제·해결·단어마다 사건)를 짜고 그 뼈대대로 써요 (두 번 물어요)
@@ -55,10 +59,10 @@ const MODEL_ID = /^@cf\/[a-z0-9._-]{1,40}\/[a-z0-9._-]{1,80}$/;
 const EFFORTS = ['none', 'low', 'medium', 'high'];
 const FORMATS = ['text', 'json', 'plain'];
 const ORIGINS = ['https://areweloststars.github.io'];
-const MAX_BODY = { '/story': 65536, '/fix': 16384 }; // /story는 생각 메모(notes)가 있을 때만 60KB까지
-const WORDS_ONLY = 2048; // 생각 메모가 없는 /story는 단어 글자뿐이라 2KB까지
+const MAX_BODY = { '/story': 65536, '/fix': 16384, '/group': 65536 }; // 생각 메모(notes)·묶음 초안(draft)·장면(scene)이 있을 때만 크게
+const WORDS_ONLY = { '/story': 2048, '/group': 6144 }; // 그것들이 없으면 단어 글자뿐이라 작아요 (/group은 단어 40개까지)
 const MAX_OUT = 4000;
-const VERSION = 10;
+const VERSION = 11;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -211,11 +215,42 @@ ${wordList(EXAMPLES[style].words)}
 ${exampleShow(EXAMPLES[style], format)}`;
 const RULES = writerSystem('text'); // 앱 꼴로 바로 쓰는 규칙 글 (PLAYGROUND.md에도 써요)
 
-const ask = (words, plan, notes) => `요청 (${linesNote(words)}):
+const ask = (words, plan, notes, scene) => `요청 (${linesNote(words)}):
 ${wordList(words)}${plan ? `
 이야기 뼈대 (이 뼈대대로 써요. 단어 차례도 뼈대대로):
-${JSON.stringify(plan, null, 1)}` : ''}${notes ? `
+${JSON.stringify(plan, null, 1)}` : ''}${scene ? `
+이 묶음의 장면과 단어마다 일어나는 일이에요. 이 장면 안에서, 이 일들이 차례로 이어지게 써요 (문장은 규칙에 맞게 새로 다듬어요):
+<장면>
+${scene}
+</장면>` : ''}${notes ? `
 이야기를 짜며 적어 둔 생각 메모예요 (중간에 끊겼을 수 있어요). 메모에서 고른 이야기·인물·단어 차례를 따라, 규칙과 답 꼴대로 이야기 한 편을 써요:
+<메모>
+${notes}
+</메모>` : ''}
+답:`;
+
+// 묶음 짜기 (11판, /group): 단어장을 6개씩, 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는 묶음으로 나눠요.
+// 2026-11-06 사용자: 좋아를 받은 2편(요리·사고와 구조)은 단어가 처음부터 한 장면에 모이는 묶음 → 묶는 데 AI를 많이 써요
+const GROUPER = `너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 기획자예요.
+단어장(영어 단어와 받은 뜻)을 받으면 단어를 6개씩 묶어요. 묶음 하나가 이야기 한 편이 돼요.
+
+가장 중요한 것: 한 묶음의 단어 6개가 모두 한 장면(한 주인공, 한 곳, 한 가지 일)에서 받은 뜻 그대로 자연스럽게 쓰여야 해요.
+- 먼저 단어마다 받은 뜻이 그대로, 자연스럽게 쓰이는 장면을 여러 개 떠올려요. 뜻이 좁은 단어는 그 뜻이 꼭 맞는 장면에만 넣어요.
+- 같은 장면에 자연스럽게 모이는 단어끼리 묶어요. 묶음마다 장면(scene)을 한 문장으로 적어요: 누가, 어디서, 무슨 일을 하는지.
+- 단어마다 그 장면에서 일어나는 일(event)을 한 문장으로 적어요. 받은 뜻 낱말을 그대로 넣은(끝만 바꾼) 자연스러운 한국어 문장이에요.
+- event를 차례대로 읽으면 앞 일 때문에 다음 일이 일어나는 줄거리가 되게 차례를 정해요.
+- 그 장면에서 자연스러운 문장을 만들 수 없는 단어는 다른 묶음에 넣어요. 억지로 끼운 단어가 하나도 없게 해요.
+- 모든 단어를 한 번씩만 써요. 단어 수가 6으로 나누어떨어지지 않으면 묶음 하나만 5개나 7개로 해요.
+답 꼴: JSON 하나만 써요 (다른 말이나 \`\`\` 표시는 쓰지 않아요).
+{"groups": [{"scene": "장면 한 문장", "words": [{"word": "영어 단어", "event": "그 단어가 받은 뜻 그대로 쓰인 한 문장"}]}]}`;
+const groupAsk = (words, draft, notes) => `요청 (단어 ${words.length}개 → 6개씩 묶음 ${Math.max(1, Math.round(words.length / 6))}개):
+${wordList(words)}${draft ? `
+묶음 초안이에요. 묶음마다 단어 6개가 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는지 하나씩 따져 봐요.
+어울리지 않거나 event 문장이 억지스러운 단어는 더 잘 어울리는 묶음의 단어와 바꾸고, 장면과 event를 다시 써요. 고친 묶음 전체를 답 꼴대로 답해요:
+<초안>
+${draft}
+</초안>` : ''}${notes ? `
+묶음을 짜며 적어 둔 생각 메모예요 (중간에 끊겼을 수 있어요). 메모대로, 답 꼴에 맞춰 답해요:
 <메모>
 ${notes}
 </메모>` : ''}
@@ -304,11 +339,13 @@ const TEXT_BAD = /data:|base64|<\s*(img|svg|script|iframe|object)|[\u0000-\u0008
 const BLOB = /[A-Za-z0-9+/=_-]{160,}/;
 const MAX_NOTES = 20000;
 const KEYS = {
-  '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes', 'style'],
-  '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream', 'style']
+  '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes', 'style', 'scene'],
+  '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream', 'style'],
+  '/group': ['words', 'model', 'effort', 'stream', 'notes', 'draft']
 };
-function readWordList(ws) {
-  if (!Array.isArray(ws) || ws.length < 3 || ws.length > 10) return { err: '단어는 3~10개예요' };
+const MAX_SCENE = 3000;
+function readWordList(ws, min = 3, max = 10) {
+  if (!Array.isArray(ws) || ws.length < min || ws.length > max) return { err: `단어는 ${min}~${max}개예요` };
   const words = [];
   for (const w of ws) {
     const [en, ko, pos = ''] = Array.isArray(w) ? w : w && typeof w === 'object' ? [w.en, w.ko, w.pos] : [];
@@ -325,7 +362,7 @@ function readWordList(ws) {
 function readBody(path, body, allowModel) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { err: 'JSON 객체가 아니에요' };
   for (const k of Object.keys(body)) if (!KEYS[path].includes(k)) return { err: `받지 않는 칸: ${k.slice(0, 20)}` };
-  const got = readWordList(body.words);
+  const got = path === '/group' ? readWordList(body.words, 6, 40) : readWordList(body.words);
   if (got.err) return got;
   const out = { words: got.words };
   for (const k of ['model', 'editor']) {
@@ -355,6 +392,14 @@ function readBody(path, body, allowModel) {
     if (typeof n !== 'string' || !n.trim() || n.length > MAX_NOTES || TEXT_BAD.test(n) || BLOB.test(n)) return { err: '생각 메모는 글자(2만 자까지)만 받아요' };
     if (out.format === 'json' || out.plan || out.drafts > 1 || out.editor) return { err: '생각 메모(notes)는 text·plain 꼴의 한 번 쓰기에만 돼요' };
     out.notes = n.trim();
+  }
+  // 글자만 받는 칸: 묶음 초안(draft, /group)·장면(scene, /story). 둘 다 이 서버의 AI가 쓴 글이에요
+  for (const [k, max] of [['draft', MAX_NOTES], ['scene', MAX_SCENE]]) {
+    if (body[k] == null) continue;
+    const t = body[k];
+    if (typeof t !== 'string' || !t.trim() || t.length > max || TEXT_BAD.test(t) || BLOB.test(t)) return { err: `${k}는 글자(${max}자까지)만 받아요` };
+    if (k === 'scene' && (out.format === 'json' || out.plan || out.drafts > 1 || out.editor)) return { err: '장면(scene)은 text·plain 꼴의 한 번 쓰기에만 돼요' };
+    out[k] = t.trim();
   }
   if (path === '/fix') {
     const s = body.story, ps = body.problems;
@@ -523,8 +568,8 @@ async function step(env, steps, name, model, system, user, effort, format, words
   return { text, json, shape };
 }
 // 쓰기: 망가진 답이면 한 번 더 물어요
-async function writeStory(env, steps, model, effort, format, words, plan, name = 'write', notes = null, style = 'twist') {
-  const system = writerSystem(format, style), user = ask(words, plan, notes), schema = format === 'json' ? STORY_SCHEMA : null;
+async function writeStory(env, steps, model, effort, format, words, plan, name = 'write', notes = null, style = 'twist', scene = null) {
+  const system = writerSystem(format, style), user = ask(words, plan, notes, scene), schema = format === 'json' ? STORY_SCHEMA : null;
   let got = await step(env, steps, name, model, system, user, effort, format, words, schema);
   if (broken(got.text)) got = await step(env, steps, name + '-again', model, system, user, effort, format, words, schema);
   return got;
@@ -551,7 +596,7 @@ async function story(env, q) {
     out.edited = !broken(e.text);
     return { ...out, text: out.edited ? e.text : good[0], shape: e.shape };
   }
-  const w = await writeStory(env, steps, q.model, q.effort, q.format, q.words, plan, 'write', q.notes, q.style);
+  const w = await writeStory(env, steps, q.model, q.effort, q.format, q.words, plan, 'write', q.notes, q.style, q.scene);
   return { ...out, text: w.text, shape: w.shape };
 }
 // plain 꼴은 표시 없는 글로 고쳐 써요: 앱이 표시를 붙인 이야기를 보내도 표시를 떼고 넘겨요
@@ -564,8 +609,17 @@ async function fix(env, q) {
 }
 // 흘려 받기 (7판): 묻는 글은 한 번 쓰기(/story)·고쳐 쓰기(/fix)와 같아요. 쓴 토큰은 마지막 조각에 와요 (include_usage).
 // 서버는 받은 조각을 그대로 넘기기만 해요 → CPU를 거의 안 쓰고, AI를 기다리는 시간은 무료 요금제 CPU 한도(10ms)에 들지 않아요
+// 묶음 짜기 (11판): 한 번 묻고 JSON 글을 그대로 돌려줘요 (앱·재기 도구가 읽고 확인해요)
+async function group(env, q) {
+  const steps = [], { r, ms } = await callAI(env, q.model, GROUPER, groupAsk(q.words, q.draft, q.notes), q.effort, null);
+  const u = usageOf(r);
+  steps.push({ step: q.draft ? 'review' : 'group', model: q.model, effort: q.effort, ms, in: u.in, out: u.out });
+  return { model: q.model, effort: q.effort, text: unthink(textOf(r)).trim(), shape: shapeOf(r), steps };
+}
 function streamInput(path, q) {
-  const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format, q.style), fixAsk(q.words, fixStory(q), q.problems)] : [writerSystem(q.format, q.style), ask(q.words, null, q.notes)];
+  const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format, q.style), fixAsk(q.words, fixStory(q), q.problems)]
+    : path === '/group' ? [GROUPER, groupAsk(q.words, q.draft, q.notes)]
+    : [writerSystem(q.format, q.style), ask(q.words, null, q.notes, q.scene)];
   return {
     messages: msgs(system, user), max_tokens: maxOut(q.effort), temperature: 0.7, ...thinking(q.model, q.effort),
     stream: true, ...(OPENAI_STYLE.test(q.model) ? { stream_options: { include_usage: true } } : {})
@@ -603,7 +657,7 @@ async function handle(req, env) {
   if (bytes > MAX_BODY[path]) return reply(req, 413, { error: '요청이 너무 커요 (글자만 보내요)' });
   let body;
   try { body = JSON.parse(raw); } catch { return reply(req, 400, { error: 'JSON이 아니에요' }); }
-  if (path === '/story' && bytes > WORDS_ONLY && !(body && typeof body.notes === 'string')) return reply(req, 413, { error: '요청이 너무 커요 (글자만 보내요)' });
+  if (WORDS_ONLY[path] && bytes > WORDS_ONLY[path] && !(body && ['notes', 'draft', 'scene'].some(k => typeof body[k] === 'string'))) return reply(req, 413, { error: '요청이 너무 커요 (글자만 보내요)' });
   const locked = String(env.WG_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
   const q = readBody(path, body, m => (locked.length ? locked.includes(m) : MODEL_ID.test(m)));
   if (q.err) return reply(req, 400, { error: q.err });
@@ -621,7 +675,7 @@ async function handle(req, env) {
   }
   const t0 = Date.now();
   try {
-    const res = path === '/fix' ? await fix(env, q) : await story(env, q);
+    const res = path === '/fix' ? await fix(env, q) : path === '/group' ? await group(env, q) : await story(env, q);
     const { shape, ...rest } = res;
     const usage = (res.steps || []).reduce((a, s) => ({ in: a.in + (s.in || 0), out: a.out + (s.out || 0) }), { in: 0, out: 0 });
     if (!res.text) return reply(req, 502, { error: 'AI가 빈 답을 줬어요', ...rest, shape });
@@ -632,5 +686,5 @@ async function handle(req, env) {
 // _ 는 시험(app/tests/server.test.cjs)·PLAYGROUND.md 만들기용이에요
 export default {
   fetch: handle,
-  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, MAX_NOTES, STYLES, storyRules, EXAMPLE_SIMPLE_TEXT, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
+  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, MAX_NOTES, STYLES, GROUPER, groupAsk, storyRules, EXAMPLE_SIMPLE_TEXT, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
 };

@@ -1,7 +1,7 @@
 #!/bin/bash
 # 이야기 서버 재기 차례 (2026-10-31~). 열쇠·주소는 환경 변수로만 (저장소에 넣지 않아요):
 #   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> bash tools/finetune/v3/server-rounds.sh <차례>
-# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · ways3(주제 묶음) · ways4(쉬운 이야기) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
+# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · ways3(주제 묶음) · ways4(쉬운 이야기) · group(묶음 짜기, 11판) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
 # 하루 무료 한도(10,000 Neuron)가 다 차면 그 차례에서 멈춰요 (한국 시간 오전 9시에 다시 채워져요). 결과: tools/story-lab/srv-*.txt
 cd "$(dirname "$0")/../../.."
 export NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-/root/.ccr/ca-bundle.crt} NODE_NO_WARNINGS=1
@@ -44,10 +44,17 @@ case "$1" in
     V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
     [ "${V:-0}" -ge 10 ] || { echo "서버가 10판이 아니에요 (지금 ${V:-?}판) → 대시보드에 10판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
     run ${NAME:-way4-nem-med-plain-simple} --model=$N --effort=medium --format=plain --stream --rescue --style=simple --fix=${FIX:-0} --tries=1 --sets=${SETS:-2,4,6,8,7} ;;
+  group) # 묶음 짜기 (2026-11-07~, 서버 11판 /group). 사용자: "뉴런은 단어들을 한 장면에 어울리는 묶음으로 모으는 것에 집중, 보여 주는 이야기는 2개뿐이어도 좋아"
+    # 단어장 A = 시험 묶음 1~5 (30개), B = 6~10 (31개). 묶기 + 다시 따지기(생각 보통, 흘려 받기, 끊기면 메모로) + 첫 묶음으로 이야기 1편씩
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 11 ] || { echo "서버가 11판이 아니에요 (지금 ${V:-?}판) → 대시보드에 11판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g ${NAME:-group}-a --sets=1,2,3,4,5 --effort=medium --review --stories=1
+    g ${NAME:-group}-b --sets=6,7,8,9,10 --effort=medium --review --stories=1 ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
-  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · final"; exit 2 ;;
+  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · final"; exit 2 ;;
 esac
 echo DONE
