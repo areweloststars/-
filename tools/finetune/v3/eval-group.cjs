@@ -4,7 +4,8 @@
 // 그다음 앞쪽 묶음 --stories개를 그 장면대로 이야기로 써요 (앱처럼 표시를 붙이고 점검기로 봐요. 이어짐은 사용자가 판정).
 //
 //   NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> \
-//   node tools/finetune/v3/eval-group.cjs <이름> --sets=1,2,3,4,5 [--effort=medium] [--review] [--stories=1] [--style=twist]
+//   node tools/finetune/v3/eval-group.cjs <이름> --sets=1,2,3,4,5 [--effort=medium] [--review] [--stories=1] [--style=twist] [--free]
+//   --free (서버 12판): 묶음 크기를 정하지 않고 자연스럽게 모이는 단어끼리만, 6개보다 적으면 AI가 쉬운 단어를 더해 6~10개로 (2026-11-07 사용자가 정함)
 // 결과: tools/story-lab/grp-<이름>.txt / .json (저장소에 넣지 않아요). 하루 무료 한도(429)면 멈춰요.
 const fs = require('node:fs'), path = require('node:path'), { pathToFileURL } = require('node:url');
 const { REPO, TEST_SETS, parse, check, retag, bootPage } = require('./check.cjs');
@@ -16,7 +17,9 @@ const API = (process.env.WG_STORY || '').replace(/\/$/, '');
 if (!API) { console.error('WG_STORY=<이야기 서버 주소>와 WG_TOKEN=<열쇠>를 주세요'); process.exit(2); }
 const SETS = String(arg('sets', '1,2,3,4,5')).split(',').map(Number).filter(n => n >= 1 && n <= TEST_SETS.length);
 const MODEL = arg('model', '@cf/nvidia/nemotron-3-120b-a12b'), EFFORT = arg('effort', 'medium'), REVIEW = !!arg('review');
-const STORIES = Number(arg('stories', 1)) || 0, STYLE = arg('style', 'twist');
+const STORIES = Number(arg('stories', 1)) || 0, STYLE = arg('style', 'twist'), FREE = !!arg('free');
+// AI가 더한 단어 확인 (서버가 받는 단어 꼴과 같게)
+const ADD_EN = /^[A-Za-z][A-Za-z '’.-]{0,39}$/, ADD_KO = /^[^{}|<>\n\r\t]{1,30}$/, ADD_POS = /^[a-z]{0,6}$/;
 const OUT = path.join(REPO, 'tools', 'story-lab', `grp-${NAME}`);
 
 // 단어장: 고른 시험 묶음을 차례대로 합쳐요 (같은 단어는 한 번)
@@ -31,7 +34,14 @@ function readGroups(j) {
     const ws = [];
     for (const x of (g && Array.isArray(g.words) ? g.words : [])) {
       const k = String(x && (x.word ?? x) || '').trim().toLowerCase();
-      if (!byEn.has(k)) { problems.push(`모르는 단어: ${String(k).slice(0, 30)}`); continue; }
+      if (!byEn.has(k)) {
+        // --free: 단어장에 없는 단어는 AI가 더한 쉬운 단어여야 해요 (뜻·품사가 있고, 한 묶음에 한 번)
+        const ko = String((x && x.ko) || '').trim(), pos = String((x && x.pos) || 'n').trim().toLowerCase();
+        if (FREE && ADD_EN.test(String(x.word || '').trim()) && ADD_KO.test(ko) && ADD_POS.test(pos) && !ws.some(y => y.word.toLowerCase() === k)) {
+          ws.push({ word: String(x.word).trim(), ko, pos, added: true, event: String(x.event || '').trim() });
+        } else problems.push(`모르는 단어: ${String(k).slice(0, 30)}${FREE && !ko ? ' (더한 단어인데 뜻이 없음)' : ''}`);
+        continue;
+      }
       if (used.has(k)) { problems.push(`두 번 쓴 단어: ${k}`); continue; }
       used.add(k);
       ws.push({ word: byEn.get(k)[0], event: String((x && x.event) || '').trim() });
@@ -40,12 +50,16 @@ function readGroups(j) {
   }
   const missing = WORDS.filter(w => !used.has(w[0].toLowerCase())).map(w => w[0]);
   if (missing.length) problems.push(`빠진 단어: ${missing.join(', ')}`);
-  for (const [i, g] of groups.entries()) if (g.words.length < 5 || g.words.length > 7) problems.push(`묶음 ${i + 1}: 단어 ${g.words.length}개`);
+  for (const [i, g] of groups.entries()) if (FREE ? g.words.length < 6 || g.words.length > 10 : g.words.length < 5 || g.words.length > 7) problems.push(`묶음 ${i + 1}: 단어 ${g.words.length}개`);
   return { groups, problems, missing };
 }
 // 빠진 단어는 가장 작은 묶음에 넣어요 (이야기를 쓸 수 있게. 고친 것은 적어 둬요)
 function patch(r) {
   const groups = r.groups.map(g => ({ ...g, words: g.words.slice() })), notes = [];
+  if (FREE && r.missing.length) { // --free: 빠진 단어는 따로 모아 둬요 (이야기는 쓰지 않아요)
+    groups.push({ scene: '', leftover: true, words: r.missing.map(en => ({ word: en, event: '' })) });
+    return { groups, notes: [`빠진 단어 ${r.missing.join(', ')} → 남은 단어로 따로`] };
+  }
   for (const en of r.missing) {
     if (!groups.length) groups.push({ scene: '', words: [] });
     const g = groups.reduce((a, b) => (b.words.length < a.words.length ? b : a));
@@ -64,9 +78,9 @@ async function main() {
   const save = () => { res.neurons = Math.round(neurons(res.steps)); fs.writeFileSync(OUT + '.json', JSON.stringify(res, null, 1)); };
   const showGroups = (title, r) => {
     say(`\n## ${title}${r.problems.length ? ' · 문제: ' + r.problems.join(' · ') : ' · 문제 없음'}`);
-    r.groups.forEach((g, i) => { say(`[묶음 ${i + 1}] ${g.scene}`); g.words.forEach(x => say(`  - ${x.word} (${byEn.get(x.word.toLowerCase())[1]}): ${x.event}`)); });
+    r.groups.forEach((g, i) => { say(`[묶음 ${i + 1}] ${g.scene} (${g.words.filter(x => !x.added).length}개${g.words.some(x => x.added) ? ` + AI가 더함 ${g.words.filter(x => x.added).length}개` : ''})`); g.words.forEach(x => say(`  - ${x.word} (${x.added ? x.ko + ', AI가 더함' : byEn.get(x.word.toLowerCase())[1]}): ${x.event}`)); });
   };
-  say(`# 묶음 짜기 재기 · ${NAME} · 시험 묶음 ${SETS.join(',')} → 단어 ${WORDS.length}개 · ${MODEL.split('/').pop()} 생각 ${EFFORT}${REVIEW ? ' · 다시 따지기' : ''} · 이야기 ${STORIES}편 (${STYLE}) · ${new Date().toISOString().slice(0, 16)}`);
+  say(`# 묶음 짜기 재기 · ${NAME} · 시험 묶음 ${SETS.join(',')} → 단어 ${WORDS.length}개 · ${MODEL.split('/').pop()} 생각 ${EFFORT}${FREE ? ' · 크기 자유(모자라면 AI가 더함)' : ''}${REVIEW ? ' · 다시 따지기' : ''} · 이야기 ${STORIES}편 (${STYLE}) · ${new Date().toISOString().slice(0, 16)}`);
   try {
     const ask = async (route, body, label) => {
       try {
@@ -79,13 +93,13 @@ async function main() {
       }
     };
     // 1) 묶기
-    const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true }, '묶기');
+    const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, ...(FREE ? { free: true } : {}) }, '묶기');
     let r = readGroups(W.parseJSON(g1.text));
     res.passes.push({ step: 'group', rescued: !!g1.rescued, ...r, thinking: g1.rescued ? g1.notes : g1.reasoning, raw: g1.text });
     showGroups(`묶기${g1.rescued ? ' (생각이 끊겨 메모로 다시 씀)' : ''}`, r); save();
     // 2) 다시 따지기
     if (REVIEW && r.groups.length) {
-      const g2 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, draft: JSON.stringify({ groups: r.groups }) }, '다시 따지기');
+      const g2 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, draft: JSON.stringify({ groups: r.groups }), ...(FREE ? { free: true } : {}) }, '다시 따지기');
       const r2 = readGroups(W.parseJSON(g2.text));
       res.passes.push({ step: 'review', rescued: !!g2.rescued, ...r2, thinking: g2.rescued ? g2.notes : g2.reasoning, raw: g2.text });
       showGroups(`다시 따지기${g2.rescued ? ' (생각이 끊겨 메모로 다시 씀)' : ''}`, r2);
@@ -97,9 +111,11 @@ async function main() {
     if (fin.notes.length) say(`\n고친 것: ${fin.notes.join(' · ')}`);
     save();
     // 3) 앞쪽 묶음으로 이야기 (그 장면대로)
-    for (const [i, g] of fin.groups.slice(0, STORIES).entries()) {
-      const gw = g.words.map(x => byEn.get(x.word.toLowerCase()));
-      const st = { group: i + 1, words: gw.map(w => w[0]), ko: gw.map(w => w[1]), scene: sceneText(g) };
+    // 이야기를 쓸 묶음: 앞쪽부터 (--free면 6~10개인 묶음만, 남은 단어 묶음은 빼요)
+    const writable = fin.groups.map((g, i) => [g, i]).filter(([g]) => !g.leftover && (!FREE || (g.words.length >= 6 && g.words.length <= 10)));
+    for (const [g, i] of writable.slice(0, STORIES)) {
+      const gw = g.words.map(x => (x.added ? [x.word, x.ko, x.pos] : byEn.get(x.word.toLowerCase())));
+      const st = { group: i + 1, words: gw.map(w => w[0]), ko: gw.map(w => w[1]), added: g.words.filter(x => x.added).map(x => x.word), scene: sceneText(g) };
       try {
         const x = await ask('/story', { words: gw, model: MODEL, effort: EFFORT, format: 'plain', stream: true, style: STYLE, scene: st.scene }, `이야기 ${i + 1}`);
         const o = retag(p, gw, parse(x.text)), chk = check(p, gw, o);
