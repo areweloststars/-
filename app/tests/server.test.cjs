@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 12 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 13 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -485,9 +485,9 @@ test('story server v12: /group free — natural groups of any size, the AI adds 
   const url = 'https://s.example/group';
   await w.fetch(req({ words: DECK, effort: 'medium', free: true }, { url }), env);
   assert.equal(sys(calls[0]), w._.GROUPER_FREE);
-  assert.match(sys(calls[0]), /묶음 크기는 정해져 있지 않아요/);
+  assert.match(sys(calls[0]), /단어장 단어는 한 묶음에 2~4개만 넣어요/);
   assert.match(sys(calls[0]), /"added": true/);
-  assert.match(usr(calls[0]), /단어 30개 → 한 장면에 자연스럽게 모이는 대로 묶어요/);
+  assert.match(usr(calls[0]), /단어 30개 → 단어장 단어 2~4개씩 묶고, 묶음마다 쉬운 단어를 더해 6개로/);
   const s = await w.fetch(req({ words: DECK, effort: 'medium', free: true, stream: true }, { url }), fakeEnv(() => new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); c.close(); } })).env);
   assert.equal(s.status, 200);
   // free 없으면 지금처럼 6개씩

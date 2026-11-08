@@ -54,10 +54,11 @@ case "$1" in
   group2) # 자유 묶음 (2026-11-08~, 서버 12판 /group free). 사용자: "묶음 크기 자유롭게 하되 없는 단어는 AI가 단어를 넣어서 최소 6개 이상으로.
     # 자연스럽다면 6개를 넘어도 상관없음" (6개씩 나눈 1차는 10묶음 가운데 요리 수업만 어울렸어요). 다시 따지기는 거의 안 바꿔서 빼고, 이야기를 3편씩
     V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
-    [ "${V:-0}" -ge 12 ] || { echo "서버가 12판이 아니에요 (지금 ${V:-?}판) → 대시보드에 12판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    # 13판(2026-11-09~): 12판은 AI가 단어를 더하지 않아서, 한 묶음에 단어장 단어 2~4개 + 쉬운 단어로 6개 (묶음이 8~12개로 늘어 이야기는 2편씩)
+    [ "${V:-0}" -ge 13 ] || { echo "서버가 13판이 아니에요 (지금 ${V:-?}판) → 대시보드에 13판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
     g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
-    g ${NAME:-free}-a --sets=1,2,3,4,5 --effort=medium --free --stories=${STORIES:-3}
-    g ${NAME:-free}-b --sets=6,7,8,9,10 --effort=medium --free --stories=${STORIES:-3} ;;
+    g ${NAME:-fill}-a --sets=1,2,3,4,5 --effort=medium --free --stories=${STORIES:-2}
+    g ${NAME:-fill}-b --sets=6,7,8,9,10 --effort=medium --free --stories=${STORIES:-2} ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3

@@ -51,6 +51,8 @@ function readGroups(j) {
   const missing = WORDS.filter(w => !used.has(w[0].toLowerCase())).map(w => w[0]);
   if (missing.length) problems.push(`빠진 단어: ${missing.join(', ')}`);
   for (const [i, g] of groups.entries()) if (FREE ? g.words.length < 6 || g.words.length > 10 : g.words.length < 5 || g.words.length > 7) problems.push(`묶음 ${i + 1}: 단어 ${g.words.length}개`);
+  // 13판 free: 단어장 단어는 한 묶음에 2~4개 (그보다 많으면 AI가 규칙을 안 지킨 것)
+  if (FREE) for (const [i, g] of groups.entries()) { const n = g.words.filter(x => !x.added).length; if (n > 4) problems.push(`묶음 ${i + 1}: 단어장 단어 ${n}개 (4개까지)`); }
   return { groups, problems, missing };
 }
 // 빠진 단어는 가장 작은 묶음에 넣어요 (이야기를 쓸 수 있게. 고친 것은 적어 둬요)
