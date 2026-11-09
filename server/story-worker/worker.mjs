@@ -19,11 +19,8 @@
 // - POST /group {words(6~40개), model?, effort?, stream?, notes?, draft?} (11판): 단어장 전체를 6개씩, 한 장면에 어울리는 묶음으로 나눠요.
 //   2026-11-06 사용자가 정함: "뉴런은 단어들을 한 장면에 어울리는 묶음으로 모으는 것에 집중" (좋아를 받은 2편은 단어가 처음부터 한 장면에 모이는 묶음이었어요).
 //   draft: 앞서 받은 묶음(JSON 글)을 따져 보고 어울리지 않는 단어를 바꿔요 (두 번째 생각). 답 text는 JSON 글 {"groups":[{scene, words:[{word, event}]}]}
-//   free true (12판, 13판에 고침): 단어장 단어는 한 묶음에 2~4개만, 나머지는 AI가 그 장면에 맞는 쉬운 단어를 꼭 더해 6개로 (12판은 '크기 자유'라고만 해서 AI가 더하지 않았어요).
-//   (12판 설명) 묶음 크기를 정하지 않고 정말 자연스럽게 모이는 단어끼리만 묶어요. 묶음이 6개보다 적으면 AI가 그 장면에 맞는
-//   쉬운 단어(단어장에 없는 낱말, {word, ko, pos, added:true})를 더해 6개 이상으로 (10개까지). 2026-11-07 사용자가 정함:
-//   "묶음 크기 자유롭게 하되 없는 단어는 AI가 단어를 넣어서 최소 6개 이상으로. 자연스럽다면 6개를 넘어도 상관없음"
-//   (6개씩 나눈 1차는 10묶음 가운데 요리 수업 하나만 어울렸어요)
+//   size 4 (14판, 2026-11-09 사용자가 정함): 단어장 단어 4개씩 (남으면 5개까지). AI가 단어를 더하는 길(12·13판 free)은 없앴어요
+//   ("AI가 더한 단어는 모두 부자연스러워"). 13판의 단어장 단어 4개 묶음 넷(도서관·간식 설문·소풍 일정·박물관)은 자연스러웠어요
 //   format 'text': AI가 앱 꼴 글을 바로 써요 / 'json': AI는 칸(제목·문장·단어·뜻 말·그림)만 채우고, {영어|뜻} 표시와 줄 꼴은 서버가 만들어요
 //          'plain' (7판): 앱 꼴이지만 {영어|뜻} 표시 없이 자연스러운 문장으로만 써요. 표시는 앱이 뜻 말을 찾아 붙여요
 //   plan true: 먼저 뼈대(비튼 동화·주인공·문제·해결·단어마다 사건)를 짜고 그 뼈대대로 써요 (두 번 물어요)
@@ -67,7 +64,7 @@ const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 65536, '/fix': 16384, '/group': 65536 }; // 생각 메모(notes)·묶음 초안(draft)·장면(scene)이 있을 때만 크게
 const WORDS_ONLY = { '/story': 2048, '/group': 6144 }; // 그것들이 없으면 단어 글자뿐이라 작아요 (/group은 단어 40개까지)
 const MAX_OUT = 4000;
-const VERSION = 13;
+const VERSION = 14;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -234,40 +231,27 @@ ${notes}
 </메모>` : ''}
 답:`;
 
-// 묶음 짜기 (11판, /group): 단어장을 6개씩, 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는 묶음으로 나눠요.
-// 2026-11-06 사용자: 좋아를 받은 2편(요리·사고와 구조)은 단어가 처음부터 한 장면에 모이는 묶음 → 묶는 데 AI를 많이 써요
-const GROUPER = `너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 기획자예요.
-단어장(영어 단어와 받은 뜻)을 받으면 단어를 6개씩 묶어요. 묶음 하나가 이야기 한 편이 돼요.
+// 묶음 짜기 (11판, /group): 단어장을 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는 묶음으로 나눠요.
+// 2026-11-06 사용자: 좋아를 받은 2편(요리·사고와 구조)은 단어가 처음부터 한 장면에 모이는 묶음 → 묶는 데 AI를 많이 써요.
+// 14판: 묶음 크기 size 4·6 (6이면 11판 글 그대로). AI가 단어를 더하는 12·13판 free는 사용자 판정으로 없앴어요 (2026-11-09)
+const SIZES = [4, 6];
+const grouper = (size = 6) => `너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 기획자예요.
+단어장(영어 단어와 받은 뜻)을 받으면 단어를 ${size}개씩 묶어요. 묶음 하나가 이야기 한 편이 돼요.
 
-가장 중요한 것: 한 묶음의 단어 6개가 모두 한 장면(한 주인공, 한 곳, 한 가지 일)에서 받은 뜻 그대로 자연스럽게 쓰여야 해요.
+가장 중요한 것: 한 묶음의 단어 ${size}개가 모두 한 장면(한 주인공, 한 곳, 한 가지 일)에서 받은 뜻 그대로 자연스럽게 쓰여야 해요.
 - 먼저 단어마다 받은 뜻이 그대로, 자연스럽게 쓰이는 장면을 여러 개 떠올려요. 뜻이 좁은 단어는 그 뜻이 꼭 맞는 장면에만 넣어요.
 - 같은 장면에 자연스럽게 모이는 단어끼리 묶어요. 묶음마다 장면(scene)을 한 문장으로 적어요: 누가, 어디서, 무슨 일을 하는지.
 - 단어마다 그 장면에서 일어나는 일(event)을 한 문장으로 적어요. 받은 뜻 낱말을 그대로 넣은(끝만 바꾼) 자연스러운 한국어 문장이에요.
 - event를 차례대로 읽으면 앞 일 때문에 다음 일이 일어나는 줄거리가 되게 차례를 정해요.
 - 그 장면에서 자연스러운 문장을 만들 수 없는 단어는 다른 묶음에 넣어요. 억지로 끼운 단어가 하나도 없게 해요.
-- 모든 단어를 한 번씩만 써요. 단어 수가 6으로 나누어떨어지지 않으면 묶음 하나만 5개나 7개로 해요.
+- 모든 단어를 한 번씩만 써요. ${size === 6 ? '단어 수가 6으로 나누어떨어지지 않으면 묶음 하나만 5개나 7개로 해요.' : `단어 수가 ${size}로 나누어떨어지지 않으면 남는 단어를 가장 잘 어울리는 묶음에 하나씩 더해요 (한 묶음에 ${size + 1}개까지).
+- 단어장에 없는 단어를 더하지 않아요. 어린이가 겪거나 그림처럼 떠올릴 수 있는 장면이 좋아요. 한국어만 써요 (한자를 섞지 않아요).`}
 답 꼴: JSON 하나만 써요 (다른 말이나 \`\`\` 표시는 쓰지 않아요).
 {"groups": [{"scene": "장면 한 문장", "words": [{"word": "영어 단어", "event": "그 단어가 받은 뜻 그대로 쓰인 한 문장"}]}]}`;
-// 묶음 크기를 정하지 않는 묶기 (12판, free): 모자라면 AI가 쉬운 단어를 더해요
-// 13판: 12판처럼 '크기 자유'라고만 하면 AI가 6개씩 나누고 단어를 하나도 더하지 않았어요 (2026-11-08) → 단어장 단어를 2~4개만 넣고 나머지는 꼭 더하게
-const GROUPER_FREE = `너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 기획자예요.
-단어장(영어 단어와 받은 뜻)을 받으면, 단어장 단어를 2~4개씩 작은 묶음으로 나누고, 묶음마다 그 장면에 꼭 맞는 쉬운 영어 단어를 더해 6개로 만들어요. 묶음 하나가 이야기 한 편이 돼요.
-
-가장 중요한 것: 한 묶음의 단어 6개가 모두 한 장면(한 주인공, 한 곳, 한 가지 일)에서 뜻 그대로 자연스럽게 쓰여야 해요.
-- 단어장 단어는 한 묶음에 2~4개만 넣어요 (5개 이상 넣지 않아요). 정말 자연스럽게 함께 쓰이는 단어끼리만 모아요.
-- 먼저 단어마다 받은 뜻이 그대로 쓰이는 장면을 여러 개 떠올린 뒤, 같은 장면에 모이는 단어 2~4개를 고르고 그 장면을 정해요. 어린이가 겪거나 그림처럼 떠올릴 수 있는 장면이 좋아요.
-- 묶음마다 그 장면에 꼭 맞는 쉬운 영어 단어(단어장에 없는 낱말)를 더해 모두 6개가 되게 해요. 이건 꼭 해요.
-  더한 단어에는 "added": true와 쉬운 한국어 뜻(ko), 품사(pos: n·v·a)를 붙여요. 어린이가 아는 쉬운 단어(예: kite 연, bake 굽다, puppy 강아지)로 더해요.
-- 어느 묶음에도 자연스럽게 맞지 않는 단어장 단어는 그 단어 하나에 꼭 맞는 장면을 따로 만들고 쉬운 단어 5개를 더해요.
-- 묶음마다 장면(scene)을 한 문장으로 적어요: 누가, 어디서, 무슨 일을 하는지.
-- 단어마다 그 장면에서 일어나는 일(event)을 한 문장으로 적어요. 그 단어의 뜻 낱말을 그대로 넣은(끝만 바꾼) 자연스러운 한국어 문장이에요.
-- event를 차례대로 읽으면 앞 일 때문에 다음 일이 일어나는 줄거리가 되게 차례를 정해요 (더한 단어도 그 차례 안에 넣어요).
-- 단어장의 모든 단어를 한 번씩만 써요. 한국어만 써요 (한자를 섞지 않아요).
-답 꼴: JSON 하나만 써요 (다른 말이나 \`\`\` 표시는 쓰지 않아요).
-{"groups": [{"scene": "장면 한 문장", "words": [{"word": "단어장 단어", "event": "한 문장"}, {"word": "더한 단어", "ko": "쉬운 뜻", "pos": "n", "added": true, "event": "한 문장"}]}]}`;
-const groupAsk = (words, draft, notes, free = false) => `요청 (단어 ${words.length}개 → ${free ? '단어장 단어 2~4개씩 묶고, 묶음마다 쉬운 단어를 더해 6개로' : `6개씩 묶음 ${Math.max(1, Math.round(words.length / 6))}개`}):
+const GROUPER = grouper(6);
+const groupAsk = (words, draft, notes, size = 6) => `요청 (단어 ${words.length}개 → ${size === 6 ? `6개씩 묶음 ${Math.max(1, Math.round(words.length / 6))}개` : `${size}개씩 묶음 ${Math.max(1, Math.floor(words.length / size))}개, 남는 단어는 어울리는 묶음에 더해 ${size + 1}개까지`}):
 ${wordList(words)}${draft ? `
-묶음 초안이에요. 묶음마다 단어 6개가 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는지 하나씩 따져 봐요.
+묶음 초안이에요. 묶음마다 단어 ${size}개가 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는지 하나씩 따져 봐요.
 어울리지 않거나 event 문장이 억지스러운 단어는 더 잘 어울리는 묶음의 단어와 바꾸고, 장면과 event를 다시 써요. 고친 묶음 전체를 답 꼴대로 답해요:
 <초안>
 ${draft}
@@ -363,7 +347,7 @@ const MAX_NOTES = 20000;
 const KEYS = {
   '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes', 'style', 'scene'],
   '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream', 'style'],
-  '/group': ['words', 'model', 'effort', 'stream', 'notes', 'draft', 'free']
+  '/group': ['words', 'model', 'effort', 'stream', 'notes', 'draft', 'size']
 };
 const MAX_SCENE = 3000;
 function readWordList(ws, min = 3, max = 10) {
@@ -406,8 +390,8 @@ function readBody(path, body, allowModel) {
   if (body.drafts != null && !(Number.isInteger(body.drafts) && body.drafts >= 1 && body.drafts <= 3)) return { err: '초안은 1~3편이에요' };
   out.drafts = body.drafts || 1;
   if (body.stream != null && typeof body.stream !== 'boolean') return { err: 'stream은 true·false예요' };
-  if (body.free != null && typeof body.free !== 'boolean') return { err: 'free는 true·false예요' };
-  out.free = body.free === true;
+  if (body.size != null && !SIZES.includes(body.size)) return { err: '묶음 크기(size)는 4·6이에요' };
+  out.size = body.size || 6;
   out.stream = body.stream === true;
   // 흘려 받기는 AI에게 한 번 묻고 답 글을 그대로 넘겨요 → 서버가 답을 고쳐 만들어야 하는 길(JSON 꼴·뼈대·초안·편집자)은 안 돼요
   if (out.stream && (out.format === 'json' || out.plan || out.drafts > 1 || out.editor)) return { err: '흘려 받기(stream)는 text·plain 꼴의 한 번 쓰기에만 돼요' };
@@ -635,14 +619,14 @@ async function fix(env, q) {
 // 서버는 받은 조각을 그대로 넘기기만 해요 → CPU를 거의 안 쓰고, AI를 기다리는 시간은 무료 요금제 CPU 한도(10ms)에 들지 않아요
 // 묶음 짜기 (11판): 한 번 묻고 JSON 글을 그대로 돌려줘요 (앱·재기 도구가 읽고 확인해요)
 async function group(env, q) {
-  const steps = [], { r, ms } = await callAI(env, q.model, q.free ? GROUPER_FREE : GROUPER, groupAsk(q.words, q.draft, q.notes, q.free), q.effort, null);
+  const steps = [], { r, ms } = await callAI(env, q.model, grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size), q.effort, null);
   const u = usageOf(r);
   steps.push({ step: q.draft ? 'review' : 'group', model: q.model, effort: q.effort, ms, in: u.in, out: u.out });
   return { model: q.model, effort: q.effort, text: unthink(textOf(r)).trim(), shape: shapeOf(r), steps };
 }
 function streamInput(path, q) {
   const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format, q.style), fixAsk(q.words, fixStory(q), q.problems)]
-    : path === '/group' ? [q.free ? GROUPER_FREE : GROUPER, groupAsk(q.words, q.draft, q.notes, q.free)]
+    : path === '/group' ? [grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size)]
     : [writerSystem(q.format, q.style), ask(q.words, null, q.notes, q.scene)];
   return {
     messages: msgs(system, user), max_tokens: maxOut(q.effort), temperature: 0.7, ...thinking(q.model, q.effort),
@@ -710,5 +694,5 @@ async function handle(req, env) {
 // _ 는 시험(app/tests/server.test.cjs)·PLAYGROUND.md 만들기용이에요
 export default {
   fetch: handle,
-  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, MAX_NOTES, STYLES, GROUPER, GROUPER_FREE, groupAsk, storyRules, EXAMPLE_SIMPLE_TEXT, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
+  _: { RULES, ask, readWords, readBody, textOf, clean, shapeOf, thinking, parseJSON, storyText, broken, untag, streamInput, MAX_NOTES, STYLES, GROUPER, grouper, SIZES, groupAsk, storyRules, EXAMPLE_SIMPLE_TEXT, writerSystem, roleSystem, EDITOR, FIXER, PLANNER, EXAMPLE_TEXT, STORY_SCHEMA, PLAN_SCHEMA, MODELS, ORIGINS, VERSION }
 };

@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 13 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 14 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -478,22 +478,23 @@ test('story server v11: /group splits a whole word list into one-scene groups of
   assert.equal(calls.length, 4);
 });
 
-// 12판 (2026-11-07): /group free — 묶음 크기를 정하지 않고, 모자라면 AI가 쉬운 단어를 더해 6개 이상으로 (사용자가 정함)
-test('story server v12: /group free — natural groups of any size, the AI adds easy words up to six or more', async () => {
+// 14판 (2026-11-09): AI가 단어를 더하는 free(12·13판)는 사용자 판정으로 없앴어요 ("더한 단어는 모두 부자연스러워").
+// 단어장 단어 4개 묶음은 자연스러웠어요 → size 4 (남으면 5개까지), 단어장에 없는 단어는 더하지 않아요
+test('story server v14: /group size 4 — groups of four list words, no added words; free is gone', async () => {
   const w = await load();
   const { env, calls } = fakeEnv({ choices: [{ message: { content: '{"groups":[]}' } }] });
   const url = 'https://s.example/group';
-  await w.fetch(req({ words: DECK, effort: 'medium', free: true }, { url }), env);
-  assert.equal(sys(calls[0]), w._.GROUPER_FREE);
-  assert.match(sys(calls[0]), /단어장 단어는 한 묶음에 2~4개만 넣어요/);
-  assert.match(sys(calls[0]), /"added": true/);
-  assert.match(usr(calls[0]), /단어 30개 → 단어장 단어 2~4개씩 묶고, 묶음마다 쉬운 단어를 더해 6개로/);
-  const s = await w.fetch(req({ words: DECK, effort: 'medium', free: true, stream: true }, { url }), fakeEnv(() => new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); c.close(); } })).env);
-  assert.equal(s.status, 200);
-  // free 없으면 지금처럼 6개씩
+  await w.fetch(req({ words: DECK, effort: 'medium', size: 4 }, { url }), env);
+  assert.equal(sys(calls[0]), w._.grouper(4));
+  assert.match(sys(calls[0]), /단어를 4개씩 묶어요/);
+  assert.match(sys(calls[0]), /단어장에 없는 단어를 더하지 않아요/);
+  assert.doesNotMatch(sys(calls[0]), /added/);
+  assert.match(usr(calls[0]), /단어 30개 → 4개씩 묶음 7개, 남는 단어는 어울리는 묶음에 더해 5개까지\):/);
+  // 기본(6)은 11판 글 그대로
   await w.fetch(req({ words: DECK, effort: 'medium' }, { url }), env);
   assert.equal(sys(calls[1]), w._.GROUPER);
-  assert.equal((await w.fetch(req({ words: DECK, free: 'yes' }, { url }), env)).status, 400);
-  // 이야기 쪽은 받지 않아요
-  assert.equal((await w.fetch(req({ words: WORDS, free: true }), env)).status, 400);
+  assert.match(usr(calls[1]), /단어 30개 → 6개씩 묶음 5개\):/);
+  for (const bad of [{ size: 5 }, { size: '4' }, { free: true }]) assert.equal((await w.fetch(req({ words: DECK, ...bad }, { url }), env)).status, 400, JSON.stringify(bad));
+  assert.equal((await w.fetch(req({ words: WORDS, size: 4 }), env)).status, 400);
+  assert.equal(calls.length, 2);
 });

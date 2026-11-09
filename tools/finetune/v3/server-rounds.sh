@@ -1,7 +1,7 @@
 #!/bin/bash
 # 이야기 서버 재기 차례 (2026-10-31~). 열쇠·주소는 환경 변수로만 (저장소에 넣지 않아요):
 #   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> bash tools/finetune/v3/server-rounds.sh <차례>
-# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · ways3(주제 묶음) · ways4(쉬운 이야기) · group(묶음 짜기, 11판) · group2(자유 묶음, 12판) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
+# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · ways3(주제 묶음) · ways4(쉬운 이야기) · group(묶음 짜기, 11판) · group2(단어 더하기, 12·13판, 없앰) · group4(4개 묶음, 14판) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
 # 하루 무료 한도(10,000 Neuron)가 다 차면 그 차례에서 멈춰요 (한국 시간 오전 9시에 다시 채워져요). 결과: tools/story-lab/srv-*.txt
 cd "$(dirname "$0")/../../.."
 export NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-/root/.ccr/ca-bundle.crt} NODE_NO_WARNINGS=1
@@ -59,10 +59,20 @@ case "$1" in
     g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
     g ${NAME:-fill}-a --sets=1,2,3,4,5 --effort=medium --free --stories=${STORIES:-2}
     g ${NAME:-fill}-b --sets=6,7,8,9,10 --effort=medium --free --stories=${STORIES:-2} ;;
+  group4) # 4개 묶음 (2026-11-10~, 서버 14판). 사용자: "AI가 더한 단어는 모두 부자연스러워서 단어 더하기는 폐지.
+    # 13판의 단어장 단어 4개 묶음(도서관·간식 설문·소풍 일정·박물관)은 자연스러워 → 단어 개수 기준을 4개로"
+    # (가) 그 4묶음(더한 단어는 뺌)으로 이야기 4편 — 묶음이 자연스러우면 이야기도 이어지는지 (13판 결과 grp-fill-a.json이 있어야 해요)
+    # (나) 14판 size 4로 단어장 A·B를 새로 묶고 이야기 2편씩
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g pick4 --sets=1,2,3,4,5 --from=fill-a --pick=2,6,3,5 --stories=4 --effort=medium --title="자연스럽다고 하신 4묶음"
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 14 ] || { echo "서버가 14판이 아니라 (나)는 건너뛰어요 (지금 ${V:-?}판)"; exit 0; }
+    g size4-a --sets=1,2,3,4,5 --size=4 --effort=medium --stories=2
+    g size4-b --sets=6,7,8,9,10 --size=4 --effort=medium --stories=2 ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
-  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · final"; exit 2 ;;
+  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · final"; exit 2 ;;
 esac
 echo DONE
