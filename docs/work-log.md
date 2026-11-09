@@ -5,7 +5,16 @@
 
 ## 2026-11-07 오후 (클라우드) — 묶음 짜기 1차 (서버 11판 /group), 판정 페이지
 
-> **다음 세션은 여기부터.** '단어 더한 묶음 판정' 페이지(Claude Artifact, 비공개, scratch `blind/make7.cjs`)의 사용자 판정을 기다려요 (16묶음, 이야기 3편).
+> **다음 세션은 여기부터.** 사용자가 14판을 붙여 넣으면(`v:14`) `bash tools/finetune/v3/server-rounds.sh group4`
+> → scratch `blind/make8.cjs <repo> <out.html> pick4 size4-a size4-b`로 '4개 묶음 판정' 페이지. ((가)는 13판 그대로도 돌아요)
+
+- **사용자 판정 (단어 더한 묶음):** 16묶음 모두 억지 있음, 이야기 3편 모두 별로.
+  메모: **"AI가 추가해서 만든 단어들은 모두 부자연스러워서 AI가 단어 더해주는 기능은 폐지하자."**
+  그리고 13판 단어장 A의 단어장 단어 4개 묶음 넷은 자연스럽다고 골라 줬어요: 도서관(borrow·examine·repair·protect), 간식 설문(compare·reduce·survey·confirm),
+  소풍 일정(delay·schedule·permit·rule), 박물관(discover·ancient·explain·report). **"차라리 최소 4개 단어만 같은 묶음으로, 단어 개수 기준을 4개로 줄여 줘."**
+- 서버 14판 (`v:14`, 시험 19개, 모두 126개 통과): `/group` `size: 4` (남으면 5개까지, 단어장에 없는 단어를 더하지 않음, 한국어만). `free`(단어 더하기)는 없앴어요. 기본 6은 11판 글 그대로.
+- `eval-group.cjs`: `--size=4`, `--from=<이름> --pick=…`(사용자가 고른 묶음으로 이야기만, 더한 단어는 뺌). 가짜 서버로 시험했어요.
+- `server-rounds.sh group4`: (가) 고른 4묶음으로 이야기 4편 → (나) 14판 4개씩 단어장 A·B + 이야기 2편씩. CLAUDE.md·AGENTS.md에 사용자 결정을 적었어요.
 
 - **11-09 `group2` (13판) 결과:** AI가 규칙을 지켰어요 — 단어장마다 8묶음, 거의 다 단어장 단어 4개 + 더한 단어 2개 (A8은 2+4, B8은 3+3).
   더한 단어는 쉬운 낱말 (friend·gift·book·library·weather·teacher·puppy·museum·coin·snack·rice·stir·yummy·bike·toy 등).
