@@ -41,14 +41,22 @@ function readGroups(j) {
     }
     if (ws.length) groups.push({ scene: String((g && g.scene) || '').trim(), words: ws });
   }
+  // 15판 size 4: 안 맞는 단어는 남은 단어(leftover)로 따로 와요 (억지로 묶지 않게)
+  const leftover = [];
+  for (const x of (j && Array.isArray(j.leftover) ? j.leftover : [])) {
+    const k = String(x && (x.word ?? x) || '').trim().toLowerCase();
+    if (byEn.has(k) && !used.has(k)) { used.add(k); leftover.push(byEn.get(k)[0]); }
+  }
   const missing = WORDS.filter(w => !used.has(w[0].toLowerCase())).map(w => w[0]);
   if (missing.length) problems.push(`빠진 단어: ${missing.join(', ')}`);
-  for (const [i, g] of groups.entries()) if (g.words.length < SIZE - 1 || g.words.length > SIZE + 1) problems.push(`묶음 ${i + 1}: 단어 ${g.words.length}개`);
-  return { groups, problems, missing };
+  for (const [i, g] of groups.entries()) if (SIZE === 4 ? g.words.length < 4 || g.words.length > 5 : g.words.length < SIZE - 1 || g.words.length > SIZE + 1) problems.push(`묶음 ${i + 1}: 단어 ${g.words.length}개`);
+  return { groups, problems, missing, leftover };
 }
 // 빠진 단어는 가장 작은 묶음에 넣어요 (이야기를 쓸 수 있게. 고친 것은 적어 둬요)
 function patch(r) {
   const groups = r.groups.map(g => ({ ...g, words: g.words.slice() })), notes = [];
+  // 15판 size 4: 빠진 단어를 묶음에 억지로 넣지 않아요 (14판에서 이렇게 넣은 묶음이 이상해졌어요) → 남은 단어로
+  if (SIZE === 4) return { groups, notes: r.missing.length ? [`AI가 빠뜨린 ${r.missing.join(', ')} → 남은 단어로`] : [], leftover: [...(r.leftover || []), ...r.missing] };
   for (const en of r.missing) {
     if (!groups.length) groups.push({ scene: '', words: [] });
     const g = groups.reduce((a, b) => (b.words.length < a.words.length ? b : a));
@@ -62,12 +70,13 @@ const sceneText = g => `장면: ${g.scene}\n` + g.words.map(x => `- ${x.word}: $
 async function main() {
   const W = (await import(pathToFileURL(path.join(REPO, 'server', 'story-worker', 'worker.mjs')).href)).default._;
   const c = client({ api: API, token: process.env.WG_TOKEN || '', W, rescue: true });
-  const p = bootPage(), txt = [], res = { name: NAME, sets: SETS, model: MODEL, effort: EFFORT, style: STYLE, words: WORDS.map(w => [w[0], w[1]]), passes: [], stories: [], steps: [] };
+  const p = bootPage(), txt = [], res = { name: NAME, ...(TITLE ? { title: TITLE } : {}), sets: SETS, model: MODEL, effort: EFFORT, style: STYLE, words: WORDS.map(w => [w[0], w[1]]), passes: [], stories: [], steps: [] };
   const say = s => { console.log(s); txt.push(s); fs.writeFileSync(OUT + '.txt', txt.join('\n') + '\n'); };
   const save = () => { res.neurons = Math.round(neurons(res.steps)); fs.writeFileSync(OUT + '.json', JSON.stringify(res, null, 1)); };
   const showGroups = (title, r) => {
     say(`\n## ${title}${r.problems.length ? ' · 문제: ' + r.problems.join(' · ') : ' · 문제 없음'}`);
     r.groups.forEach((g, i) => { say(`[묶음 ${i + 1}] ${g.scene} (${g.words.length}개)`); g.words.forEach(x => say(`  - ${x.word} (${byEn.get(x.word.toLowerCase())[1]}): ${x.event}`)); });
+    if (r.leftover && r.leftover.length) say(`[남은 단어] ${r.leftover.map(en => `${en} (${byEn.get(en.toLowerCase())[1]})`).join(', ')}`);
   };
   say(`# 묶음 짜기 재기 · ${NAME} · 시험 묶음 ${SETS.join(',')} → 단어 ${WORDS.length}개 · ${MODEL.split('/').pop()} 생각 ${EFFORT}${SIZE !== 6 ? ` · ${SIZE}개씩` : ''}${FROM ? ` · ${FROM}의 묶음 ${PICK.join(',')}로 이야기만` : ''}${REVIEW ? ' · 다시 따지기' : ''} · 이야기 ${STORIES}편 (${STYLE}) · ${new Date().toISOString().slice(0, 16)}`);
   try {
@@ -88,7 +97,7 @@ async function main() {
       const src = JSON.parse(fs.readFileSync(path.join(REPO, 'tools', 'story-lab', `grp-${FROM}.json`), 'utf8'));
       const groups = PICK.map(n => src.final[n - 1]).filter(Boolean).map(g => ({ scene: g.scene, words: g.words.filter(x => !x.added && byEn.has(x.word.toLowerCase())) }));
       r = { groups, problems: [], missing: [] };
-      res.from = { name: FROM, pick: PICK }; res.title = TITLE;
+      res.from = { name: FROM, pick: PICK };
       showGroups(`${FROM}의 묶음 ${PICK.join(',')} (AI가 더한 단어는 뺌)`, r);
     } else {
       const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, ...(SIZE !== 6 ? { size: SIZE } : {}) }, '묶기');
@@ -107,7 +116,7 @@ async function main() {
       save();
     }
     const fin = FROM ? { groups: r.groups, notes: [] } : patch(r);
-    res.final = fin.groups; res.patched = fin.notes;
+    res.final = fin.groups; res.patched = fin.notes; res.leftover = fin.leftover || [];
     if (fin.notes.length) say(`\n고친 것: ${fin.notes.join(' · ')}`);
     save();
     // 3) 앞쪽 묶음으로 이야기 (그 장면대로)

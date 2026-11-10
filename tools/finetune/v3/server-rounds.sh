@@ -69,10 +69,17 @@ case "$1" in
     [ "${V:-0}" -ge 14 ] || { echo "서버가 14판이 아니라 (나)는 건너뛰어요 (지금 ${V:-?}판)"; exit 0; }
     g size4-a --sets=1,2,3,4,5 --size=4 --effort=medium --stories=2
     g size4-b --sets=6,7,8,9,10 --size=4 --effort=medium --stories=2 ;;
+  group5) # 4개 묶음 2차 (2026-11-11~, 서버 15판): 14판처럼 모든 단어를 4개씩 다 넣게 하면 안 맞는 단어까지 끼워 넣었어요 (사용자 판정 7묶음 모두 억지).
+    # → 정말 어울리는 4개만 묶고 안 맞는 단어는 남은 단어로, 주인공은 어린이. 재기 도구도 빠진 단어를 묶음에 넣지 않아요. 단어장 A·B + 이야기 2편씩
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 15 ] || { echo "서버가 15판이 아니에요 (지금 ${V:-?}판) → 대시보드에 15판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g four-a --sets=1,2,3,4,5 --size=4 --effort=medium --stories=2 --title="단어장 A (시험 묶음 1~5, 30단어)"
+    g four-b --sets=6,7,8,9,10 --size=4 --effort=medium --stories=2 --title="단어장 B (시험 묶음 6~10, 31단어)" ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
-  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · final"; exit 2 ;;
+  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · group5 · final"; exit 2 ;;
 esac
 echo DONE

@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 14 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 15 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -376,6 +376,7 @@ test('story server v8: notes — the thinking from a cut stream comes back as no
   assert.match(u, /lantern - 등불/);
   assert.ok(u.includes('<메모>\n' + notes.trim() + '\n</메모>'));
   assert.ok(u.endsWith('</메모>\n답:'));
+  assert.match(u, /문장에는 영어 단어를 쓰지 않고 받은 뜻\(한국어 뜻 말\)으로 써요/); // 15판: 메모로 다시 쓴 박물관 이야기가 영어를 섞었어요
   assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: false, force_nonempty_content: true });
   // 한 번에 받는 길도 메모를 넘겨요
   const j = await (await w.fetch(req({ words: WORDS, format: 'plain', effort: 'none', notes: 'Hero: a fox.' }), env)).json();
@@ -488,8 +489,13 @@ test('story server v14: /group size 4 — groups of four list words, no added wo
   assert.equal(sys(calls[0]), w._.grouper(4));
   assert.match(sys(calls[0]), /단어를 4개씩 묶어요/);
   assert.match(sys(calls[0]), /단어장에 없는 단어를 더하지 않아요/);
+  // 15판: 안 맞는 단어는 억지로 넣지 않고 남은 단어로, 주인공은 어린이
+  assert.match(sys(calls[0]), /억지로 넣지 말고 남은 단어\(leftover\)로/);
+  assert.match(sys(calls[0]), /"leftover":/);
+  assert.match(sys(calls[0]), /주인공은 어린이예요/);
+  assert.doesNotMatch(sys(calls[0]), /하나씩 더해요/);
   assert.doesNotMatch(sys(calls[0]), /added/);
-  assert.match(usr(calls[0]), /단어 30개 → 4개씩 묶음 7개, 남는 단어는 어울리는 묶음에 더해 5개까지\):/);
+  assert.match(usr(calls[0]), /단어 30개 → 정말 잘 어울리는 4개씩만 묶어요. 안 맞는 단어는 남은 단어로\):/);
   // 기본(6)은 11판 글 그대로
   await w.fetch(req({ words: DECK, effort: 'medium' }, { url }), env);
   assert.equal(sys(calls[1]), w._.GROUPER);
