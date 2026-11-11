@@ -9,7 +9,7 @@
 //   --from=<이름> --pick=2,6 [--title=…]: 묶지 않고 grp-<이름>.json의 묶음(AI가 더한 단어는 빼고)으로 이야기만 써요 (사용자가 고른 묶음으로)
 // 결과: tools/story-lab/grp-<이름>.txt / .json (저장소에 넣지 않아요). 하루 무료 한도(429)면 멈춰요.
 const fs = require('node:fs'), path = require('node:path'), { pathToFileURL } = require('node:url');
-const { REPO, TEST_SETS, parse, check, retag, bootPage } = require('./check.cjs');
+const { REPO, TEST_SETS, parse, check, retag, toText, bootPage } = require('./check.cjs');
 const { client, neurons } = require('./server-client.cjs');
 
 const arg = (k, d) => { const a = process.argv.find(x => x === '--' + k || x.startsWith('--' + k + '=')); return a == null ? d : a.includes('=') ? a.slice(a.indexOf('=') + 1) : true; };
@@ -20,6 +20,8 @@ const SETS = String(arg('sets', '1,2,3,4,5')).split(',').map(Number).filter(n =>
 const MODEL = arg('model', '@cf/nvidia/nemotron-3-120b-a12b'), EFFORT = arg('effort', 'medium'), REVIEW = !!arg('review');
 const STORIES = Number(arg('stories', 1)) || 0, STYLE = arg('style', 'twist'), SIZE = Number(arg('size', 6)) === 4 ? 4 : 6;
 const FROM = arg('from'), PICK = String(arg('pick', '')).split(',').map(Number).filter(n => n >= 1), TITLE = arg('title');
+// --fix=1 (2026-11-11 사용자가 정함): 점검기가 문제를 찾으면(표시가 빠진 단어 등) 그곳만 /fix로 고쳐 써요. 끊기면 생각 low로 한 번 더
+const FIX = Number(arg('fix', 0)) || 0;
 const OUT = path.join(REPO, 'tools', 'story-lab', `grp-${NAME}`);
 
 // 단어장: 고른 시험 묶음을 차례대로 합쳐요 (같은 단어는 한 번)
@@ -127,9 +129,20 @@ async function main() {
       const st = { group: FROM ? PICK[i] : i + 1, words: gw.map(w => w[0]), ko: gw.map(w => w[1]), scene: sceneText(g) };
       try {
         const x = await ask('/story', { words: gw, model: MODEL, effort: EFFORT, format: 'plain', stream: true, style: STYLE, scene: st.scene }, `이야기 ${i + 1}`);
-        const o = retag(p, gw, parse(x.text)), chk = check(p, gw, o);
-        Object.assign(st, { rescued: !!x.rescued, title: o.title, plan: o.plan, lines: o.lines, pics: o.pics, retagged: o.retagged, ok: !chk.why.length, why: chk.why });
-        say(`\n## 이야기 (묶음 ${i + 1})${x.rescued ? ' (생각이 끊겨 메모로 다시 씀)' : ''} · 점검 ${st.ok ? '통과' : '실패: ' + chk.why.slice(0, 4).join(' · ')}`);
+        let o = retag(p, gw, parse(x.text)), chk = check(p, gw, o);
+        const firstWhy = chk.why;
+        // 고쳐 쓰기: 점검기가 찾은 문제만 (표시가 빠진 단어·사전 꼴 등)
+        const fixes = [];
+        for (let f = 0; f < FIX && chk.why.length; f++) {
+          const fb = { words: gw, story: toText(o), problems: chk.why.slice(0, 40).map(w => w.slice(0, 200)), model: MODEL, format: 'plain', style: STYLE, stream: true };
+          let y;
+          try { y = await ask('/fix', { ...fb, effort: EFFORT }, `고쳐 쓰기 ${i + 1}`); } catch (e) { if (e.stop || !e.cut) throw e; y = await ask('/fix', { ...fb, effort: 'low' }, `고쳐 쓰기 ${i + 1}`); }
+          o = retag(p, gw, parse(y.text)); chk = check(p, gw, o);
+          fixes.push({ ok: !chk.why.length, why: chk.why });
+        }
+        Object.assign(st, { rescued: !!x.rescued, continued: x.continued, title: o.title, plan: o.plan, lines: o.lines, pics: o.pics, retagged: o.retagged, ok: !chk.why.length, why: chk.why, firstWhy, fixes });
+        const how = x.rescued ? (x.continued ? ` (생각이 끊겨 ${x.continued}번 이어 생각함)` : ' (생각이 끊겨 메모로 다시 씀)') : '';
+        say(`\n## 이야기 (묶음 ${i + 1})${how} · 점검 ${st.ok ? '통과' : '실패: ' + chk.why.slice(0, 4).join(' · ')}${fixes.length ? ` (고쳐 쓰기 ${fixes.length}번, 처음 문제: ${firstWhy.slice(0, 3).join(' · ')})` : ''}`);
         say(`제목: ${o.title}`); say(`줄거리: ${o.plan}`); o.lines.forEach((l, k) => say(`  ${k + 1}. ${l}`));
       } catch (e) {
         if (e.stop) throw e;

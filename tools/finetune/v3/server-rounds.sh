@@ -76,10 +76,15 @@ case "$1" in
     g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
     g four-a --sets=1,2,3,4,5 --size=4 --effort=medium --stories=2 --title="단어장 A (시험 묶음 1~5, 30단어)"
     g four-b --sets=6,7,8,9,10 --size=4 --effort=medium --stories=2 --title="단어장 B (시험 묶음 6~10, 31단어)" ;;
+  stories6) # 어울리는 묶음으로 이야기 (2026-11-12~): 사용자가 어울린다고 고른 15판 묶음 5개(과학 프로젝트·강아지·주방 요리·숙제·소풍 준비)로 한 편씩.
+    # 이어 생각하기 (끊기면 생각을 켠 채 메모로 2번까지, 그래도 끊기면 생각 끔) + 점검기가 문제를 찾으면 고쳐 쓰기 1번. 덜 붐비는 오후에 돌려요
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g st-a --sets=1,2,3,4,5 --from=four-a --pick=1,5 --stories=2 --effort=medium --fix=1 --title="단어장 A 어울리는 묶음 (과학 프로젝트·강아지)"
+    g st-b --sets=6,7,8,9,10 --from=four-b --pick=1,2,5 --stories=3 --effort=medium --fix=1 --title="단어장 B 어울리는 묶음 (주방 요리·숙제·소풍 준비)" ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
-  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · group5 · final"; exit 2 ;;
+  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · group5 · stories6 · final"; exit 2 ;;
 esac
 echo DONE

@@ -23,7 +23,10 @@ function readSSE(raw) {
 }
 
 // api: 서버 주소, token: 열쇠, W: 서버 코드의 _ (clean·broken·parseJSON·MAX_NOTES·MODELS), rescue: 끊기면 생각 메모로 다시 쓰기
-function client({ api, token, W, rescue = true }) {
+// keepThinking (2026-11-11 사용자가 정함, '이어 생각하기'): 120초에서 끊기면 그때까지의 생각 글을 메모로 보내고 생각을 켠 채(같은 effort)
+// 다시 물어요 → 요청마다 2분씩 더 생각해요 (2번까지 = 6분까지). 그래도 끊기면 마지막에만 생각 끔으로 써요.
+// (생각 끔으로 바로 다시 쓴 이야기는 3편 가운데 1편만 좋았고, 생각을 마친 이야기는 4편 모두 좋았어요)
+function client({ api, token, W, rescue = true, keepThinking = 2 }) {
   let lastIn = 1345; // 끊겨서 usage가 없을 때 쓰는 어림 (쓰기 요청 입력 토큰)
   // 답 글이 쓸모없는지: 이야기는 서버의 broken, 묶음은 JSON에 groups가 없으면
   const useless = (route, t) => (route === '/group' ? !((W.parseJSON(t) || {}).groups || []).length : W.broken(t));
@@ -50,13 +53,29 @@ function client({ api, token, W, rescue = true }) {
     try { return await postOnce(route, body); } catch (e) { if (e.stop || e.server) throw e; return postOnce(route, body); }
   }
   async function again(route, body, reasoning, before) {
-    const notes = String(reasoning || '').trim().slice(-W.MAX_NOTES).trim();
-    if (!notes) throw Object.assign(new Error('끊긴 흘려 받기에 생각 글도 없어요'), { server: true, steps: before });
+    let notes = String(reasoning || '').trim().slice(-W.MAX_NOTES).trim(), steps = before.slice();
+    if (!notes) throw Object.assign(new Error('끊긴 흘려 받기에 생각 글도 없어요'), { server: true, steps });
+    // 이어 생각하기: 생각을 켠 채 메모를 주고 다시 (끊기면 새 생각 글을 메모 뒤에 이어 붙여요)
+    if (body.effort && body.effort !== 'none') {
+      for (let k = 1; k <= keepThinking; k++) {
+        try {
+          const x = await post(route, { ...body, notes });
+          if (!useless(route, x.text)) return { ...x, rescued: true, continued: k, notes, steps: [...steps, ...x.steps.map(s => ({ ...s, step: 'continue' + k }))] };
+          steps = [...steps, ...x.steps.map(s => ({ ...s, step: 'continue' + k }))];
+          notes = (notes + '\n\n' + String(x.reasoning || '')).trim().slice(-W.MAX_NOTES).trim();
+        } catch (e) {
+          if (e.stop || !e.cut) throw Object.assign(e, { steps: [...steps, ...(e.step ? [{ ...e.step, step: 'continue' + k }] : [])], notes });
+          steps = [...steps, { ...e.step, step: 'continue' + k }];
+          notes = (notes + '\n\n' + String(e.reasoning || '')).trim().slice(-W.MAX_NOTES).trim();
+        }
+      }
+    }
+    // 마지막: 생각 끔으로 메모대로 써요 (답이 꼭 오게)
     try {
       const x = await post(route, { ...body, effort: 'none', notes });
-      return { ...x, rescued: true, notes, steps: [...before, ...x.steps.map(s => ({ ...s, step: 'rescue' }))] };
+      return { ...x, rescued: true, continued: 0, notes, steps: [...steps, ...x.steps.map(s => ({ ...s, step: 'rescue' }))] };
     } catch (e) {
-      throw Object.assign(e, { message: '생각 메모로 다시 썼지만 ' + e.message, steps: [...before, ...(e.step ? [{ ...e.step, step: 'rescue' }] : [])], rescueThinking: e.reasoning, notes, step: undefined });
+      throw Object.assign(e, { message: '생각 메모로 다시 썼지만 ' + e.message, steps: [...steps, ...(e.step ? [{ ...e.step, step: 'rescue' }] : [])], rescueThinking: e.reasoning, notes, step: undefined });
     }
   }
   // 묻기: 120초에서 끊기거나(답 없음) 답이 쓸모없으면, rescue면 모은 생각 글로 생각 끔 다시 쓰기 / 아니면 한 번 더
