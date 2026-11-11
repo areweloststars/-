@@ -81,10 +81,17 @@ case "$1" in
     g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
     g st-a --sets=1,2,3,4,5 --from=four-a --pick=1,5 --stories=2 --effort=medium --fix=1 --title="단어장 A 어울리는 묶음 (과학 프로젝트·강아지)"
     g st-b --sets=6,7,8,9,10 --from=four-b --pick=1,2,5 --stories=3 --effort=medium --fix=1 --title="단어장 B 어울리는 묶음 (주방 요리·숙제·소풍 준비)" ;;
+  stories7) # 16판 이야기 규칙 (2026-11-12~): 사용자 — "그림이 중요해. 그림과 그전에 들었던 이야기가 기억나야 단어를 연상해서 맞출 수 있어. '정직한 태도'는 한국에서 잘 안 써"
+    # → 단어 줄마다 그림으로 그릴 수 있는 한 장면, 아이들이 쓰는 쉬운 말. 어울린다고 고른 15판 묶음 5개로 한 편씩 (이어 생각하기 + 고쳐 쓰기 1번)
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 16 ] || { echo "서버가 16판이 아니에요 (지금 ${V:-?}판) → 대시보드에 16판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g st16-a --sets=1,2,3,4,5 --from=four-a --pick=1,5 --stories=2 --effort=medium --fix=1 --title="단어장 A 어울리는 묶음 (과학 프로젝트·강아지) · 16판"
+    g st16-b --sets=6,7,8,9,10 --from=four-b --pick=1,2,5 --stories=3 --effort=medium --fix=1 --title="단어장 B 어울리는 묶음 (주방 요리·숙제·소풍 준비) · 16판" ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
     run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
-  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · group5 · stories6 · final"; exit 2 ;;
+  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · group5 · stories6 · stories7 · final"; exit 2 ;;
 esac
 echo DONE
