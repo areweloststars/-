@@ -110,7 +110,7 @@ async function main() {
     save();
     // 2) 다시 따지기
     if (REVIEW && !FROM && r.groups.length) {
-      const g2 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, draft: JSON.stringify({ groups: r.groups }), ...(SIZE !== 6 ? { size: SIZE } : {}) }, '다시 따지기');
+      const g2 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, draft: JSON.stringify({ groups: r.groups, leftover: [...(r.leftover || []), ...(r.missing || [])] }), ...(SIZE !== 6 ? { size: SIZE } : {}) }, '다시 따지기');
       const r2 = readGroups(W.parseJSON(g2.text));
       res.passes.push({ step: 'review', rescued: !!g2.rescued, ...r2, thinking: g2.rescued ? g2.notes : g2.reasoning, raw: g2.text });
       showGroups(`다시 따지기${g2.rescued ? ' (생각이 끊겨 메모로 다시 씀)' : ''}`, r2);

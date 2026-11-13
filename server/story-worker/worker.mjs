@@ -68,7 +68,7 @@ const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 65536, '/fix': 16384, '/group': 65536 }; // 생각 메모(notes)·묶음 초안(draft)·장면(scene)이 있을 때만 크게
 const WORDS_ONLY = { '/story': 2048, '/group': 6144 }; // 그것들이 없으면 단어 글자뿐이라 작아요 (/group은 단어 40개까지)
 const MAX_OUT = 4000;
-const VERSION = 16;
+const VERSION = 17;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -262,9 +262,13 @@ ${size === 6 ? `- 모든 단어를 한 번씩만 써요. 단어 수가 6으로 �
 {"groups": [{"scene": "장면 한 문장", "words": [{"word": "영어 단어", "event": "그 단어가 받은 뜻 그대로 쓰인 한 문장"}]}], "leftover": ["어디에도 안 맞는 영어 단어"]}`}`;
 const GROUPER = grouper(6);
 const groupAsk = (words, draft, notes, size = 6) => `요청 (단어 ${words.length}개 → ${size === 6 ? `6개씩 묶음 ${Math.max(1, Math.round(words.length / 6))}개` : `정말 잘 어울리는 ${size}개씩만 묶어요. 안 맞는 단어는 남은 단어로`}):
-${wordList(words)}${draft ? `
+${wordList(words)}${draft ? (size === 6 ? `
 묶음 초안이에요. 묶음마다 단어 ${size}개가 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는지 하나씩 따져 봐요.
-어울리지 않거나 event 문장이 억지스러운 단어는 더 잘 어울리는 묶음의 단어와 바꾸고, 장면과 event를 다시 써요. 고친 묶음 전체를 답 꼴대로 답해요:
+어울리지 않거나 event 문장이 억지스러운 단어는 더 잘 어울리는 묶음의 단어와 바꾸고, 장면과 event를 다시 써요. 고친 묶음 전체를 답 꼴대로 답해요:` : `
+묶음 초안이에요. 엄하게 따져요 (17판). 묶음마다 단어 하나하나를 봐요: 어린이가 그 장면에서 정말 그렇게 하거나 말할 만한가? event 문장이 우리말로 자연스러운가?
+- 한 단어라도 억지면 그 단어를 묶음에서 빼서 leftover로 보내요. 묶음이 3개 이하가 되면, leftover에서 그 장면에 정말 어울리는 단어를 찾아 채우고, 없으면 묶음을 풀어 모두 leftover로 보내요.
+- leftover 단어끼리 새로 정말 어울리는 ${size}개가 모이면 새 묶음을 만들어요. 억지로 만들지 않아요.
+- 잘 어울리는 묶음은 그대로 둬요. 고친 전체(groups와 leftover)를 답 꼴대로 답해요:`) + `
 <초안>
 ${draft}
 </초안>` : ''}${notes ? `
