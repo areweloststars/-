@@ -22,6 +22,8 @@ const STORIES = Number(arg('stories', 1)) || 0, STYLE = arg('style', 'twist'), S
 const FROM = arg('from'), PICK = String(arg('pick', '')).split(',').map(Number).filter(n => n >= 1), TITLE = arg('title');
 // --fix=1 (2026-11-11 사용자가 정함): 점검기가 문제를 찾으면(표시가 빠진 단어 등) 그곳만 /fix로 고쳐 써요. 끊기면 생각 low로 한 번 더
 const FIX = Number(arg('fix', 0)) || 0;
+// --pool=a,b,c (서버 19판 pick): 묶지 않고, grp-<이름>.json들의 묶음을 후보로 모아 AI가 가장 나은 것만 고르게 해요
+const POOL = String(arg('pool', '')).split(',').filter(Boolean);
 const OUT = path.join(REPO, 'tools', 'story-lab', `grp-${NAME}`);
 
 // 단어장: 고른 시험 묶음을 차례대로 합쳐요 (같은 단어는 한 번)
@@ -94,7 +96,23 @@ async function main() {
     };
     // 1) 묶기
     let r;
-    if (FROM) {
+    if (POOL.length) {
+      const cands = [];
+      for (const n of POOL) for (const g of JSON.parse(fs.readFileSync(path.join(REPO, 'tools', 'story-lab', `grp-${n}.json`), 'utf8')).final || []) {
+        const ws = g.words.filter(x => !x.added && x.event && byEn.has(x.word.toLowerCase()));
+        if (ws.length >= 4) cands.push({ from: n, scene: g.scene, words: ws.map(x => ({ word: x.word, event: x.event })) });
+      }
+      res.candidates = cands;
+      say(`\n후보 묶음 ${cands.length}개 (${POOL.join(', ')})`);
+      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, size: SIZE, pick: true, draft: JSON.stringify({ candidates: cands.map(({ scene, words }) => ({ scene, words })) }) }, '후보에서 고르기');
+      r = readGroups(W.parseJSON(g1.text));
+      // 고른 묶음이 어느 후보인지 (단어가 같은 후보)
+      const key = g => g.words.map(x => x.word.toLowerCase()).sort().join(',');
+      r.groups.forEach(g => { const c = cands.find(c => key(c) === key(g)); g.from = c ? c.from : '(새로 만듦)'; });
+      res.passes.push({ step: 'pick', rescued: !!g1.rescued, ...r, raw: g1.text });
+      showGroups('후보에서 고르기', r);
+      r.groups.forEach((g, i) => say(`  묶음 ${i + 1} ← ${g.from}`));
+    } else if (FROM) {
       // 사용자가 고른 묶음으로 이야기만: AI가 더한 단어는 빼요 (14판, 사용자 판정)
       const src = JSON.parse(fs.readFileSync(path.join(REPO, 'tools', 'story-lab', `grp-${FROM}.json`), 'utf8'));
       const groups = PICK.map(n => src.final[n - 1]).filter(Boolean).map(g => ({ scene: g.scene, words: g.words.filter(x => !x.added && byEn.has(x.word.toLowerCase())) }));

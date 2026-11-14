@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 18 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 19 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -503,4 +503,17 @@ test('story server v14: /group size 4 — groups of four list words, no added wo
   for (const bad of [{ size: 5 }, { size: '4' }, { free: true }]) assert.equal((await w.fetch(req({ words: DECK, ...bad }, { url }), env)).status, 400, JSON.stringify(bad));
   assert.equal((await w.fetch(req({ words: WORDS, size: 4 }), env)).status, 400);
   assert.equal(calls.length, 2);
+});
+
+// 19판 (2026-11-14): /group pick — 여러 번 묶어 모은 후보 가운데 가장 나은 것만 고르기
+test('story server v19: /group pick chooses the best of pooled candidate groups', async () => {
+  const w = await load();
+  const { env, calls } = fakeEnv({ choices: [{ message: { content: '{"groups":[],"leftover":[]}' } }] });
+  const url = 'https://s.example/group', draft = JSON.stringify({ candidates: [{ scene: '장면', words: [{ word: 'alpha', event: '일' }] }] });
+  await w.fetch(req({ words: DECK, effort: 'medium', size: 4, pick: true, draft }, { url }), env);
+  assert.equal(sys(calls[0]), w._.grouper(4));
+  assert.match(usr(calls[0]), /후보 묶음이에요\. 묶기를 여러 번 해서 모은 것이라/);
+  assert.match(usr(calls[0]), /후보를 고치거나 새로 만들지 않아요/);
+  assert.ok(usr(calls[0]).includes('<초안>\n' + draft + '\n</초안>'));
+  assert.equal((await w.fetch(req({ words: DECK, size: 4, pick: 'yes', draft }, { url }), env)).status, 400);
 });

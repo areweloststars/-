@@ -68,7 +68,7 @@ const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 65536, '/fix': 16384, '/group': 65536 }; // 생각 메모(notes)·묶음 초안(draft)·장면(scene)이 있을 때만 크게
 const WORDS_ONLY = { '/story': 2048, '/group': 6144 }; // 그것들이 없으면 단어 글자뿐이라 작아요 (/group은 단어 40개까지)
 const MAX_OUT = 4000;
-const VERSION = 18;
+const VERSION = 19;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -265,8 +265,15 @@ ${size === 6 ? `- 모든 단어를 한 번씩만 써요. 단어 수가 6으로 �
 답 꼴: JSON 하나만 써요 (다른 말이나 \`\`\` 표시는 쓰지 않아요).
 {"groups": [{"scene": "장면 한 문장", "words": [{"word": "영어 단어", "event": "그 단어가 받은 뜻 그대로 쓰인 한 문장"}]}], "leftover": ["어디에도 안 맞는 영어 단어"]}`}`;
 const GROUPER = grouper(6);
-const groupAsk = (words, draft, notes, size = 6) => `요청 (단어 ${words.length}개 → ${size === 6 ? `6개씩 묶음 ${Math.max(1, Math.round(words.length / 6))}개` : `정말 잘 어울리는 ${size}개씩만 묶어요. 안 맞는 단어는 남은 단어로`}):
-${wordList(words)}${draft ? (size === 6 ? `
+// 후보에서 고르기 (19판, pick): 묶기를 여러 번 돌려 모은 후보 묶음 가운데 가장 나은 것만 남겨요 (2026-11-14 사용자가 고름. 규칙 글만 고쳐서는 5/12 → 4/14 → 2/13)
+const PICK_ASK = size => `
+후보 묶음이에요. 묶기를 여러 번 해서 모은 것이라 같은 단어가 여러 후보에 들어 있어요. 가장 좋은 후보만 골라요.
+- 후보마다 물어요: 이 상황이 실제로 벌어질 만한가? 단어 ${size}개가 모두 그 상황의 일에 딱 맞는가? event 문장이 우리말로 자연스러운가? 하나라도 아니면 그 후보는 버려요.
+- 한 단어는 한 묶음에만 들어가요. 같은 단어를 쓰는 후보가 둘이면 더 자연스러운 쪽만 남겨요.
+- 후보를 고치거나 새로 만들지 않아요. 고른 후보를 그대로 옮겨요. 조금이라도 억지인 후보를 남기는 것보다 적게 고르는 것이 좋아요.
+- 고르지 않은 단어는 모두 leftover에 적어요. 답 꼴대로 답해요 (groups와 leftover):`;
+const groupAsk = (words, draft, notes, size = 6, pick = false) => `요청 (단어 ${words.length}개 → ${size === 6 ? `6개씩 묶음 ${Math.max(1, Math.round(words.length / 6))}개` : `정말 잘 어울리는 ${size}개씩만 묶어요. 안 맞는 단어는 남은 단어로`}):
+${wordList(words)}${draft ? (pick ? PICK_ASK(size) : size === 6 ? `
 묶음 초안이에요. 묶음마다 단어 ${size}개가 한 장면에서 받은 뜻 그대로 자연스럽게 쓰이는지 하나씩 따져 봐요.
 어울리지 않거나 event 문장이 억지스러운 단어는 더 잘 어울리는 묶음의 단어와 바꾸고, 장면과 event를 다시 써요. 고친 묶음 전체를 답 꼴대로 답해요:` : `
 묶음 초안이에요. 엄하게 따져요 (17판). 먼저 묶음마다 물어요: 이 상황이 실제로 벌어질 만한가? 단어마다 그 상황의 일에 딱 맞는가? 아니면 묶음을 풀어요 (18판). 그리고 단어 하나하나를 봐요: 어린이가 그 장면에서 정말 그렇게 하거나 말할 만한가? event 문장이 우리말로 자연스러운가?
@@ -367,7 +374,7 @@ const MAX_NOTES = 20000;
 const KEYS = {
   '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes', 'style', 'scene'],
   '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream', 'style'],
-  '/group': ['words', 'model', 'effort', 'stream', 'notes', 'draft', 'size']
+  '/group': ['words', 'model', 'effort', 'stream', 'notes', 'draft', 'size', 'pick']
 };
 const MAX_SCENE = 3000;
 function readWordList(ws, min = 3, max = 10) {
@@ -412,6 +419,8 @@ function readBody(path, body, allowModel) {
   if (body.stream != null && typeof body.stream !== 'boolean') return { err: 'stream은 true·false예요' };
   if (body.size != null && !SIZES.includes(body.size)) return { err: '묶음 크기(size)는 4·6이에요' };
   out.size = body.size || 6;
+  if (body.pick != null && typeof body.pick !== 'boolean') return { err: 'pick은 true·false예요' };
+  out.pick = body.pick === true;
   out.stream = body.stream === true;
   // 흘려 받기는 AI에게 한 번 묻고 답 글을 그대로 넘겨요 → 서버가 답을 고쳐 만들어야 하는 길(JSON 꼴·뼈대·초안·편집자)은 안 돼요
   if (out.stream && (out.format === 'json' || out.plan || out.drafts > 1 || out.editor)) return { err: '흘려 받기(stream)는 text·plain 꼴의 한 번 쓰기에만 돼요' };
@@ -639,14 +648,14 @@ async function fix(env, q) {
 // 서버는 받은 조각을 그대로 넘기기만 해요 → CPU를 거의 안 쓰고, AI를 기다리는 시간은 무료 요금제 CPU 한도(10ms)에 들지 않아요
 // 묶음 짜기 (11판): 한 번 묻고 JSON 글을 그대로 돌려줘요 (앱·재기 도구가 읽고 확인해요)
 async function group(env, q) {
-  const steps = [], { r, ms } = await callAI(env, q.model, grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size), q.effort, null);
+  const steps = [], { r, ms } = await callAI(env, q.model, grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size, q.pick), q.effort, null);
   const u = usageOf(r);
   steps.push({ step: q.draft ? 'review' : 'group', model: q.model, effort: q.effort, ms, in: u.in, out: u.out });
   return { model: q.model, effort: q.effort, text: unthink(textOf(r)).trim(), shape: shapeOf(r), steps };
 }
 function streamInput(path, q) {
   const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format, q.style), fixAsk(q.words, fixStory(q), q.problems)]
-    : path === '/group' ? [grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size)]
+    : path === '/group' ? [grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size, q.pick)]
     : [writerSystem(q.format, q.style), ask(q.words, null, q.notes, q.scene)];
   return {
     messages: msgs(system, user), max_tokens: maxOut(q.effort), temperature: 0.7, ...thinking(q.model, q.effort),
