@@ -91,10 +91,11 @@ case "$1" in
   group6) # 묶기 다듬기 (2026-11-13~, 서버 17판): 사용자 "2. 묶기 다듬기". 4개씩 묶은 뒤 엄하게 다시 따져서 억지 단어는 남은 단어로, 남은 단어끼리 새로 묶기.
     # 묶기에도 이어 생각하기 (15판 묶기는 2분에서 끊겨 생각 끔으로 마무리했어요). 이야기는 쓰지 않아요 (묶음만 판정)
     V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    # 18판(11-14): 사용자 기준 "실제 벌어질 만한 상황 + 그에 맞는 단어" (이상적: 물 쏟고 부인·망설임·사과·대접). 이름은 NAME으로 (예: NAME=real)
     [ "${V:-0}" -ge 17 ] || { echo "서버가 17판이 아니에요 (지금 ${V:-?}판)"; exit 2; }
     g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
-    g rev-a --sets=1,2,3,4,5 --size=4 --effort=medium --review --stories=0 --title="단어장 A (시험 묶음 1~5, 30단어)"
-    g rev-b --sets=6,7,8,9,10 --size=4 --effort=medium --review --stories=0 --title="단어장 B (시험 묶음 6~10, 31단어)" ;;
+    g ${NAME:-rev}-a --sets=1,2,3,4,5 --size=4 --effort=medium --review --stories=0 --title="단어장 A (시험 묶음 1~5, 30단어)"
+    g ${NAME:-rev}-b --sets=6,7,8,9,10 --size=4 --effort=medium --review --stories=0 --title="단어장 B (시험 묶음 6~10, 31단어)" ;;
   final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
     [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
     run final $WAY --format=json --fix=2 --tries=3
