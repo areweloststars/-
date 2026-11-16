@@ -24,6 +24,9 @@ const FROM = arg('from'), PICK = String(arg('pick', '')).split(',').map(Number).
 const FIX = Number(arg('fix', 0)) || 0;
 // --pool=a,b,c (서버 19판 pick): 묶지 않고, grp-<이름>.json들의 묶음을 후보로 모아 AI가 가장 나은 것만 고르게 해요
 const POOL = String(arg('pool', '')).split(',').filter(Boolean);
+// --examples=four-b:1.2.5,rev-b:2.3.4.7,real-a: (2026-11-16 시험): 다른 단어장에서 사용자가 판정한 묶음을 본보기로 함께 보내요.
+// 이름 뒤 번호가 사용자가 '어울려요'라고 한 묶음, 나머지는 '억지'. 서버를 바꾸지 않고 draft JSON 안에 넣어요
+const EXAMPLES = String(arg('examples', '')).split(',').filter(Boolean).map(x => { const [n, ids = ''] = x.split(':'); return { n, good: ids.split('.').map(Number).filter(Boolean) }; });
 const OUT = path.join(REPO, 'tools', 'story-lab', `grp-${NAME}`);
 
 // 단어장: 고른 시험 묶음을 차례대로 합쳐요 (같은 단어는 한 번)
@@ -97,6 +100,14 @@ async function main() {
     // 1) 묶기
     let r;
     if (POOL.length) {
+      const examples = () => {
+        if (!EXAMPLES.length) return {};
+        const good = [], bad = [];
+        for (const { n, good: ids } of EXAMPLES) (JSON.parse(fs.readFileSync(path.join(REPO, 'tools', 'story-lab', `grp-${n}.json`), 'utf8')).final || []).forEach((g, i) =>
+          (ids.includes(i + 1) ? good : bad).push({ scene: g.scene, words: g.words.filter(x => !x.added).map(x => x.word).join(', ') }));
+        say(`본보기: 어울려요 ${good.length}개 · 억지 ${bad.length}개`);
+        return { '사용자가 어울린다고 한 본보기 (다른 단어장의 묶음이라 고를 것이 아니에요. 이런 묶음을 골라요)': good, '사용자가 억지라고 한 본보기 (이런 묶음은 버려요)': bad };
+      };
       const cands = [];
       for (const n of POOL) for (const g of JSON.parse(fs.readFileSync(path.join(REPO, 'tools', 'story-lab', `grp-${n}.json`), 'utf8')).final || []) {
         const ws = g.words.filter(x => !x.added && x.event && byEn.has(x.word.toLowerCase()));
@@ -104,7 +115,7 @@ async function main() {
       }
       res.candidates = cands;
       say(`\n후보 묶음 ${cands.length}개 (${POOL.join(', ')})`);
-      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, size: SIZE, pick: true, draft: JSON.stringify({ candidates: cands.map(({ scene, words }) => ({ scene, words })) }) }, '후보에서 고르기');
+      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, size: SIZE, pick: true, draft: JSON.stringify({ ...examples(), candidates: cands.map(({ scene, words }) => ({ scene, words })) }) }, '후보에서 고르기');
       r = readGroups(W.parseJSON(g1.text));
       // 고른 묶음이 어느 후보인지 (단어가 같은 후보)
       const key = g => g.words.map(x => x.word.toLowerCase()).sort().join(',');
