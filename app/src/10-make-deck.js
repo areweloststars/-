@@ -437,6 +437,7 @@ function bindMake() {
       mkAiPrefetch();
     }
     else if (a === 'aidlstop') { if (MK.aiDlCtl) MK.aiDlCtl.abort(); }
+    else if (a.slice(0, 2) === 'sv') svClick(a, b); // 이야기 서버로 만들기 (10-server-make.js)
     else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.fail = false; MK.note = ''; MK.redo = null; renderMake(); }
     else if (a === 'play') { const d = MK.deck; MK.step = 'pick'; MK.deck = null; if (d) switchDeck(d.id); goHome(); }
   });

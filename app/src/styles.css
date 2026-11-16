@@ -770,3 +770,16 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mkalt { display: grid; gap: 8px; margin-top: 10px; }
 .mkalt .btn { font-size: 15px; }
 .mkfail{margin:0 0 14px}.mkfail .btn{margin-top:8px}.mkgate{margin:10px 0}
+
+/* 이야기 서버로 만들기: 묶음 후보 고르기 */
+.svbox .mklab{margin-top:8px}
+.svbox .btn{margin-top:8px}
+.svcands{display:grid;gap:10px;margin:10px 0}
+.svcand{display:block;width:100%;text-align:left;padding:12px;border-radius:14px;border:2px solid rgba(40,44,90,.22);background:rgba(255,255,255,.7);color:inherit;font:inherit;cursor:pointer}
+.svcand.on{border-color:#7CF29C;background:rgba(124,242,156,.14)}
+.svcand.off{opacity:.45;cursor:default}
+.svscene{display:block;line-height:1.4}
+.svwords{display:grid;gap:6px;margin-top:8px}
+.svw{display:block;font-size:.92em;line-height:1.35}
+.svw small{display:block;opacity:.75}
+.svoff{display:block;margin-top:6px}
