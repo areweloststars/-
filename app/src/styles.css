@@ -779,7 +779,8 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .svcand.on{border-color:#7CF29C;background:rgba(124,242,156,.14)}
 .svcand.off{opacity:.45;cursor:default}
 .svscene{display:block;line-height:1.4}
-.svwords{display:grid;gap:6px;margin-top:8px}
-.svw{display:block;font-size:.92em;line-height:1.35}
-.svw small{display:block;opacity:.75}
+.svstory{display:grid;gap:4px;margin-top:8px;line-height:1.5}
+.svstory>span{display:block}
+.svmark{background:#fff1b8;color:inherit;border-radius:4px;padding:0 3px;font-weight:700}
+.svmark small{font-weight:500;opacity:.7;margin-left:4px;font-size:.78em}
 .svoff{display:block;margin-top:6px}

@@ -20,6 +20,8 @@
 //   2026-11-06 사용자가 정함: "뉴런은 단어들을 한 장면에 어울리는 묶음으로 모으는 것에 집중" (좋아를 받은 2편은 단어가 처음부터 한 장면에 모이는 묶음이었어요).
 //   draft: 앞서 받은 묶음(JSON 글)을 따져 보고 어울리지 않는 단어를 바꿔요 (두 번째 생각). 답 text는 JSON 글 {"groups":[{scene, words:[{word, event}]}]}
 //   size 4 (14판, 2026-11-09 사용자가 정함): 단어장 단어 4개씩. AI가 단어를 더하는 길(12·13판 free)은 없앴어요.
+//   story: true (20판, 2026-11-17 사용자, size 4의 처음 묶기에만): 묶음마다 title과 story(5~7문장, 단어마다 한 문장, 앞 문장 때문에 이어지게)를 함께 써요.
+//     사용자가 이야기 전체를 읽고 묶음을 고를 수 있게요. event는 story 안에서 그 단어가 쓰인 문장 그대로.
 //   16판 (2026-11-11 사용자): "그림이 중요해. 그림과 그전에 들었던 이야기가 기억나야 단어를 연상해서 맞출 수 있어" →
 //   단어 줄마다 그림으로 그릴 수 있는 한 장면, 아이들이 쓰는 쉬운 말('정직한 태도' 같은 딱딱한 말 말고), 그림 설명은 그 줄 장면 그대로.
 //   15판 (2026-11-10): 14판처럼 모든 단어를 4개씩 다 넣게 하면 안 맞는 단어까지 끼워 넣어 사용자 판정 7묶음 모두 억지 → 정말 어울리는 4개만 묶고
@@ -68,7 +70,7 @@ const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 65536, '/fix': 16384, '/group': 65536 }; // 생각 메모(notes)·묶음 초안(draft)·장면(scene)이 있을 때만 크게
 const WORDS_ONLY = { '/story': 2048, '/group': 6144 }; // 그것들이 없으면 단어 글자뿐이라 작아요 (/group은 단어 40개까지)
 const MAX_OUT = 4000;
-const VERSION = 19;
+const VERSION = 20;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -243,7 +245,16 @@ ${notes}
 // 2026-11-06 사용자: 좋아를 받은 2편(요리·사고와 구조)은 단어가 처음부터 한 장면에 모이는 묶음 → 묶는 데 AI를 많이 써요.
 // 14판: 묶음 크기 size 4·6 (6이면 11판 글 그대로). AI가 단어를 더하는 12·13판 free는 사용자 판정으로 없앴어요 (2026-11-09)
 const SIZES = [4, 6];
-const grouper = (size = 6) => `너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 기획자예요.
+// 20판 (story, size 4에서만): 묶음마다 이야기 한 편을 바로 써요. 2026-11-17 사용자: "4개 단어를 모두 넣은 하나의 스토리를 볼 수 없어서
+// 스토리가 말이 되는지, 단어가 자연스럽게 어울리는 맥락인지, 단어가 쓰인 문장 사이에 개연성이 있는지 검토할 수 없다" → 고르는 화면에 이야기 전체를 보여 줘요
+const STORY_IN_GROUP = `{"groups": [{"scene": "장면 한 문장", "title": "이야기 제목 (12자 안)", "story": ["이야기 문장", "이야기 문장"], "words": [{"word": "영어 단어", "event": "story 안에서 그 단어가 쓰인 문장 그대로"}]}], "leftover": ["어디에도 안 맞는 영어 단어"]}
+story 쓰는 법 (묶음마다 이야기 한 편, 읽는 사람이 이 이야기만 보고 묶음을 골라요):
+- 5~7문장이에요. 첫 문장은 누가 어디서 무엇을 하려는지(단어 없이), 끝 문장은 일이 어떻게 끝났는지예요.
+- 가운데 문장마다 묶음의 단어 하나를 받은 뜻 낱말 그대로(끝만 바꿔) 넣어요. 한 문장에 단어 하나, 단어마다 한 번씩이에요.
+- 문장마다 바로 앞 문장 때문에 일어나는 일이에요 ("그래서", "그런데", "그러자"로 이을 수 있게). 일을 늘어놓기만 하지 않아요.
+- 주인공에게 이름을 주고(예: 민지), 누가·무엇을·어떻게 했는지 눈에 보이게 써요. 아이들이 쓰는 쉬운 말, "~했어요"로 끝내요. 한 문장은 45자 안이에요.
+- 영어 단어는 문장에 쓰지 않아요. words의 event에는 story 안에서 그 단어가 쓰인 문장을 그대로 옮겨 적어요.`;
+const grouper = (size = 6, story = false) => `너는 한국 어린이가 영어 단어를 외우는 그림 이야기 게임의 기획자예요.
 단어장(영어 단어와 받은 뜻)을 받으면 단어를 ${size}개씩 묶어요. 묶음 하나가 이야기 한 편이 돼요.
 
 가장 중요한 것: 한 묶음의 단어 ${size}개가 모두 한 장면(한 주인공, 한 곳, 한 가지 일)에서 받은 뜻 그대로 자연스럽게 쓰여야 해요.
@@ -263,7 +274,7 @@ ${size === 6 ? `- 모든 단어를 한 번씩만 써요. 단어 수가 6으로 �
 - 묶음 수를 채우려고 하지 않아요. 좋은 묶음이 두세 개뿐이고 남은 단어가 많아도 괜찮아요.
 - 단어장에 없는 단어를 더하지 않아요. 한국어만 써요 (한자를 섞지 않아요).
 답 꼴: JSON 하나만 써요 (다른 말이나 \`\`\` 표시는 쓰지 않아요).
-{"groups": [{"scene": "장면 한 문장", "words": [{"word": "영어 단어", "event": "그 단어가 받은 뜻 그대로 쓰인 한 문장"}]}], "leftover": ["어디에도 안 맞는 영어 단어"]}`}`;
+${story ? STORY_IN_GROUP : `{"groups": [{"scene": "장면 한 문장", "words": [{"word": "영어 단어", "event": "그 단어가 받은 뜻 그대로 쓰인 한 문장"}]}], "leftover": ["어디에도 안 맞는 영어 단어"]}`}`}`;
 const GROUPER = grouper(6);
 // 후보에서 고르기 (19판, pick): 묶기를 여러 번 돌려 모은 후보 묶음 가운데 가장 나은 것만 남겨요 (2026-11-14 사용자가 고름. 규칙 글만 고쳐서는 5/12 → 4/14 → 2/13)
 const PICK_ASK = size => `
@@ -374,7 +385,7 @@ const MAX_NOTES = 20000;
 const KEYS = {
   '/story': ['words', 'model', 'effort', 'format', 'plan', 'drafts', 'editor', 'editorEffort', 'stream', 'notes', 'style', 'scene'],
   '/fix': ['words', 'story', 'problems', 'model', 'effort', 'format', 'stream', 'style'],
-  '/group': ['words', 'model', 'effort', 'stream', 'notes', 'draft', 'size', 'pick']
+  '/group': ['words', 'model', 'effort', 'stream', 'notes', 'draft', 'size', 'pick', 'story']
 };
 const MAX_SCENE = 3000;
 function readWordList(ws, min = 3, max = 10) {
@@ -421,6 +432,11 @@ function readBody(path, body, allowModel) {
   out.size = body.size || 6;
   if (body.pick != null && typeof body.pick !== 'boolean') return { err: 'pick은 true·false예요' };
   out.pick = body.pick === true;
+  if (path === '/group') {
+    if (body.story != null && typeof body.story !== 'boolean') return { err: 'story는 true·false예요' };
+    out.story = body.story === true;
+  }
+  if (out.story && (out.size !== 4 || out.pick || body.draft != null)) return { err: 'story는 size 4의 처음 묶기에만 돼요' };
   out.stream = body.stream === true;
   // 흘려 받기는 AI에게 한 번 묻고 답 글을 그대로 넘겨요 → 서버가 답을 고쳐 만들어야 하는 길(JSON 꼴·뼈대·초안·편집자)은 안 돼요
   if (out.stream && (out.format === 'json' || out.plan || out.drafts > 1 || out.editor)) return { err: '흘려 받기(stream)는 text·plain 꼴의 한 번 쓰기에만 돼요' };
@@ -648,14 +664,14 @@ async function fix(env, q) {
 // 서버는 받은 조각을 그대로 넘기기만 해요 → CPU를 거의 안 쓰고, AI를 기다리는 시간은 무료 요금제 CPU 한도(10ms)에 들지 않아요
 // 묶음 짜기 (11판): 한 번 묻고 JSON 글을 그대로 돌려줘요 (앱·재기 도구가 읽고 확인해요)
 async function group(env, q) {
-  const steps = [], { r, ms } = await callAI(env, q.model, grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size, q.pick), q.effort, null);
+  const steps = [], { r, ms } = await callAI(env, q.model, grouper(q.size, q.story), groupAsk(q.words, q.draft, q.notes, q.size, q.pick), q.effort, null);
   const u = usageOf(r);
   steps.push({ step: q.draft ? 'review' : 'group', model: q.model, effort: q.effort, ms, in: u.in, out: u.out });
   return { model: q.model, effort: q.effort, text: unthink(textOf(r)).trim(), shape: shapeOf(r), steps };
 }
 function streamInput(path, q) {
   const [system, user] = path === '/fix' ? [roleSystem(FIXER, q.format, q.style), fixAsk(q.words, fixStory(q), q.problems)]
-    : path === '/group' ? [grouper(q.size), groupAsk(q.words, q.draft, q.notes, q.size, q.pick)]
+    : path === '/group' ? [grouper(q.size, q.story), groupAsk(q.words, q.draft, q.notes, q.size, q.pick)]
     : [writerSystem(q.format, q.style), ask(q.words, null, q.notes, q.scene)];
   return {
     messages: msgs(system, user), max_tokens: maxOut(q.effort), temperature: 0.7, ...thinking(q.model, q.effort),

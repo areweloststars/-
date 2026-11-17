@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 19 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 20 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -516,4 +516,20 @@ test('story server v19: /group pick chooses the best of pooled candidate groups'
   assert.match(usr(calls[0]), /후보를 고치거나 새로 만들지 않아요/);
   assert.ok(usr(calls[0]).includes('<초안>\n' + draft + '\n</초안>'));
   assert.equal((await w.fetch(req({ words: DECK, size: 4, pick: 'yes', draft }, { url }), env)).status, 400);
+});
+
+// 20판 (2026-11-17): /group story — 묶음마다 이야기 한 편을 함께 써요 (사용자가 이야기 전체를 읽고 고르게)
+test('story server v20: /group story writes a whole story for each group', async () => {
+  const w = await load();
+  const { env, calls } = fakeEnv({ choices: [{ message: { content: '{"groups":[],"leftover":[]}' } }] });
+  const url = 'https://s.example/group';
+  assert.equal((await w.fetch(req({ words: DECK, effort: 'medium', size: 4, story: true }, { url }), env)).status, 200);
+  assert.equal(sys(calls[0]), w._.grouper(4, true));
+  assert.match(sys(calls[0]), /"title": "이야기 제목/);
+  assert.match(sys(calls[0]), /문장마다 바로 앞 문장 때문에 일어나는 일이에요/);
+  assert.ok(!w._.grouper(4).includes('"story"'));
+  // size 4의 처음 묶기에만
+  assert.equal((await w.fetch(req({ words: DECK, size: 6, story: true }, { url }), env)).status, 400);
+  assert.equal((await w.fetch(req({ words: DECK, size: 4, story: 'yes' }, { url }), env)).status, 400);
+  assert.equal((await w.fetch(req({ words: DECK, size: 4, story: true, draft: '{"groups":[]}' }, { url }), env)).status, 400);
 });

@@ -205,7 +205,7 @@ async function mkAiPrefetch() {
 }
 function mkMakingHTML() {
   const items = MK.log.map(l => `<li class="${l.state}"><span>${esc(l.text)}${l.state === 'run' ? '<i class="dotdot" aria-hidden="true"></i>' : ''}</span></li>`).join('');
-  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p>${MK.sv ? `<b>${MK.sv === 'group' ? '이야기 서버가 묶음 후보를 만들고 있어요' : '이야기 서버가 이야기를 쓰고 있어요'}</b><br><small>${MK.sv === 'group' ? '한 번에 2~8분쯤 걸려요.' : '한 편에 2~8분쯤 걸려요.'} 다 될 때까지 이 화면을 켜 두세요.</small>` : `<b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 다 만들 때까지 이 화면을 켜 두세요. 다른 앱을 열면 이야기 AI가 멈출 수 있어요.</small>`}</p></div>
+  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p>${MK.sv ? `<b>이야기 서버가 이야기 후보를 쓰고 있어요</b><br><small>한 번에 2~8분쯤 걸려요. 다 될 때까지 이 화면을 켜 두세요.</small>` : `<b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 다 만들 때까지 이 화면을 켜 두세요. 다른 앱을 열면 이야기 AI가 멈출 수 있어요.</small>`}</p></div>
     <ol class="mklog">${items}</ol>
     <button type="button" class="btn" data-mk="stop">그만두기</button>`;
 }

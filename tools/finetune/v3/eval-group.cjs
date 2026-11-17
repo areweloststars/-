@@ -23,6 +23,8 @@ const FROM = arg('from'), PICK = String(arg('pick', '')).split(',').map(Number).
 // --fix=1 (2026-11-11 사용자가 정함): 점검기가 문제를 찾으면(표시가 빠진 단어 등) 그곳만 /fix로 고쳐 써요. 끊기면 생각 low로 한 번 더
 const FIX = Number(arg('fix', 0)) || 0;
 // --pool=a,b,c (서버 19판 pick): 묶지 않고, grp-<이름>.json들의 묶음을 후보로 모아 AI가 가장 나은 것만 고르게 해요
+// --story (서버 20판): 묶음마다 이야기 한 편(title·story)을 함께 받아요 (size 4에서만). 사용자가 이야기 전체를 읽고 고르게
+const STORYG = !!arg('story');
 const POOL = String(arg('pool', '')).split(',').filter(Boolean);
 // --examples=four-b:1.2.5,rev-b:2.3.4.7,real-a: (2026-11-16 시험): 다른 단어장에서 사용자가 판정한 묶음을 본보기로 함께 보내요.
 // 이름 뒤 번호가 사용자가 '어울려요'라고 한 묶음, 나머지는 '억지'. 서버를 바꾸지 않고 draft JSON 안에 넣어요
@@ -131,7 +133,8 @@ async function main() {
       res.from = { name: FROM, pick: PICK };
       showGroups(`${FROM}의 묶음 ${PICK.join(',')} (AI가 더한 단어는 뺌)`, r);
     } else {
-      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, ...(SIZE !== 6 ? { size: SIZE } : {}) }, '묶기');
+      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, ...(SIZE !== 6 ? { size: SIZE } : {}), ...(STORYG ? { story: true } : {}) }, '묶기');
+      if (STORYG) { res.storyGroups = ((W.parseJSON(g1.text) || {}).groups || []).map(g => ({ scene: g.scene, title: g.title, story: g.story, words: (g.words || []).map(x => x.word || x) })); for (const [i, g] of res.storyGroups.entries()) { say(`\n[이야기 후보 ${i + 1}] ${g.title} (${g.words.join(', ')})`); (g.story || []).forEach(l => say('  ' + l)); } }
       r = readGroups(W.parseJSON(g1.text));
       res.passes.push({ step: 'group', rescued: !!g1.rescued, ...r, thinking: g1.rescued ? g1.notes : g1.reasoning, raw: g1.text });
       showGroups(`묶기${g1.rescued ? ' (생각이 끊겨 메모로 다시 씀)' : ''}`, r);
