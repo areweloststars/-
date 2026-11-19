@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 20 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 21 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -526,10 +526,30 @@ test('story server v20: /group story writes a whole story for each group', async
   assert.equal((await w.fetch(req({ words: DECK, effort: 'medium', size: 4, story: true }, { url }), env)).status, 200);
   assert.equal(sys(calls[0]), w._.grouper(4, true));
   assert.match(sys(calls[0]), /"title": "이야기 제목/);
-  assert.match(sys(calls[0]), /문장마다 바로 앞 문장 때문에 일어나는 일이에요/);
+  assert.match(sys(calls[0]), /문장마다 바로 앞 문장에서 생긴 일이 까닭이 되어 일어나요/);
   assert.ok(!w._.grouper(4).includes('"story"'));
   // size 4의 처음 묶기에만
   assert.equal((await w.fetch(req({ words: DECK, size: 6, story: true }, { url }), env)).status, 400);
   assert.equal((await w.fetch(req({ words: DECK, size: 4, story: 'yes' }, { url }), env)).status, 400);
   assert.equal((await w.fetch(req({ words: DECK, size: 4, story: true, draft: '{"groups":[]}' }, { url }), env)).status, 400);
+});
+
+// 21판 (2026-11-19): 20판 후보가 일을 늘어놓기만 해서 — problem 먼저, 잇는 말, 다른 사람이 움직이게, 좋은 예·나쁜 예, 한국어만
+test('story server v21: /group story asks for a problem first and a cause-and-effect chain', () => {
+  const w = require('node:module').createRequire(__filename);
+  return load().then(W => {
+    const g = W._.grouper(4, true);
+    assert.match(g, /"problem": "주인공이 바라는 것이나 생긴 문제 한 문장"/);
+    assert.match(g, /그래서·그런데·그러자·하지만/);
+    assert.match(g, /다른 사람\(엄마·아빠·친구·선생님\)이 무엇을 하거나 말해서 다음 일이 생기게/);
+    assert.match(g, /나쁜 이야기: .*늘어놓기만/);
+    assert.match(g, /영어 단어나 다른 나라 글자를 문장에 섞지 않아요/);
+    // 좋은 예·나쁜 예에 시험 단어(영어·뜻)를 쓰지 않아요
+    const { TEST_SETS } = w('../../tools/finetune/v3/check.cjs');
+    const ex = g.slice(g.indexOf('- 좋은 이야기'), g.indexOf('- 누가·무엇을'));
+    for (const [en, ko] of TEST_SETS.flat()) {
+      assert.ok(!new RegExp('\\b' + en + '\\b', 'i').test(ex), en);
+      assert.ok(!ex.includes(ko.replace(/다$/, '')), ko);
+    }
+  });
 });

@@ -9330,6 +9330,7 @@ async function svAsk(route, body, signal) {
   }
 }
 const svWordsOf = rows0 => rows0.map(r => [r.en, r.ko, r.pos]);
+const SV_FOREIGN = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]/;
 // 답의 묶음 읽기: 이 단어장 단어만, 한 묶음에 4~5개, 이야기(story)에 단어가 모두 들어간 것만 후보로.
 // 이야기 줄에는 앱이 {영어|뜻 말} 표시를 붙여요 (svRetag). rows: 영어 → {en, ko, pos}
 function svReadGroups(j, byLow, rows) {
@@ -9343,6 +9344,8 @@ function svReadGroups(j, byLow, rows) {
     const scene = str(g && g.scene, 200), title = str(g && g.title, 24);
     const story = (g && Array.isArray(g.story) ? g.story : []).filter(l => typeof l === 'string').map(l => str(l, MK_LINE_MAX)).filter(Boolean).slice(0, 10);
     if (ws.length < 4 || ws.length > 5 || story.length < ws.length + 1) continue;
+    // 영어나 다른 나라 글자(한자·가나 등)가 섞인 이야기는 빼요 (20판 후보에 'sorriso'가 섞인 일이 있었어요)
+    if (story.some(l => SV_FOREIGN.test(l))) continue;
     const lines = svRetag(ws.map(w => [w, rows[w].ko, rows[w].pos]), story);
     if (!ws.every(w => lines.some(l => l.includes('{' + w + '|')))) continue;
     out.push({ scene, title: title || scene.slice(0, 20), lines, words: ws });

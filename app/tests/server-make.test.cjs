@@ -11,6 +11,7 @@ const GROUPS = JSON.stringify({ groups: [
   { scene: '아이가 빌린 책을 고친다.', title: '찢어진 책', story: ['준이는 도서관에 갔어요.', '준이는 책을 한 권 빌렸어요.', '그런데 책이 찢어져서 테이프로 수리했어요.', '준이는 책을 비닐로 싸서 보호했어요.', '그리고 과자를 조금 맛보았어요.', '책은 다시 깨끗해졌어요.'], words: ['borrow', 'repair', 'protect', 'taste'].map(word => ({ word })) },
   { scene: '세 단어뿐인 묶음', title: '셋', story: ['가', '나', '다', '라'], words: [{ word: 'solve' }, { word: 'journey' }, { word: 'honest' }] },
   { scene: '이야기에 단어가 빠진 묶음', title: '빠짐', story: ['하나는 길을 떠났어요.', '하나는 문제를 풀었어요.', '하나는 여행을 했어요.', '하나는 집에 왔어요.', '끝났어요.'], words: ['solve', 'journey', 'honest', 'borrow'].map(word => ({ word })) },
+  { scene: '외국어가 섞인 묶음', title: '섞임', story: ['준이는 길을 떠났어요.', '준이는 문제를 풀었어요.', '그래서 여행을 했어요.', '준이는 정직한 아이였어요.', '준이는 책을 빌렸어요.', '준이는 sorriso 지었어요.'], words: ['solve', 'journey', 'honest', 'borrow'].map(word => ({ word })) },
   { scene: '모르는 단어가 든 묶음', words: [{ word: 'zebra', event: '얼룩말' }, { word: 'solve', event: '푼다' }] }
 ], leftover: ['journey'] });
 
