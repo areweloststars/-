@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 21 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 22 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
@@ -532,6 +532,20 @@ test('story server v20: /group story writes a whole story for each group', async
   assert.equal((await w.fetch(req({ words: DECK, size: 6, story: true }, { url }), env)).status, 400);
   assert.equal((await w.fetch(req({ words: DECK, size: 4, story: 'yes' }, { url }), env)).status, 400);
   assert.equal((await w.fetch(req({ words: DECK, size: 4, story: true, draft: '{"groups":[]}' }, { url }), env)).status, 400);
+});
+
+// 22판 (2026-11-23): Nemotron이 내려가 gpt-oss로 재 보니 꼴을 덜 지켜서 — story일 때만 요청 끝(답: 앞)에 점검표, 예에 시험 단어 없이
+test('story server v22: /group story adds a checklist before the answer (only with story)', async () => {
+  const w = await load();
+  const { env, calls } = fakeEnv({ choices: [{ message: { content: '{"groups":[],"leftover":[]}' } }] });
+  const url = 'https://s.example/group';
+  await w.fetch(req({ words: DECK, effort: 'medium', size: 4, story: true }, { url }), env);
+  assert.match(usr(calls[0]), /답하기 전에 묶음마다 점검해요[\s\S]*story 문장 수 = 단어 수 \+ 1~3[\s\S]*"~어요"로 끝나요[\s\S]*\n답:$/);
+  await w.fetch(req({ words: DECK, effort: 'medium', size: 4 }, { url }), env);
+  assert.ok(!usr(calls[1]).includes('답하기 전에 묶음마다 점검해요'));
+  const { TEST_SETS } = require('../../tools/finetune/v3/check.cjs');
+  const check = w._.groupAsk(DECK, null, null, 4, false, true).split('답하기 전에')[1];
+  for (const [en, ko] of TEST_SETS.flat()) assert.ok(!check.includes(ko.replace(/다$/, '')), ko);
 });
 
 // 21판 (2026-11-19): 20판 후보가 일을 늘어놓기만 해서 — problem 먼저, 잇는 말, 다른 사람이 움직이게, 좋은 예·나쁜 예, 한국어만
