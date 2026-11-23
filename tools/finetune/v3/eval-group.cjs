@@ -18,6 +18,8 @@ const API = (process.env.WG_STORY || '').replace(/\/$/, '');
 if (!API) { console.error('WG_STORY=<이야기 서버 주소>와 WG_TOKEN=<열쇠>를 주세요'); process.exit(2); }
 const SETS = String(arg('sets', '1,2,3,4,5')).split(',').map(Number).filter(n => n >= 1 && n <= TEST_SETS.length);
 const MODEL = arg('model', '@cf/nvidia/nemotron-3-120b-a12b'), EFFORT = arg('effort', 'medium'), REVIEW = !!arg('review');
+// gpt-oss는 서버가 흘려 받기를 받지 않아요 (2026-11-23, Nemotron이 내려가서 다른 무료 모델로 재요)
+const STREAM = /gpt-oss/i.test(MODEL) ? {} : { stream: true };
 const STORIES = Number(arg('stories', 1)) || 0, STYLE = arg('style', 'twist'), SIZE = Number(arg('size', 6)) === 4 ? 4 : 6;
 const FROM = arg('from'), PICK = String(arg('pick', '')).split(',').map(Number).filter(n => n >= 1), TITLE = arg('title');
 // --fix=1 (2026-11-11 사용자가 정함): 점검기가 문제를 찾으면(표시가 빠진 단어 등) 그곳만 /fix로 고쳐 써요. 끊기면 생각 low로 한 번 더
@@ -117,7 +119,7 @@ async function main() {
       }
       res.candidates = cands;
       say(`\n후보 묶음 ${cands.length}개 (${POOL.join(', ')})`);
-      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, size: SIZE, pick: true, draft: JSON.stringify({ ...examples(), candidates: cands.map(({ scene, words }) => ({ scene, words })) }) }, '후보에서 고르기');
+      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, ...STREAM, size: SIZE, pick: true, draft: JSON.stringify({ ...examples(), candidates: cands.map(({ scene, words }) => ({ scene, words })) }) }, '후보에서 고르기');
       r = readGroups(W.parseJSON(g1.text));
       // 고른 묶음이 어느 후보인지 (단어가 같은 후보)
       const key = g => g.words.map(x => x.word.toLowerCase()).sort().join(',');
@@ -133,7 +135,7 @@ async function main() {
       res.from = { name: FROM, pick: PICK };
       showGroups(`${FROM}의 묶음 ${PICK.join(',')} (AI가 더한 단어는 뺌)`, r);
     } else {
-      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, ...(SIZE !== 6 ? { size: SIZE } : {}), ...(STORYG ? { story: true } : {}) }, '묶기');
+      const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, ...STREAM, ...(SIZE !== 6 ? { size: SIZE } : {}), ...(STORYG ? { story: true } : {}) }, '묶기');
       if (STORYG) { res.storyGroups = ((W.parseJSON(g1.text) || {}).groups || []).map(g => ({ scene: g.scene, problem: g.problem, title: g.title, story: g.story, words: (g.words || []).map(x => x.word || x) })); for (const [i, g] of res.storyGroups.entries()) { say(`\n[이야기 후보 ${i + 1}] ${g.title} (${g.words.join(', ')})`); if (g.problem) say('  (문제) ' + g.problem); (g.story || []).forEach(l => say('  ' + l)); } }
       r = readGroups(W.parseJSON(g1.text));
       res.passes.push({ step: 'group', rescued: !!g1.rescued, ...r, thinking: g1.rescued ? g1.notes : g1.reasoning, raw: g1.text });
@@ -142,7 +144,7 @@ async function main() {
     save();
     // 2) 다시 따지기
     if (REVIEW && !FROM && r.groups.length) {
-      const g2 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, draft: JSON.stringify({ groups: r.groups, leftover: [...(r.leftover || []), ...(r.missing || [])] }), ...(SIZE !== 6 ? { size: SIZE } : {}) }, '다시 따지기');
+      const g2 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, ...STREAM, draft: JSON.stringify({ groups: r.groups, leftover: [...(r.leftover || []), ...(r.missing || [])] }), ...(SIZE !== 6 ? { size: SIZE } : {}) }, '다시 따지기');
       const r2 = readGroups(W.parseJSON(g2.text));
       res.passes.push({ step: 'review', rescued: !!g2.rescued, ...r2, thinking: g2.rescued ? g2.notes : g2.reasoning, raw: g2.text });
       showGroups(`다시 따지기${g2.rescued ? ' (생각이 끊겨 메모로 다시 씀)' : ''}`, r2);
@@ -160,13 +162,13 @@ async function main() {
       const gw = g.words.map(x => byEn.get(x.word.toLowerCase()));
       const st = { group: FROM ? PICK[i] : i + 1, words: gw.map(w => w[0]), ko: gw.map(w => w[1]), scene: sceneText(g) };
       try {
-        const x = await ask('/story', { words: gw, model: MODEL, effort: EFFORT, format: 'plain', stream: true, style: STYLE, scene: st.scene }, `이야기 ${i + 1}`);
+        const x = await ask('/story', { words: gw, model: MODEL, effort: EFFORT, format: 'plain', ...STREAM, style: STYLE, scene: st.scene }, `이야기 ${i + 1}`);
         let o = retag(p, gw, parse(x.text)), chk = check(p, gw, o);
         const firstWhy = chk.why;
         // 고쳐 쓰기: 점검기가 찾은 문제만 (표시가 빠진 단어·사전 꼴 등)
         const fixes = [];
         for (let f = 0; f < FIX && chk.why.length; f++) {
-          const fb = { words: gw, story: toText(o), problems: chk.why.slice(0, 40).map(w => w.slice(0, 200)), model: MODEL, format: 'plain', style: STYLE, stream: true };
+          const fb = { words: gw, story: toText(o), problems: chk.why.slice(0, 40).map(w => w.slice(0, 200)), model: MODEL, format: 'plain', style: STYLE, ...STREAM };
           let y;
           try { y = await ask('/fix', { ...fb, effort: EFFORT }, `고쳐 쓰기 ${i + 1}`); } catch (e) { if (e.stop || !e.cut) throw e; y = await ask('/fix', { ...fb, effort: 'low' }, `고쳐 쓰기 ${i + 1}`); }
           o = retag(p, gw, parse(y.text)); chk = check(p, gw, o);
