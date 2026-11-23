@@ -352,8 +352,8 @@ test('story server v7: stream passes the AI stream through as it comes, only for
   await f.text();
   assert.equal(calls[1].input.messages[0].content, w._.roleSystem(w._.FIXER, 'text'));
   assert.match(calls[1].input.messages[1].content, /\{borrow\|빌렸어요\}/);
-  // 안 되는 것: 참·거짓이 아님, JSON 꼴, 뼈대, 초안, 편집자, gpt-oss → AI를 부르지 않고 거절
-  for (const bad of [{ stream: 'yes' }, { stream: true, format: 'json' }, { stream: true, plan: true }, { stream: true, drafts: 2 }, { stream: true, editor: '@cf/google/gemma-4-26b-a4b-it' }, { stream: true, model: '@cf/openai/gpt-oss-120b' }]) {
+  // 안 되는 것: 참·거짓이 아님, JSON 꼴, 뼈대, 초안, 편집자 → AI를 부르지 않고 거절 (gpt-oss는 22판부터 한 번에 받아 답해요)
+  for (const bad of [{ stream: 'yes' }, { stream: true, format: 'json' }, { stream: true, plan: true }, { stream: true, drafts: 2 }, { stream: true, editor: '@cf/google/gemma-4-26b-a4b-it' }]) {
     assert.equal((await w.fetch(req({ words: WORDS, ...bad }), env)).status, 400, JSON.stringify(bad));
   }
   assert.equal(calls.length, 2);
@@ -546,6 +546,20 @@ test('story server v22: /group story adds a checklist before the answer (only wi
   const { TEST_SETS } = require('../../tools/finetune/v3/check.cjs');
   const check = w._.groupAsk(DECK, null, null, 4, false, true).split('답하기 전에')[1];
   for (const [en, ko] of TEST_SETS.flat()) assert.ok(!check.includes(ko.replace(/다$/, '')), ko);
+});
+
+// 22판: 게임은 늘 stream: true를 보내요. gpt-oss면 흘려 받기 없이 한 번에 받아 JSON으로 답해요 (Nemotron이 2026-11-20에 내려감)
+test('story server v22: stream with gpt-oss is answered in one piece (JSON), not refused', async () => {
+  const w = await load();
+  const { env, calls } = fakeEnv({ output_text: '{"groups":[{"scene":"부엌","words":[{"word":"mix"}]}],"leftover":[]}' });
+  const r = await w.fetch(req({ words: DECK, effort: 'medium', size: 4, story: true, stream: true, model: '@cf/openai/gpt-oss-120b' }, { url: 'https://s.example/group' }), env);
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type'), /application\/json/);
+  const j = await r.json();
+  assert.match(j.text, /"groups"/);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].input.stream, undefined);
+  assert.ok(calls[0].input.instructions && calls[0].input.input, 'Responses 꼴');
 });
 
 // 21판 (2026-11-19): 20판 후보가 일을 늘어놓기만 해서 — problem 먼저, 잇는 말, 다른 사람이 움직이게, 좋은 예·나쁜 예, 한국어만

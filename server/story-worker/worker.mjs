@@ -738,8 +738,10 @@ async function handle(req, env) {
   q.effort = q.effort || (EFFORTS.includes(env.WG_EFFORT) ? env.WG_EFFORT : defaultEffort(q.model));
   // 단어는 적지 않고, 오류 종류만 돌려줘요 (하루 무료 한도를 넘으면 여기로 와요)
   const aiError = e => { const msg = String((e && e.message) || e).slice(0, 600); return reply(req, isLimit(msg) ? 429 : 502, { error: 'AI 오류: ' + msg, model: q.model }); };
+  // 22판: gpt-oss는 흘려 받기가 안 돼요 → 흘려 받기를 바라도 한 번에 받아 JSON으로 답해요 (앱은 두 꼴 다 읽어요).
+  // Nemotron이 2026-11-20에 내려가서, 게임이 늘 보내는 stream: true가 gpt-oss에서도 되게 (gpt-oss는 한 번 묻는 데 1.5~3.5분 걸려도 끝까지 받았어요)
+  if (q.stream && isOss(q.model)) q.stream = false;
   if (q.stream) {
-    if (isOss(q.model)) return reply(req, 400, { error: '흘려 받기(stream)는 gpt-oss에서 안 돼요' });
     try {
       const s = await env.AI.run(q.model, streamInput(path, q));
       if (!s || typeof s.getReader !== 'function') return reply(req, 502, { error: 'AI가 흘려 받기 답을 주지 않았어요', model: q.model, shape: shapeOf(s) });

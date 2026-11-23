@@ -22,6 +22,7 @@ function fakeServer(p, plan) {
     const body = JSON.parse(opt.body), step = plan[Math.min(calls.length, plan.length - 1)];
     calls.push({ url: String(url), auth: opt.headers.authorization, body });
     if (step.status) return { ok: false, status: step.status, headers: { get: () => 'application/json' }, json: async () => ({ error: 'x' }), text: async () => '' };
+    if (step.json) return { ok: true, status: 200, headers: { get: () => 'application/json; charset=utf-8' }, json: async () => step.json, text: async () => JSON.stringify(step.json) };
     return { ok: true, status: 200, headers: { get: () => 'text/event-stream' }, text: async () => sse(step.content, step.reasoning), json: async () => ({}) };
   };
   return calls;
@@ -117,4 +118,16 @@ test('하루 한도(429): 후보를 못 받았으면 확인 화면으로, 받은
   assert.strictEqual(b.p.json(`SRV.cands.length`), 2);
   assert.ok(b.p.run(`SRV.note`).includes('무료 한도'));
   b.p.close();
+});
+
+// 서버 22판: gpt-oss는 흘려 받기 없이 한 번에 JSON으로 답해요 (Nemotron이 2026-11-20에 내려감) → 게임은 그 꼴도 읽어요
+test('이야기 후보: 서버가 흘려 받기 대신 JSON 한 번으로 답해도 후보를 보여 줘요', async () => {
+  const { p, calls } = setup([{ json: { model: '@cf/openai/gpt-oss-120b', text: GROUPS, steps: [] } }]);
+  p.run(`svCollect(1)`);
+  await wait(p, `MK.step === 'srvpick'`);
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].body.stream, true);
+  assert.strictEqual(p.json(`SRV.cands.length`), 2);
+  assert.deepStrictEqual(p.errors, []);
+  p.close();
 });
