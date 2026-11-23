@@ -134,7 +134,7 @@ async function main() {
       showGroups(`${FROM}의 묶음 ${PICK.join(',')} (AI가 더한 단어는 뺌)`, r);
     } else {
       const g1 = await ask('/group', { words: WORDS, model: MODEL, effort: EFFORT, stream: true, ...(SIZE !== 6 ? { size: SIZE } : {}), ...(STORYG ? { story: true } : {}) }, '묶기');
-      if (STORYG) { res.storyGroups = ((W.parseJSON(g1.text) || {}).groups || []).map(g => ({ scene: g.scene, title: g.title, story: g.story, words: (g.words || []).map(x => x.word || x) })); for (const [i, g] of res.storyGroups.entries()) { say(`\n[이야기 후보 ${i + 1}] ${g.title} (${g.words.join(', ')})`); (g.story || []).forEach(l => say('  ' + l)); } }
+      if (STORYG) { res.storyGroups = ((W.parseJSON(g1.text) || {}).groups || []).map(g => ({ scene: g.scene, problem: g.problem, title: g.title, story: g.story, words: (g.words || []).map(x => x.word || x) })); for (const [i, g] of res.storyGroups.entries()) { say(`\n[이야기 후보 ${i + 1}] ${g.title} (${g.words.join(', ')})`); if (g.problem) say('  (문제) ' + g.problem); (g.story || []).forEach(l => say('  ' + l)); } }
       r = readGroups(W.parseJSON(g1.text));
       res.passes.push({ step: 'group', rescued: !!g1.rescued, ...r, thinking: g1.rescued ? g1.notes : g1.reasoning, raw: g1.text });
       showGroups(`묶기${g1.rescued ? ' (생각이 끊겨 메모로 다시 씀)' : ''}`, r);
