@@ -2,7 +2,7 @@
 // eval-server.cjs에도 같은 것이 들어 있어요 (그쪽은 그대로 두었어요).
 // 하루 무료 10,000 Neuron을 얼마나 쓰는지: Cloudflare 요금표(2026-10-31)의 백만 토큰당 Neuron (입력, 출력)
 // 2026-11-23: Nemotron 3 120B는 Cloudflare가 2026-11-20에 내렸어요 (5028 deprecated). 무료 요금제로 쓸 수 있는 큰 모델 값도 적어 둬요 (요금표 2026-11-18)
-const PRICES = { '@cf/nvidia/nemotron-3-120b-a12b': [45455, 136364], '@cf/openai/gpt-oss-120b': [31818, 68182], '@cf/qwen/qwq-32b': [60000, 90909], '@cf/meta/llama-3.3-70b-instruct-fp8-fast': [26668, 204805] };
+const PRICES = { '@cf/nvidia/nemotron-3-120b-a12b': [45455, 136364], '@cf/openai/gpt-oss-120b': [31818, 68182], '@cf/qwen/qwq-32b': [60000, 90909], '@cf/meta/llama-3.3-70b-instruct-fp8-fast': [26668, 204805], '@cf/qwen/qwen3.8-27b': [40909, 290909] };
 // 흘려 받기 끝 조각의 usage에 Cloudflare가 센 Neuron이 와요 (2026-11-08 확인: 토큰으로 센 값과 같아요). 있으면 그것을 써요
 const neurons = steps => steps.reduce((a, s) => { if (s.neurons != null) return a + s.neurons; const p = PRICES[s.model]; return p && s.in != null ? a + (s.in * p[0] + (s.out || 0) * p[1]) / 1e6 : a; }, 0);
 
