@@ -51,15 +51,15 @@
 
 // 무료 요금제에서 쓸 수 있는 글 모델 (2026-10-31 Cloudflare 문서·요금표). 괄호는 이야기 한 편(입력 2천·출력 1천 토큰쯤)에 드는 Neuron 어림.
 // 하루 무료 10,000 Neuron → gemma·glm은 200편쯤, gpt-oss는 60편쯤, nemotron·llama는 40편쯤, qwen은 20편쯤.
-// 2026-10-31 사용자가 Playground로 직접 읽고 Nemotron 3 120B를 골랐어요 ("유일하게 이야기가 이어져요") → 기본 모델.
-// Playground는 Nemotron의 생각을 켠 채로 썼어요 → 서버도 생각을 켜요 (기본 low, effort medium이면 Playground와 같은 보통 생각)
+// 2026-10-31 사용자가 Playground로 직접 읽고 Nemotron 3 120B를 골랐지만, Cloudflare가 2026-11-20에 내렸어요 (QwQ 32B도. 요청하면 5028).
+// 2026-11-25 사용자가 "Neuron을 많이 써도 문장마다 가장 잘 이어지는 모델을 찾아서 그걸로" 맡겼어요 → 견주기에서 가장 나은 Qwen 3.8 27B가 기본 (23판).
+// Qwen 3.8은 생각이 길어요: 생각 보통이면 한 판(31단어)에 14분쯤 (5분에 두 번 끊기고 앱이 이어 생각하게 해서 끝나요), 2,400 Neuron쯤.
 const MODELS = [
-  '@cf/nvidia/nemotron-3-120b-a12b',  // 생각 low (340) — 기본
-  '@cf/openai/gpt-oss-120b',          // 생각 low (130)
-  '@cf/google/gemma-4-26b-a4b-it',    // 생각 끔 (45) — 꼴은 잘 지키지만 사용자 판정: 이야기가 안 이어져요
-  '@cf/zai-org/glm-4.7-flash',        // 생각 끔 (50)
-  '@cf/meta/llama-3.3-70b-instruct-fp8-fast', // 생각 없음 (260)
-  '@cf/qwen/qwen3.8-27b',             // 생각 low (400~, 기본은 xhigh라 빈 답이 왔어요)
+  '@cf/qwen/qwen3.8-27b',             // 생각 보통 — 기본. 생각 low도 4천 토큰을 생각에 다 써서 빈 답 → 글자 한도를 늘 넉넉히
+  '@cf/openai/gpt-oss-120b',          // 생각 보통 — 사용자 판정 1/14 (2026-11-25)
+  '@cf/google/gemma-4-26b-a4b-it',    // 사용자 판정: 이야기가 안 이어져요 (2026-11-25 Claude 견주기 0/11)
+  '@cf/zai-org/glm-4.7-flash',        // 꼴이 많이 틀려요 (10-31)
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast', // 묶음 요청에 빈 답 (2026-11-25)
   '@cf/openai/gpt-oss-20b'
 ];
 // deepseek-v4는 무료 요금제에서 못 써요 (문서·5035 오류). WG_MODELS가 없으면 이 꼴의 다른 모델도 시험할 수 있어요
@@ -71,7 +71,7 @@ const ORIGINS = ['https://areweloststars.github.io'];
 const MAX_BODY = { '/story': 65536, '/fix': 16384, '/group': 65536 }; // 생각 메모(notes)·묶음 초안(draft)·장면(scene)이 있을 때만 크게
 const WORDS_ONLY = { '/story': 2048, '/group': 6144 }; // 그것들이 없으면 단어 글자뿐이라 작아요 (/group은 단어 40개까지)
 const MAX_OUT = 4000;
-const VERSION = 22;
+const VERSION = 23;
 
 // ---- 규칙 글 ----
 // 앱 점검기(check.cjs, 게임의 aiLineWhy·aiMark)와 같은 규칙을 사람 말로 적었어요.
@@ -590,9 +590,10 @@ function broken(t) {
 // 생각 깊이: 생각하는 모델은 생각에 글자 한도를 다 쓰면 답이 잘리거나 비어요 (2026-10-31 재 봄:
 // gpt-oss medium은 생각 글이 새고 3/10, qwen3.8은 기본 xhigh라 빈 답). 모델마다 문서에 적힌 방법으로 정해요.
 const isOss = m => /gpt-oss/i.test(m);
-const defaultEffort = m => (isOss(m) || /qwen3|nemotron/i.test(m) ? 'low' : 'none');
+const defaultEffort = m => (/qwen3/i.test(m) ? 'medium' : isOss(m) || /nemotron/i.test(m) ? 'low' : 'none');
 // 생각을 보통 이상으로 켜면 생각 글이 길어져요 → 답이 잘리지 않게 글자 한도를 넉넉히 (Nemotron 문서 보기도 16000)
-const maxOut = effort => (effort === 'medium' || effort === 'high' ? 12000 : MAX_OUT);
+// Qwen 3.8은 생각 low여도 4천 토큰을 생각에 다 써서 답이 비어요 (2026-11-25, 4번 모두) → Qwen은 늘 1만 2천
+const maxOut = (effort, model) => (effort === 'medium' || effort === 'high' || /qwen3/i.test(model || '') ? 12000 : MAX_OUT);
 function thinking(model, effort) {
   if (/qwen3/i.test(model)) return { reasoning_effort: effort === 'none' ? 'low' : effort === 'high' ? 'xhigh' : effort };
   // Nemotron 생각 끔: 9판부터 force_nonempty_content (문서: 답 글이 비지 않게). 8판에서 생각 메모로 다시 쓸 때 2번 다
@@ -613,10 +614,10 @@ const msgs = (system, user) => [{ role: 'system', content: system }, { role: 'us
 async function callAI(env, model, system, user, effort, schema) {
   const tries = [];
   if (isOss(model)) {
-    tries.push(() => env.AI.run(model, { instructions: system, input: user, reasoning: { effort: effort === 'none' ? 'low' : effort }, max_output_tokens: maxOut(effort) }));
-    tries.push(() => env.AI.run(model, { messages: msgs(system, user), max_tokens: maxOut(effort), temperature: 0.7, ...(schema ? { response_format: formatOf(model, schema) } : {}) }));
+    tries.push(() => env.AI.run(model, { instructions: system, input: user, reasoning: { effort: effort === 'none' ? 'low' : effort }, max_output_tokens: maxOut(effort, model) }));
+    tries.push(() => env.AI.run(model, { messages: msgs(system, user), max_tokens: maxOut(effort, model), temperature: 0.7, ...(schema ? { response_format: formatOf(model, schema) } : {}) }));
   } else {
-    const base = { messages: msgs(system, user), max_tokens: maxOut(effort), temperature: 0.7, ...thinking(model, effort) };
+    const base = { messages: msgs(system, user), max_tokens: maxOut(effort, model), temperature: 0.7, ...thinking(model, effort) };
     if (schema) tries.push(() => env.AI.run(model, { ...base, response_format: formatOf(model, schema) }));
     tries.push(() => env.AI.run(model, base));
   }
@@ -694,7 +695,7 @@ function streamInput(path, q) {
     : path === '/group' ? [grouper(q.size, q.story), groupAsk(q.words, q.draft, q.notes, q.size, q.pick, q.story)]
     : [writerSystem(q.format, q.style), ask(q.words, null, q.notes, q.scene)];
   return {
-    messages: msgs(system, user), max_tokens: maxOut(q.effort), temperature: 0.7, ...thinking(q.model, q.effort),
+    messages: msgs(system, user), max_tokens: maxOut(q.effort, q.model), temperature: 0.7, ...thinking(q.model, q.effort),
     stream: true, ...(OPENAI_STYLE.test(q.model) ? { stream_options: { include_usage: true } } : {})
   };
 }

@@ -47,8 +47,9 @@ test('서버 주소·열쇠: https 주소만 받고 이 기기에만 저장해�
 
 test('이야기 후보: 3번 물어 모으고, 4~5개짜리·단어가 모두 이야기에 든 것만 후보로 (같은 묶음은 한 번만)', async () => {
   const { p, calls } = setup([{ content: GROUPS }]);
-  p.run(`svCollect(SV_ROUNDS)`);
+  p.run(`svCollect(3)`);
   await wait(p, `MK.step === 'srvpick'`);
+  assert.strictEqual(p.json('SV_ROUNDS'), 2); // 2026-11-25: Qwen 3.8은 한 번에 2,400 Neuron쯤이라 처음에는 2번
   assert.strictEqual(calls.length, 3);
   assert.ok(calls.every(c => c.url === 'https://srv.example.test/group' && c.auth === 'Bearer test-token-1234'));
   assert.deepStrictEqual(Object.keys(calls[0].body).sort(), ['effort', 'size', 'story', 'stream', 'words']);
@@ -84,7 +85,7 @@ test('끊기면 이어 생각하기: 생각 글을 메모로 보내고, 끝내 �
 
 test('고른 이야기가 그대로 에피소드로: 서버를 더 부르지 않고, 고르지 않은 단어는 이야기 없이 넣어요', async () => {
   const { p, calls } = setup([{ content: GROUPS }]);
-  p.run(`svCollect(SV_ROUNDS)`);
+  p.run(`svCollect(3)`);
   await wait(p, `MK.step === 'srvpick'`);
   p.document.querySelector('#make .svcand[data-i="0"]').click();
   p.document.querySelector('#make [data-mk="svmake"]').click();

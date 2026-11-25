@@ -125,7 +125,7 @@ test('story server: reads chat, responses and thinking answers; picks a listed m
   const j4 = await r4.json();
   assert.deepEqual(j4.shape, { keys: ['choices', 'usage'], finish: 'length', content: 'object', reasoning: 50, usage: { in: 2100, out: 4000 } });
   assert.doesNotMatch(JSON.stringify(j4), /lantern|등불/);
-  assert.equal(e4.calls[0].input.reasoning_effort, 'low');
+  assert.equal(e4.calls[0].input.reasoning_effort, 'medium'); // 23판: Qwen 기본 생각은 보통
   const e5 = fakeEnv({ response: STORY, usage: { prompt_tokens: 2000, completion_tokens: 900 } });
   const j5 = await (await w.fetch(req({ words: WORDS, model: '@cf/openai/gpt-oss-120b' }), e5.env)).json();
   assert.deepEqual([j5.tries, j5.usage], [1, { in: 2000, out: 900 }]);
@@ -283,18 +283,25 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
   assert.equal(fs.readFileSync(file, 'utf8'), playground(), 'PLAYGROUND.md가 규칙 글과 달라요. node server/story-worker/playground.mjs 로 다시 만들어요');
 });
 
-test('story server: Nemotron is the default (the user chose it), thinking low, and more room when thinking more', async () => {
+test('story server: Qwen 3.8 27B is the default (2026-11-25, Nemotron retired), thinking medium, always room to think', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 22 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 23 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
-  assert.equal(j.model, '@cf/nvidia/nemotron-3-120b-a12b');
-  assert.equal(j.effort, 'low');
-  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: true, low_effort: true });
-  assert.equal(calls[0].input.max_tokens, 4000);
-  await w.fetch(req({ words: WORDS, effort: 'medium' }), env);
-  assert.deepEqual(calls[1].input.chat_template_kwargs, { enable_thinking: true, low_effort: false });
+  assert.equal(j.model, '@cf/qwen/qwen3.8-27b');
+  assert.equal(j.effort, 'medium');
+  assert.equal(calls[0].input.reasoning_effort, 'medium');
+  assert.equal(calls[0].input.max_tokens, 12000);
+  // Qwen은 생각 low여도 글자 한도를 넉넉히 (4천이면 생각에 다 써서 빈 답)
+  await w.fetch(req({ words: WORDS, effort: 'low' }), env);
+  assert.equal(calls[1].input.reasoning_effort, 'low');
   assert.equal(calls[1].input.max_tokens, 12000);
+  // 다른 모델은 그대로: Nemotron 기본 low면 4천, medium이면 1만 2천
+  await w.fetch(req({ words: WORDS, model: '@cf/nvidia/nemotron-3-120b-a12b' }), env);
+  assert.deepEqual(calls[2].input.chat_template_kwargs, { enable_thinking: true, low_effort: true });
+  assert.equal(calls[2].input.max_tokens, 4000);
+  await w.fetch(req({ words: WORDS, model: '@cf/nvidia/nemotron-3-120b-a12b', effort: 'medium' }), env);
+  assert.equal(calls[3].input.max_tokens, 12000);
 });
 
 // 7판 (2026-11-04): 표시 없이 쓰기(plain)와 흘려 받기(stream). Nemotron이 {영어|뜻} 표시 때문에 문장을 깨뜨리고,
@@ -342,7 +349,7 @@ test('story server v7: stream passes the AI stream through as it comes, only for
   const input = calls[0].input;
   assert.equal(input.stream, true);
   assert.deepEqual(input.stream_options, { include_usage: true });
-  assert.deepEqual(input.chat_template_kwargs, { enable_thinking: true, low_effort: false });
+  assert.equal(input.reasoning_effort, 'medium'); // 23판: 기본 모델 Qwen 3.8
   assert.equal(input.max_tokens, 12000);
   assert.equal(input.messages[0].content, w._.writerSystem('plain'));
   assert.match(input.messages[1].content, /lantern - 등불/);
@@ -377,7 +384,7 @@ test('story server v8: notes — the thinking from a cut stream comes back as no
   assert.ok(u.includes('<메모>\n' + notes.trim() + '\n</메모>'));
   assert.ok(u.endsWith('</메모>\n답:'));
   assert.match(u, /문장에는 영어 단어를 쓰지 않고 받은 뜻\(한국어 뜻 말\)으로 써요/); // 15판: 메모로 다시 쓴 박물관 이야기가 영어를 섞었어요
-  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: false, force_nonempty_content: true });
+  assert.equal(calls[0].input.reasoning_effort, 'low'); // 23판: Qwen은 생각을 끌 수 없어 가장 짧게(low)
   // 한 번에 받는 길도 메모를 넘겨요
   const j = await (await w.fetch(req({ words: WORDS, format: 'plain', effort: 'none', notes: 'Hero: a fox.' }), env)).json();
   assert.equal(j.text, STORY);
@@ -451,7 +458,7 @@ test('story server v11: /group splits a whole word list into one-scene groups of
   assert.equal(sys(calls[0]), w._.GROUPER);
   assert.match(usr(calls[0]), /단어 30개 → 6개씩 묶음 5개/);
   assert.match(usr(calls[0]), /grape - 뜻30/);
-  assert.deepEqual(calls[0].input.chat_template_kwargs, { enable_thinking: true, low_effort: false });
+  assert.equal(calls[0].input.reasoning_effort, 'medium'); // 23판: 기본 모델 Qwen 3.8
   // 두 번째 생각: 앞서 받은 묶음을 따져 보고 바꿔요
   const r2 = await (await w.fetch(req({ words: DECK, effort: 'medium', draft: GROUPS }, { url }), env)).json();
   assert.equal(r2.steps[0].step, 'review');

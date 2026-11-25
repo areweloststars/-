@@ -9251,7 +9251,8 @@ function openDecks() {
    3) 고르지 않은 단어는 이야기 없이 단어 미션으로만 넣어요.
    서버로는 단어 글자(영어·뜻·품사)와 서버가 쓴 글(장면·생각 메모)만 보내요. 사진은 보내지 않아요.
    서버 주소·열쇠는 이 기기에만 저장해요 (localStorage 'wg-srv'). 저장소·사이트 파일에는 없어요. */
-const SV_KEY = 'wg-srv', SV_ROUNDS = 3, SV_KEEP = 2, SV_NOTES = 20000;
+// 2026-11-25: 이야기 모델이 Qwen 3.8 27B(생각이 길고 한 번에 2,400 Neuron쯤)로 바뀌어 처음에는 2번만 써요 (하루 무료 한도 10,000). '후보 더 만들기'로 더 써요
+const SV_KEY = 'wg-srv', SV_ROUNDS = 2, SV_KEEP = 2, SV_NOTES = 20000;
 const SRV = { cands: [], picked: new Set(), rows: null, form: false, note: '', neurons: 0 };
 function svConf() {
   try { const c = JSON.parse(localStorage.getItem(SV_KEY) || 'null'); return c && typeof c.api === 'string' && typeof c.token === 'string' && c.api && c.token ? c : null; } catch (e) { return null; }
@@ -9436,7 +9437,7 @@ function svReviewHTML() {
     <label class="mklab">서버 주소<input id="svapi" value="${esc(c ? c.api : '')}" placeholder="https://…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
     <label class="mklab">서버 열쇠<input id="svtok" type="password" value="" placeholder="${c ? '바꾸려면 새 열쇠를 넣어요' : '열쇠'}" autocomplete="off"></label>
     <button type="button" class="btn" data-mk="svsave">이 기기에 저장</button>${c ? ' <button type="button" class="linkbtn" data-mk="svcancel">닫기</button>' : ''}</div>`;
-  return `<div class="mknote svbox"><b>이야기 서버로 만들기</b> (이야기를 읽고 직접 골라요)<br><small>서버가 단어 4개씩으로 이야기 후보를 ${SV_ROUNDS}번 써요 (5~20분). 이야기를 읽고 마음에 드는 것만 고르면 그대로 게임에 들어가요. 서버로는 단어 글자만 보내요.</small><br>
+  return `<div class="mknote svbox"><b>이야기 서버로 만들기</b> (이야기를 읽고 직접 골라요)<br><small>서버가 단어 4개씩으로 이야기 후보를 ${SV_ROUNDS}번 써요 (한 번에 15분쯤 걸려요. 이 화면을 열어 두세요). 이야기를 읽고 마음에 드는 것만 고르면 그대로 게임에 들어가요. 서버로는 단어 글자만 보내요.</small><br>
     <button type="button" class="btn good" data-mk="svgo"${ok ? '' : ' disabled'}>${ICON.play}이야기 후보 만들기</button>
     ${SRV.cands.length && SRV.rows ? '<button type="button" class="btn" data-mk="svshow">받아 둔 후보 보기</button>' : ''}
     <button type="button" class="linkbtn" data-mk="svedit">서버 주소·열쇠 바꾸기</button></div>`;
