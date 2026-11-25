@@ -19,7 +19,8 @@ if (!API) { console.error('WG_STORY=<이야기 서버 주소>와 WG_TOKEN=<열�
 const SETS = String(arg('sets', '1,2,3,4,5')).split(',').map(Number).filter(n => n >= 1 && n <= TEST_SETS.length);
 const MODEL = arg('model', '@cf/nvidia/nemotron-3-120b-a12b'), EFFORT = arg('effort', 'medium'), REVIEW = !!arg('review');
 // gpt-oss는 서버가 흘려 받기를 받지 않아요 (2026-11-23, Nemotron이 내려가서 다른 무료 모델로 재요)
-const STREAM = /gpt-oss/i.test(MODEL) ? {} : { stream: true };
+// NO_STREAM=1: 흘려 받기 없이 한 번에 (Llama 3.3은 흘려 받은 답에서 글이 안 나왔어요, 2026-11-25)
+const STREAM = process.env.NO_STREAM || /gpt-oss/i.test(MODEL) ? {} : { stream: true };
 const STORIES = Number(arg('stories', 1)) || 0, STYLE = arg('style', 'twist'), SIZE = Number(arg('size', 6)) === 4 ? 4 : 6;
 const FROM = arg('from'), PICK = String(arg('pick', '')).split(',').map(Number).filter(n => n >= 1), TITLE = arg('title');
 // --fix=1 (2026-11-11 사용자가 정함): 점검기가 문제를 찾으면(표시가 빠진 단어 등) 그곳만 /fix로 고쳐 써요. 끊기면 생각 low로 한 번 더
