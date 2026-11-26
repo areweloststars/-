@@ -59,6 +59,7 @@ function renderPlayShell() {
     <div class="cardwrap" id="cardwrap">
       <div class="card" id="card">
         <div id="ppanel"></div>
+        <div class="czline" id="czline" hidden><p id="czp"></p></div>
         <div class="cbody" id="cbody">
           <div class="cmeta"><span class="pos" id="pos"></span><span class="cscene" id="cscene"></span><button type="button" class="chip" data-act="dir" id="dirchip"></button></div>
           <div class="q" id="q"></div>
@@ -233,6 +234,44 @@ function updateCounts() {
   const left = M.queue.length - (M.state === 'done' ? 1 : 0);
   $('#leftn').textContent = n <= 12 ? `남은 ${left}` : `맞힘 ${M.cleared.size}/${n}`;
 }
+// 단어 시험 자막 (2026-11-26 사용자 요청): 이야기에서 그 단어가 쓰인 줄을 그림 바로 아래에 이야기 영상 자막처럼 보여 줘요.
+// 맞힐 단어 자리는 빈칸 (문장 속 뜻을 보고 맞히면 시험이 아니니까). 같은 줄의 다른 단어는 뜻 말만 (영어는 빼요: 한→영 카드의 답이 보이지 않게).
+// 맞히면 빈칸에 '영어 + 뜻 말'이 채워져요. 이야기 없이 넣은 단어의 틀 줄("잊지 말아야 할 단어: …!")처럼 떠올릴 거리가 없는 줄은 보여 주지 않아요.
+const CZ_READ = 2000; // 자막을 읽을 시간 (카드 시간에 더해요)
+const CZ_FILLER = /^잊지 말아야 할 단어:/;
+function czLineOf(id) {
+  const w = WORDS[id], s = w && sceneOf(w.scene), tag = '{' + id + '|';
+  const line = s && (s.lines || []).find(l => l.includes(tag));
+  if (!line || CZ_FILLER.test(line)) return '';
+  // 빈칸 밖에 남는 글이 너무 짧으면(떠올릴 거리가 없으면) 보여 주지 않아요
+  const rest = line.replace(MARK, (_, k, t) => (k === id ? '' : t)).replace(/[\s!?.,~"'“”‘’…:;()\-]/g, '');
+  return rest.length >= 4 ? line : '';
+}
+function czHTML(id, fill) {
+  const line = czLineOf(id), key = esc(id);
+  if (!line) return '';
+  return esc(line).replace(MARK, (_, k, t) => k !== key ? t
+    : fill ? `<mark class="czfill ${fill}"><i>${esc(shortW(id))}</i>${t}</mark>`
+      : '<span class="czgap" role="img" aria-label="빈칸">?</span>');
+}
+// 그림 속 글자가 답을 알려 주면(기본 단어장 47개 가운데 17개: 말풍선 "추천합니다!", 도장 "참석" 같은) 푸는 동안 '?'로 가려요.
+// 맞히거나 답을 보면 원래 글자로 되돌려요. 장면 그림의 글자는 한 줄씩 <text>예요 (art kit의 tx)
+function czMaskArt(on) {
+  if (!PP || !PP.art) return;
+  for (const t of PP.art.querySelectorAll('text[data-cz]')) { t.textContent = t.dataset.cz; t.removeAttribute('data-cz'); t.classList.remove('czhide'); }
+  if (!on) return;
+  const vs = M.keys.flatMap(k => k.ok).filter(a => a && a.length >= 2);
+  if (!vs.length) return;
+  for (const t of PP.art.querySelectorAll('text')) {
+    const n = norm(t.textContent);
+    if (vs.some(a => n.includes(a))) { t.dataset.cz = t.textContent; t.textContent = '?'; t.classList.add('czhide'); }
+  }
+}
+function czShow(id, fill) {
+  const box = $('#czline'), p = $('#czp'); if (!box || !p) return;
+  const h = czHTML(id, fill);
+  box.hidden = !h; p.innerHTML = h;
+}
 const picHTML = w => `<p><span class="pp-lab">암기 팁</span>${esc(w.tip)}</p><div><span class="pp-lab">예문</span><p class="pp-en">${exHTML(w.ex)}</p><p class="pp-ko">${esc(w.exKo)}</p></div>`;
 function renderSlots() {
   const el = $('#slots'); if (!el) return;
@@ -246,6 +285,7 @@ function fillCard(id) {
   const w = WORDS[id], en = SAVE.dir === 'en';
   $('#pos').textContent = $('#pos2').textContent = POS[w.pos] || '';
   $('#cscene').textContent = sceneOf(w.scene).title;
+  czShow(id);
   const q = $('#q'); q.className = 'q' + (en ? '' : ' ko'); q.innerHTML = en ? esc(id) : mHTML(w.m);
   renderSlots();
   // 교재 뜻 전체(괄호·~ 등)가 칸에 다 안 보일 때만 아래에 따로 보여 줌
@@ -284,13 +324,14 @@ function showCard(animate) {
   const id = curId(), w = WORDS[id], card = $('#card');
   clearTimeout(M.clearT);
   M.full = false; M.state = M.active ? 'ask' : 'idle'; M.matched = new Set(); M.ot = false;
-  M.keys = keysFor(id); M.cardMs = cardTime(M.keys);
+  M.keys = keysFor(id); M.cardMs = cardTime(M.keys) + (czLineOf(id) ? CZ_READ : 0);
   if (M.shown) M.shown.add(id);
   card.classList.remove('ok', 'answer', 'in', 'shake');
   $('#ain').value = '';
   fillCard(id);
   setBar('ask');
   const changed = PP.setScene(w.scene);
+  czMaskArt(true);
   PP.clearFocus(); PP.showZoomBtn(false); PP.hideCaption();
   const h = PP.baseH();
   if (changed || !PP.h) PP.fullNow();
@@ -452,6 +493,7 @@ function success() {
   M.ot = false; $('#fuserow').classList.remove('bonus', 'hurry');
   persist();
   renderSlots();
+  czShow(id, 'ok'); czMaskArt(false);
   const card = $('#card'); card.classList.remove('ok'); void card.offsetWidth; card.classList.add('ok');
   Sound.play(M.combo >= 3 ? 'combo' : 'ok'); if (gain >= 300) setTimeout(() => Sound.play('coin'), 140);
   buzz(18); vignette('good');
@@ -475,6 +517,7 @@ function showAnswer() {
   M.state = 'answer'; M.timing = false; M.ot = false; fuseFreeze();
   $('#fuserow').classList.remove('bonus', 'hurry');
   renderSlots();
+  czShow(curId(), 'shown'); czMaskArt(false);
   $('#ans').hidden = false;
   $('#card').classList.add('answer');
   setBar('answer');

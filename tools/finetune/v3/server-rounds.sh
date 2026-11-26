@@ -1,0 +1,105 @@
+#!/bin/bash
+# 이야기 서버 재기 차례 (2026-10-31~). 열쇠·주소는 환경 변수로만 (저장소에 넣지 않아요):
+#   WG_STORY=https://<이름>.workers.dev WG_TOKEN=<열쇠> bash tools/finetune/v3/server-rounds.sh <차례>
+# 차례: prelim(예선) · ways(길 견주기) · ways2(7판: 생각 보통 흘려 받기·표시 없이 쓰기) · ways3(주제 묶음) · ways4(쉬운 이야기) · group(묶음 짜기, 11판) · group2(단어 더하기, 12·13판, 없앰) · group4(4개 묶음, 14판) · final(본선, 길은 WAY로: 예 WAY="--model=@cf/google/gemma-4-26b-a4b-it --plan")
+# 하루 무료 한도(10,000 Neuron)가 다 차면 그 차례에서 멈춰요 (한국 시간 오전 9시에 다시 채워져요). 결과: tools/story-lab/srv-*.txt
+cd "$(dirname "$0")/../../.."
+export NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-/root/.ccr/ca-bundle.crt} NODE_NO_WARNINGS=1
+G=@cf/google/gemma-4-26b-a4b-it N=@cf/nvidia/nemotron-3-120b-a12b O=@cf/openai/gpt-oss-120b
+run() { name=$1; shift; node tools/finetune/v3/eval-server.cjs "$name" "$@" > /dev/null 2>&1; tail -2 "tools/story-lab/srv-$name.txt" | head -1; if grep -q "하루 무료 한도" "tools/story-lab/srv-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+case "$1" in
+  prelim) # 어려운 묶음 6·8 × 2편, JSON + 고쳐 쓰기 2번 (2026-10-31에 했어요)
+    P="--format=json --fix=2 --sets=6,8 --tries=2"
+    run pre-gemma --model=$G $P; run pre-glm --model=@cf/zai-org/glm-4.7-flash $P; run pre-nemotron-off --model=$N --effort=none $P
+    run pre-gptoss --model=$O --effort=low $P; run pre-llama --model=@cf/meta/llama-3.3-70b-instruct-fp8-fast $P; run pre-nemotron-low --model=$N --effort=low $P ;;
+  ways) # 길 견주기 (2026-11-01~): 이야기 모델은 사용자가 고른 Nemotron 3 120B. 묶음 2·4·6·8·10 × 1편, 고쳐 쓰기 2번
+    # 한 편에 340~600 Neuron이라 하루 한도 안에서 5편씩. 생각 보통(medium, Playground와 같음)은 서버 6판(글자 한도 12000)부터.
+    P="--model=$N --fix=2 --tries=1 --sets=2,4,6,8,10"
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    run way-nem-low-text --effort=low --format=text $P
+    if [ "${V:-0}" -ge 6 ]; then run way-nem-med-text --effort=medium --format=text $P; else echo "서버가 6판이 아니라 생각 보통(medium)은 건너뛰어요 (답이 잘릴 수 있어요)"; fi
+    run way-nem-low-json --effort=low --format=json $P
+    run way-nem-low-plan --effort=low --format=json --plan $P ;;
+  ways2) # 7판 길 견주기 (2026-11-04~): 사용자가 가리고 견주며 '모두 별로'가 많았어요 → 두 가지를 바꿔 봐요
+    # - 표시 없이 쓰기(plain): {영어|뜻} 표시를 쓰라고 하면 Nemotron이 문장을 깨뜨려요. 표시는 앱이 붙여요 (Playground에서 표시 없이 쓴 글은 자연스러웠어요)
+    # - 생각 보통(medium, Playground와 같음)은 흘려 받기로: 한 번에 받으면 2분쯤에 끊겨요(3046)
+    # 이어짐을 견주는 차례라 고쳐 쓰기 없이 처음 쓴 글로
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 7 ] || { echo "서버가 7판이 아니에요 (지금 ${V:-?}판) → 대시보드에 7판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    P="--model=$N --fix=${FIX:-0} --tries=1 --sets=${SETS:-2,4,6,8,10}"
+    # 2026-11-04 사용자 판정: "생각 low는 별로" → 생각 보통만 견줘요 (보통 한 편 900 Neuron쯤 → 두 길 × 5편이 하루 한도 안)
+    run way2-nem-med-plain --effort=medium --format=plain --stream $P
+    run way2-nem-med-text --effort=medium --format=text --stream $P ;;
+  ways3) # 주제 묶음 (2026-11-05~): 사용자가 '좋아'라고 한 한 편(묶음 10)만 단어가 한 장면에 모이는 묶음(요리)이었어요 (11-03 low 견주기에서도 묶음 10을 골랐어요)
+    # → 같은 시험 단어를 장면이 비슷한 것끼리 다시 묶어(regroup-prompts.json, Claude가 손으로 묶음) 생각 보통·표시 없이 써 봐요.
+    #   주제 묶음 3(요리)은 묶음 10과 단어가 같아서 빼요 (9편, 8천 Neuron쯤)
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 7 ] || { echo "서버가 7판이 아니에요 (지금 ${V:-?}판)"; exit 2; }
+    # 11-05 오전 9시(붐빔)에는 9편 가운데 8편이 생각 중 120초에서 끊겼어요 → 서버 8판이면 끊긴 생각을 메모로 보내 다시 써요(--rescue)
+    R=""; [ "${V:-0}" -ge 8 ] && R="--rescue"
+    run ${NAME:-way3-nem-med-plain-regroup} --model=$N --effort=medium --format=plain --stream $R --fix=${FIX:-0} --tries=1 --regroup --sets=${SETS:-1,2,4,5,6,7,8,9,10} ;;
+  ways4) # 쉬운 이야기 (2026-11-07~): 사용자가 고름 — 생각 보통 12편 가운데 좋아 2편(요리·사고와 구조)은 둘 다
+    # 한 인물이 한 가지 일을 차례로 겪는 단순한 이야기였어요 → 서버 10판 style simple.
+    # 견주기 2에서 '별로'였던 묶음 2·4·6·8(같은 단어로 나아졌는지)과 아주 추상적인 묶음 7, 생각 보통·plain·흘려 받기·생각 메모로 다시 쓰기
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 10 ] || { echo "서버가 10판이 아니에요 (지금 ${V:-?}판) → 대시보드에 10판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    run ${NAME:-way4-nem-med-plain-simple} --model=$N --effort=medium --format=plain --stream --rescue --style=simple --fix=${FIX:-0} --tries=1 --sets=${SETS:-2,4,6,8,7} ;;
+  group) # 묶음 짜기 (2026-11-07~, 서버 11판 /group). 사용자: "뉴런은 단어들을 한 장면에 어울리는 묶음으로 모으는 것에 집중, 보여 주는 이야기는 2개뿐이어도 좋아"
+    # 단어장 A = 시험 묶음 1~5 (30개), B = 6~10 (31개). 묶기 + 다시 따지기(생각 보통, 흘려 받기, 끊기면 메모로) + 첫 묶음으로 이야기 1편씩
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 11 ] || { echo "서버가 11판이 아니에요 (지금 ${V:-?}판) → 대시보드에 11판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g ${NAME:-group}-a --sets=1,2,3,4,5 --effort=medium --review --stories=1
+    g ${NAME:-group}-b --sets=6,7,8,9,10 --effort=medium --review --stories=1 ;;
+  group2) # 자유 묶음 (2026-11-08~, 서버 12판 /group free). 사용자: "묶음 크기 자유롭게 하되 없는 단어는 AI가 단어를 넣어서 최소 6개 이상으로.
+    # 자연스럽다면 6개를 넘어도 상관없음" (6개씩 나눈 1차는 10묶음 가운데 요리 수업만 어울렸어요). 다시 따지기는 거의 안 바꿔서 빼고, 이야기를 3편씩
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    # 13판(2026-11-09~): 12판은 AI가 단어를 더하지 않아서, 한 묶음에 단어장 단어 2~4개 + 쉬운 단어로 6개 (묶음이 8~12개로 늘어 이야기는 2편씩)
+    [ "${V:-0}" -ge 13 ] || { echo "서버가 13판이 아니에요 (지금 ${V:-?}판) → 대시보드에 13판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g ${NAME:-fill}-a --sets=1,2,3,4,5 --effort=medium --free --stories=${STORIES:-2}
+    g ${NAME:-fill}-b --sets=6,7,8,9,10 --effort=medium --free --stories=${STORIES:-2} ;;
+  group4) # 4개 묶음 (2026-11-10~, 서버 14판). 사용자: "AI가 더한 단어는 모두 부자연스러워서 단어 더하기는 폐지.
+    # 13판의 단어장 단어 4개 묶음(도서관·간식 설문·소풍 일정·박물관)은 자연스러워 → 단어 개수 기준을 4개로"
+    # (가) 그 4묶음(더한 단어는 뺌)으로 이야기 4편 — 묶음이 자연스러우면 이야기도 이어지는지 (13판 결과 grp-fill-a.json이 있어야 해요)
+    # (나) 14판 size 4로 단어장 A·B를 새로 묶고 이야기 2편씩
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g pick4 --sets=1,2,3,4,5 --from=fill-a --pick=2,6,3,5 --stories=4 --effort=medium --title="자연스럽다고 하신 4묶음"
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 14 ] || { echo "서버가 14판이 아니라 (나)는 건너뛰어요 (지금 ${V:-?}판)"; exit 0; }
+    g size4-a --sets=1,2,3,4,5 --size=4 --effort=medium --stories=2
+    g size4-b --sets=6,7,8,9,10 --size=4 --effort=medium --stories=2 ;;
+  group5) # 4개 묶음 2차 (2026-11-11~, 서버 15판): 14판처럼 모든 단어를 4개씩 다 넣게 하면 안 맞는 단어까지 끼워 넣었어요 (사용자 판정 7묶음 모두 억지).
+    # → 정말 어울리는 4개만 묶고 안 맞는 단어는 남은 단어로, 주인공은 어린이. 재기 도구도 빠진 단어를 묶음에 넣지 않아요. 단어장 A·B + 이야기 2편씩
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 15 ] || { echo "서버가 15판이 아니에요 (지금 ${V:-?}판) → 대시보드에 15판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g four-a --sets=1,2,3,4,5 --size=4 --effort=medium --stories=2 --title="단어장 A (시험 묶음 1~5, 30단어)"
+    g four-b --sets=6,7,8,9,10 --size=4 --effort=medium --stories=2 --title="단어장 B (시험 묶음 6~10, 31단어)" ;;
+  stories6) # 어울리는 묶음으로 이야기 (2026-11-12~): 사용자가 어울린다고 고른 15판 묶음 5개(과학 프로젝트·강아지·주방 요리·숙제·소풍 준비)로 한 편씩.
+    # 이어 생각하기 (끊기면 생각을 켠 채 메모로 2번까지, 그래도 끊기면 생각 끔) + 점검기가 문제를 찾으면 고쳐 쓰기 1번. 덜 붐비는 오후에 돌려요
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g st-a --sets=1,2,3,4,5 --from=four-a --pick=1,5 --stories=2 --effort=medium --fix=1 --title="단어장 A 어울리는 묶음 (과학 프로젝트·강아지)"
+    g st-b --sets=6,7,8,9,10 --from=four-b --pick=1,2,5 --stories=3 --effort=medium --fix=1 --title="단어장 B 어울리는 묶음 (주방 요리·숙제·소풍 준비)" ;;
+  stories7) # 16판 이야기 규칙 (2026-11-12~): 사용자 — "그림이 중요해. 그림과 그전에 들었던 이야기가 기억나야 단어를 연상해서 맞출 수 있어. '정직한 태도'는 한국에서 잘 안 써"
+    # → 단어 줄마다 그림으로 그릴 수 있는 한 장면, 아이들이 쓰는 쉬운 말. 어울린다고 고른 15판 묶음 5개로 한 편씩 (이어 생각하기 + 고쳐 쓰기 1번)
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    [ "${V:-0}" -ge 16 ] || { echo "서버가 16판이 아니에요 (지금 ${V:-?}판) → 대시보드에 16판 worker.mjs를 붙여 넣어야 해요"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g st16-a --sets=1,2,3,4,5 --from=four-a --pick=1,5 --stories=2 --effort=medium --fix=1 --title="단어장 A 어울리는 묶음 (과학 프로젝트·강아지) · 16판"
+    g st16-b --sets=6,7,8,9,10 --from=four-b --pick=1,2,5 --stories=3 --effort=medium --fix=1 --title="단어장 B 어울리는 묶음 (주방 요리·숙제·소풍 준비) · 16판" ;;
+  group6) # 묶기 다듬기 (2026-11-13~, 서버 17판): 사용자 "2. 묶기 다듬기". 4개씩 묶은 뒤 엄하게 다시 따져서 억지 단어는 남은 단어로, 남은 단어끼리 새로 묶기.
+    # 묶기에도 이어 생각하기 (15판 묶기는 2분에서 끊겨 생각 끔으로 마무리했어요). 이야기는 쓰지 않아요 (묶음만 판정)
+    V=$(curl -s "${WG_STORY%/}/" | sed -n 's/.*"v":\([0-9]*\).*/\1/p')
+    # 18판(11-14): 사용자 기준 "실제 벌어질 만한 상황 + 그에 맞는 단어" (이상적: 물 쏟고 부인·망설임·사과·대접). 이름은 NAME으로 (예: NAME=real)
+    [ "${V:-0}" -ge 17 ] || { echo "서버가 17판이 아니에요 (지금 ${V:-?}판)"; exit 2; }
+    g() { name=$1; shift; node tools/finetune/v3/eval-group.cjs "$name" "$@" > /dev/null 2>&1; tail -1 "tools/story-lab/grp-$name.txt"; if grep -q "하루 무료 한도" "tools/story-lab/grp-$name.txt"; then echo "STOP: 하루 무료 한도"; exit 0; fi; }
+    g ${NAME:-rev}-a --sets=1,2,3,4,5 --size=4 --effort=medium --review --stories=0 --title="단어장 A (시험 묶음 1~5, 30단어)"
+    g ${NAME:-rev}-b --sets=6,7,8,9,10 --size=4 --effort=medium --review --stories=0 --title="단어장 B (시험 묶음 6~10, 31단어)" ;;
+  final) # 본선: 사용자가 고른 길로 30편 (+ 주제 묶음 30편, 하루 한도를 보며 나눠서)
+    [ -z "$WAY" ] && { echo 'WAY="--model=... --plan" 처럼 길을 주세요'; exit 2; }
+    run final $WAY --format=json --fix=2 --tries=3
+    run final-regroup $WAY --format=json --fix=2 --tries=3 --regroup ;;
+  *) echo "차례: prelim · ways · ways2 · ways3 · ways4 · group · group2 · group4 · group5 · stories6 · stories7 · final"; exit 2 ;;
+esac
+echo DONE

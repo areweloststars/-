@@ -8,9 +8,10 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
 
 ## 브랜치
 - `main`은 실제 사이트예요. 사용자에게 묻기 전에는 `main`에 합치지 않아요 (PR도 묻고 나서).
-- 지금 작업은 `claude/word-photo-game-app-16smgx` 브랜치에 있어요. Claude가 이 브랜치에 계속 올려요.
+- 지금 작업은 `ccr-2eed146b-5bh1rn` 브랜치에 있어요 (`claude/gracious-cannon-7stm9g`를 이어받음, 이야기 서버). Claude가 이 브랜치에 계속 올려요.
+  - 예전 작업 브랜치 `claude/word-photo-game-app-16smgx`·`claude/gracious-cannon-7stm9g`에는 새 일을 올리지 않아요.
 - 다른 AI나 계정은 그 브랜치에서 **새 브랜치**(예: `codex/<작업 이름>`)를 만들어 일해요. 같은 브랜치에 같이 올리면 서로 충돌해요.
-- 시작하기 전에 늘 최신을 받아요 (`git fetch origin claude/word-photo-game-app-16smgx`).
+- 시작하기 전에 늘 **모든 브랜치**의 최신을 받아 보고(`git fetch --all`, 브랜치마다 최근 커밋), 가장 최근에 일한 브랜치의 `docs/work-log.md`부터 읽어요. `main`의 기록은 늦을 수 있어요.
 
 ## 프로젝트 한눈에
 - **그림 스토리 단어 미션**: 영어 단어를 이야기(에피소드)로 외우는 게임이에요. 영어 발음이 나오고, 제한 시간 안에 문제를 맞혀요.
@@ -20,19 +21,32 @@ Claude 말고 다른 AI나 다른 계정이 이어받을 때 읽는 안내예요
   - `--new-key`는 쓰지 않아요. 예전 링크가 모두 못 쓰게 돼요.
 - 휴대폰 안에서 도는 이야기 AI는 Gemma 4 E2B예요 (WebLLM, `word-game/llm/`).
 
-## 지금 하는 일: 이야기 AI 파인튜닝 3차 (`tools/finetune/v3/`)
+## 지금 하는 일: 이야기를 Cloudflare 서버의 큰 AI에게 맡기기 (2026-10-31~)
+- 파인튜닝(아래)으로는 휴대폰 안 E2B가 줄과 줄 사이를 잇지 못한다고 결론 났어요. 사용자가 **Cloudflare(Workers + Workers AI 공개 모델)**로 정했어요.
+- 원칙: 서버로는 글자만 가요 (단어 영어·뜻·품사, 고쳐 쓰기 때는 서버가 쓴 이야기 글과 점검기 글). 단어 사진이 아닌 사진은 절대 서버로 보내지 않아요 (단어 사진도 지금은 기기 안에서 읽어요).
+- 원칙: **돈이 드는 것은 쓰지 않아요** (2026-10-31). Cloudflare 무료 요금제만, 결제가 필요한 API·요금제는 제안하지 않아요.
+- **이야기 모델은 Nemotron 3 120B** (2026-10-31 사용자가 Playground로 직접 읽고 고름). 이야기 질(이어짐)은 사용자 판단이 기준이에요 — Claude는 Gemma가 이어진다고 봤지만 사용자는 아니라고 했어요 (CLAUDE.md).
+  Playground는 Nemotron의 생각을 켠 채로 썼어요 → 서버도 생각을 켜요. 2026-11-04 사용자 판정: **생각 low는 별로** → 생각 보통(effort medium)을 흘려 받기(stream)로 써요.
+  단어 묶기(`/group`): 한 이야기에 단어장 단어 4개 (2026-11-09 사용자 결정, AI가 단어를 더하는 길은 없앰). Playground도 같은 무료 한도를 써요.
+- 서버 코드: `server/story-worker/worker.mjs` (시험 `app/tests/server.test.cjs`), 올리는 법: `server/story-worker/README.md`. 사용자가 대시보드에 붙여 넣어 올려요.
+  7판(2026-11-04): 표시 없이 쓰기(`format: plain`, 표시는 앱이 붙여요)·흘려 받기(`stream`, 생각 보통이 120초에 끊기지 않게). 붙여 넣은 판은 `GET /`의 `v`로 봐요.
+- 실험 (사용자가 1~8번 모두 하자고 함): JSON으로 받기·`/fix` 고쳐 쓰기·작가+편집자·뼈대 먼저, 모델 예선(Gemma 4 26B·GLM-4.7-Flash·Nemotron 3 120B 생각 끔/low·gpt-oss-120b·Llama 3.3), 가리고 견주기 페이지, Playground(`server/story-worker/PLAYGROUND.md`).
+  재기는 `tools/finetune/v3/eval-server.cjs` (기준 27/30). 좋으면 게임에 붙여요 (사이트 바꾸기는 사용자에게 물은 뒤).
+- 자세한 것은 `docs/work-log.md` 맨 위 기록에 있어요.
+
+## 지난 일: 이야기 AI 파인튜닝 4차 (`tools/finetune/v3/`)
 - 목표: 영어 단어 6개 이상을 주면 제목, 줄거리, 이야기, 단어마다 그림 설명(영어)을 쓰게 해요. 1순위는 이야기가 자연스럽게 이어지는 거예요.
 - 게임에 넣는 기준은 시험 30편 가운데 27편이에요.
 - 도구
-  - 모범 이야기 300편: `stories/*.json`
+  - 모범 이야기 1,200편: `stories/*.json` (3차는 300편, 4차에 1,200편으로 늘렸어요)
   - `node tools/finetune/v3/build.cjs`: 모범 이야기를 점검하고 학습 파일을 만들어요
   - `pick.cjs`: 단어 묶음 뽑기 / `mark.cjs`: 뜻 꼴 시험 / `check.cjs`: 형식 점검 / `eval.cjs`: 모델 재기
-  - Colab 노트북: `train_colab.ipynb`(E2B), `train_colab_e4b.ipynb`(E4B)
+  - Colab 노트북: `train_colab.ipynb`(E2B 3차), `train_colab_e4b.ipynb`(E4B 3차), `train4_colab.ipynb`(E2B 4차 실험: 1,200편, 허깅페이스에 중간 저장·이어서 학습, 재 보기 30편 저장, 크롬용 변환), `train4_colab_e4b.ipynb`(E4B 4차: 8GB 폰에 안 들어가서 쓰지 않음)
 - 결과와 다음 할 일은 `docs/work-log.md`에 있어요. 요약하면:
   - E2B: 형식 9/30, 자연스러운 이야기 3~4편
   - E4B: 형식 11/30, 자연스러운 이야기 10편쯤
-  - 갤럭시 A16에서는 E4B를 받다가 브라우저가 꺼졌어요. 갤럭시 S24 시험이 남았어요 (`tools/phone-test/e4b.html`).
-  - 다음 후보는 모범 이야기를 1,000편으로 늘리기예요.
+  - 갤럭시 A16에서는 E4B를 받다가 브라우저가 꺼졌어요. 갤럭시 노트20(8GB)은 시험 페이지 v2(조각을 8MB씩 나눠 올리기)로 91%(3.7GB)까지 올리고 그래픽 칩 메모리 한도에 걸렸어요 (E4B는 4GB+). 갤럭시 S24 시험이 남았어요. S24도 안 되면 E2B로 가요 (`tools/phone-test/e4b.html`).
+  - 4차: 모범 이야기 1,200편을 다 썼어요 (모두 점검 통과). E4B가 8GB 폰에 안 들어가서, 같은 1,200편으로 **E2B를 실험**해요. 결과: 형식 14/30(3차 9/30), 쓸 만한 것 5편쯤(3차 3~4편) — 꼴만 나아지고 줄과 줄 사이의 이어짐은 그대로라 데이터를 늘리는 길은 접어요.
 
 ## 꼭 지킬 것 (자세한 건 `CLAUDE.md`)
 - 교재(책, 단어 앱)의 단어 목록·뜻·예문·사진·화면은 저장소에도, 단어장 파일(`app/decks.enc`)에도 넣지 않아요.

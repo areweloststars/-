@@ -466,6 +466,15 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .slot.ok { border: 2px solid var(--good); background: rgba(54, 210, 126, .16); color: var(--good); }
 .slot.ok.pop, .card.ok .slot.ok { animation: pop .38s cubic-bezier(.2, 1.6, .4, 1) both; }
 .slot.shown { border: 2px solid var(--pic); background: rgba(255, 138, 91, .12); color: var(--pic); }
+/* 단어 시험 자막: 이야기 영상의 자막처럼 그림 바로 아래, 맞힐 자리는 빈칸 */
+.czline { flex: none; padding: 7px 12px 8px; background: #14162E; border-bottom: 3px solid var(--frame); text-align: center; word-break: keep-all; overflow-wrap: break-word; }
+.czline[hidden] { display: none; }
+.czline p { margin: 0; font-size: 15px; line-height: 1.6; font-weight: 700; color: #FFFFFF; }
+.czgap { display: inline-block; min-width: 3.2em; margin: 0 2px; padding: 0 6px; border: 2px dashed #FFD84D; border-radius: 7px; color: #FFD84D; line-height: 1.35; text-align: center; vertical-align: 1px; }
+.czfill { background: none; color: #FFD84D; display: inline-block; animation: pop .38s cubic-bezier(.2, 1.6, .4, 1) both; }
+.czfill.shown { color: #FF9F7A; }
+.czfill i { font-style: normal; font-family: var(--f-word); font-weight: 400; margin-right: 3px; }
+.scene text.czhide { fill: #D9480F; }
 .mfull { font-size: 13px; color: var(--muted); }
 .mfull b { font-family: var(--f-word); font-weight: 400; font-size: 17px; color: var(--fg); }
 #play .ans:not([hidden]) { display: grid; gap: 6px; justify-items: center; width: 100%; }
@@ -675,6 +684,8 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .vv-short #play .iconbtn { width: 34px; height: 34px; }
 .vv-short #play .cmeta { display: none; }
 .vv-short #play .cbody { padding: 4px 10px 6px; gap: 3px; max-height: none; }
+.vv-short #play .czline { padding: 3px 8px 4px; }
+.vv-short #play .czline p { font-size: 13px; line-height: 1.45; }
 .vv-short #play .q { font-size: 26px; }
 .vv-short .answerbar { margin-top: 4px; }
 .vv-short .ain, .vv-short .btn-dont, .vv-short .btn-go, .vv-short .btn-next { height: 42px; }
@@ -770,3 +781,17 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mkalt { display: grid; gap: 8px; margin-top: 10px; }
 .mkalt .btn { font-size: 15px; }
 .mkfail{margin:0 0 14px}.mkfail .btn{margin-top:8px}.mkgate{margin:10px 0}
+
+/* 이야기 서버로 만들기: 묶음 후보 고르기 */
+.svbox .mklab{margin-top:8px}
+.svbox .btn{margin-top:8px}
+.svcands{display:grid;gap:10px;margin:10px 0}
+.svcand{display:block;width:100%;text-align:left;padding:12px;border-radius:14px;border:2px solid rgba(40,44,90,.22);background:rgba(255,255,255,.7);color:inherit;font:inherit;cursor:pointer}
+.svcand.on{border-color:#7CF29C;background:rgba(124,242,156,.14)}
+.svcand.off{opacity:.45;cursor:default}
+.svscene{display:block;line-height:1.4}
+.svstory{display:grid;gap:4px;margin-top:8px;line-height:1.5}
+.svstory>span{display:block}
+.svmark{background:#fff1b8;color:inherit;border-radius:4px;padding:0 3px;font-weight:700}
+.svmark small{font-weight:500;opacity:.7;margin-left:4px;font-size:.78em}
+.svoff{display:block;margin-top:6px}

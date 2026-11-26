@@ -473,6 +473,15 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .slot.ok { border: 2px solid var(--good); background: rgba(54, 210, 126, .16); color: var(--good); }
 .slot.ok.pop, .card.ok .slot.ok { animation: pop .38s cubic-bezier(.2, 1.6, .4, 1) both; }
 .slot.shown { border: 2px solid var(--pic); background: rgba(255, 138, 91, .12); color: var(--pic); }
+/* 단어 시험 자막: 이야기 영상의 자막처럼 그림 바로 아래, 맞힐 자리는 빈칸 */
+.czline { flex: none; padding: 7px 12px 8px; background: #14162E; border-bottom: 3px solid var(--frame); text-align: center; word-break: keep-all; overflow-wrap: break-word; }
+.czline[hidden] { display: none; }
+.czline p { margin: 0; font-size: 15px; line-height: 1.6; font-weight: 700; color: #FFFFFF; }
+.czgap { display: inline-block; min-width: 3.2em; margin: 0 2px; padding: 0 6px; border: 2px dashed #FFD84D; border-radius: 7px; color: #FFD84D; line-height: 1.35; text-align: center; vertical-align: 1px; }
+.czfill { background: none; color: #FFD84D; display: inline-block; animation: pop .38s cubic-bezier(.2, 1.6, .4, 1) both; }
+.czfill.shown { color: #FF9F7A; }
+.czfill i { font-style: normal; font-family: var(--f-word); font-weight: 400; margin-right: 3px; }
+.scene text.czhide { fill: #D9480F; }
 .mfull { font-size: 13px; color: var(--muted); }
 .mfull b { font-family: var(--f-word); font-weight: 400; font-size: 17px; color: var(--fg); }
 #play .ans:not([hidden]) { display: grid; gap: 6px; justify-items: center; width: 100%; }
@@ -682,6 +691,8 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .vv-short #play .iconbtn { width: 34px; height: 34px; }
 .vv-short #play .cmeta { display: none; }
 .vv-short #play .cbody { padding: 4px 10px 6px; gap: 3px; max-height: none; }
+.vv-short #play .czline { padding: 3px 8px 4px; }
+.vv-short #play .czline p { font-size: 13px; line-height: 1.45; }
 .vv-short #play .q { font-size: 26px; }
 .vv-short .answerbar { margin-top: 4px; }
 .vv-short .ain, .vv-short .btn-dont, .vv-short .btn-go, .vv-short .btn-next { height: 42px; }
@@ -777,6 +788,20 @@ html.fsmode, html.fsmode body { overflow: hidden; }
 .mkalt { display: grid; gap: 8px; margin-top: 10px; }
 .mkalt .btn { font-size: 15px; }
 .mkfail{margin:0 0 14px}.mkfail .btn{margin-top:8px}.mkgate{margin:10px 0}
+
+/* 이야기 서버로 만들기: 묶음 후보 고르기 */
+.svbox .mklab{margin-top:8px}
+.svbox .btn{margin-top:8px}
+.svcands{display:grid;gap:10px;margin:10px 0}
+.svcand{display:block;width:100%;text-align:left;padding:12px;border-radius:14px;border:2px solid rgba(40,44,90,.22);background:rgba(255,255,255,.7);color:inherit;font:inherit;cursor:pointer}
+.svcand.on{border-color:#7CF29C;background:rgba(124,242,156,.14)}
+.svcand.off{opacity:.45;cursor:default}
+.svscene{display:block;line-height:1.4}
+.svstory{display:grid;gap:4px;margin-top:8px;line-height:1.5}
+.svstory>span{display:block}
+.svmark{background:#fff1b8;color:inherit;border-radius:4px;padding:0 3px;font-weight:700}
+.svmark small{font-weight:500;opacity:.7;margin-left:4px;font-size:.78em}
+.svoff{display:block;margin-top:6px}
 </style>
 <div class="app" id="app">
   <section class="screen home" id="home" aria-label="미션 목록"></section>
@@ -4202,6 +4227,7 @@ function renderMake() {
   else if (MK.step === 'review') body = mkReviewHTML();
   else if (MK.step === 'making') body = mkMakingHTML();
   else if (MK.step === 'done') body = mkDoneHTML();
+  else if (MK.step === 'srvpick') body = svPickHTML(); // 이야기 서버: 묶음 고르기 (10-server-make.js)
   el.innerHTML = head + (MK.err ? `<p class="mkerr" role="alert">${esc(MK.err)}</p>` : '') + body;
   if (MK.step === 'review') mkBindRows();
 }
@@ -4246,6 +4272,7 @@ function mkReviewHTML() {
     ${mkGateHTML()}
     <button type="button" class="startbtn" data-mk="make"${ok && !MK.aiWhy ? '' : ' disabled'}>${ICON.play}${MK.redo ? '이 단어장 이야기 새로 만들기' : 'AI 이야기로 게임 만들기'}</button>
     ${mkAiHTML()}
+    ${svReviewHTML()}
     <button type="button" class="linkbtn" data-mk="restart">처음으로</button>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`;
 }
 // 새 단어장은 이 기기의 이야기 AI가 이야기를 써야 만들어요: 누가 쓰는지와 필요한 것 (홈 카드·만들기 화면)
@@ -4349,7 +4376,7 @@ async function mkAiPrefetch() {
 }
 function mkMakingHTML() {
   const items = MK.log.map(l => `<li class="${l.state}"><span>${esc(l.text)}${l.state === 'run' ? '<i class="dotdot" aria-hidden="true"></i>' : ''}</span></li>`).join('');
-  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p><b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 다 만들 때까지 이 화면을 켜 두세요. 다른 앱을 열면 이야기 AI가 멈출 수 있어요.</small></p></div>
+  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p>${MK.sv ? `<b>이야기 서버가 이야기 후보를 쓰고 있어요</b><br><small>한 번에 2~8분쯤 걸려요. 다 될 때까지 이 화면을 켜 두세요.</small>` : `<b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 다 만들 때까지 이 화면을 켜 두세요. 다른 앱을 열면 이야기 AI가 멈출 수 있어요.</small>`}</p></div>
     <ol class="mklog">${items}</ol>
     <button type="button" class="btn" data-mk="stop">그만두기</button>`;
 }
@@ -9166,6 +9193,7 @@ function bindMake() {
       mkAiPrefetch();
     }
     else if (a === 'aidlstop') { if (MK.aiDlCtl) MK.aiDlCtl.abort(); }
+    else if (a.slice(0, 2) === 'sv') svClick(a, b); // 이야기 서버로 만들기 (10-server-make.js)
     else if (a === 'restart') { MK.step = 'pick'; MK.rows = []; MK.err = ''; MK.fail = false; MK.note = ''; MK.redo = null; renderMake(); }
     else if (a === 'play') { const d = MK.deck; MK.step = 'pick'; MK.deck = null; if (d) switchDeck(d.id); goHome(); }
   });
@@ -9226,6 +9254,284 @@ function openDecks() {
     <div class="ractions"><button type="button" class="btn good" data-ov="make">${ICON.camera}사진으로 새 단어장 만들기</button><button type="button" class="btn" data-ov="close">닫기</button></div>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`);
 }
 
+/* ================= 이야기 서버로 만들기: 묶음은 사람이 골라요 (2026-11-16 사용자가 정함) =================
+   AI는 자연스러운 묶음을 스스로 가려내지 못했어요 (가려내기 시험 4/11, 3/13). 그래서:
+   1) 이야기 서버(/group, 4개씩, story: 묶음마다 이야기 한 편)를 SV_ROUNDS번 불러 후보를 모아요.
+   2) 사용자가 후보마다 이야기 전체를 읽고 고르면, 그 이야기 그대로 에피소드가 돼요 (읽은 것과 게임에 들어가는 것이 같아요).
+      2026-11-17 사용자: "4개 단어를 모두 넣은 하나의 스토리를 볼 수 없어서 … 검토할 수 없다" → 서버 20판 story.
+   3) 고르지 않은 단어는 이야기 없이 단어 미션으로만 넣어요.
+   서버로는 단어 글자(영어·뜻·품사)와 서버가 쓴 글(장면·생각 메모)만 보내요. 사진은 보내지 않아요.
+   서버 주소·열쇠는 이 기기에만 저장해요 (localStorage 'wg-srv'). 저장소·사이트 파일에는 없어요. */
+// 2026-11-25: 이야기 모델이 Qwen 3.8 27B(생각이 길고 한 번에 2,400 Neuron쯤)로 바뀌어 처음에는 2번만 써요 (하루 무료 한도 10,000). '후보 더 만들기'로 더 써요
+const SV_KEY = 'wg-srv', SV_ROUNDS = 2, SV_KEEP = 2, SV_NOTES = 20000;
+const SRV = { cands: [], picked: new Set(), rows: null, form: false, note: '', neurons: 0 };
+function svConf() {
+  try { const c = JSON.parse(localStorage.getItem(SV_KEY) || 'null'); return c && typeof c.api === 'string' && typeof c.token === 'string' && c.api && c.token ? c : null; } catch (e) { return null; }
+}
+// 주소는 https만 (끝의 /는 떼요). 잘못됐으면 까닭 글
+function svSave(api, token) {
+  api = String(api || '').trim().replace(/\/+$/, ''); token = String(token || '').trim();
+  if (api && !/^https?:\/\//i.test(api)) api = 'https://' + api;
+  let u = null; try { u = new URL(api); } catch (e) { /* 아래에서 */ }
+  if (!u || u.protocol !== 'https:') return '서버 주소가 맞지 않아요. https://로 시작하는 주소를 넣어 주세요.';
+  if (token.length < 8 || /\s/.test(token)) return '서버 열쇠가 맞지 않아요.';
+  try { localStorage.setItem(SV_KEY, JSON.stringify({ api: u.origin + u.pathname.replace(/\/+$/, ''), token })); } catch (e) { return '이 기기에 저장하지 못했어요 (저장 공간).'; }
+  return '';
+}
+// 흘려 받기 글: 답 글(content)·생각 글(reasoning)·쓴 양(usage)
+function svSSE(raw) {
+  let text = '', reasoning = '', usage = null, err = '';
+  for (const line of String(raw).split(/\r?\n/)) {
+    const m = line.match(/^data:\s?(.*)$/), d = m && m[1].trim();
+    if (!d || d === '[DONE]') continue;
+    let j; try { j = JSON.parse(d); } catch (e) { continue; }
+    if (j.error || j.errors) err = JSON.stringify(j.error || j.errors).slice(0, 200);
+    const c = j.choices && j.choices[0], dl = c && (c.delta || c.message);
+    if (dl) { if (typeof dl.content === 'string') text += dl.content; reasoning += String(dl.reasoning_content || dl.reasoning || ''); }
+    else if (typeof j.response === 'string') text += j.response;
+    if (j.usage) usage = j.usage;
+  }
+  return { text, reasoning, usage, err };
+}
+function svJSON(t) {
+  const s = String(t || ''), a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a < 0 || b <= a) return null;
+  const body = s.slice(a, b + 1);
+  for (const c of [body, body.replace(/,\s*([}\]])/g, '$1')]) { try { return JSON.parse(c); } catch (e) { /* 다음 */ } }
+  return null;
+}
+// 답이 쓸모없는지: groups가 없으면
+const svUseless = (route, t) => !(((svJSON(t) || {}).groups) || []).length;
+// 한 번 묻기. 답이 비면(120초에서 끊김) cut 오류에 그때까지의 생각 글을 실어요
+async function svPost(route, body, signal) {
+  const c = svConf(); if (!c) throw { text: '이야기 서버 주소와 열쇠를 먼저 넣어 주세요.' };
+  let r;
+  try { r = await fetch(c.api + route, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + c.token }, body: JSON.stringify(body), signal }); }
+  catch (e) { if (signal && signal.aborted) throw { code: 'cancelled' }; throw { net: true, text: '이야기 서버에 연결하지 못했어요. 인터넷과 서버 주소를 확인해 주세요.' }; }
+  if (r.ok && /event-stream/i.test(r.headers.get('content-type') || '')) {
+    let raw = ''; try { raw = await r.text(); } catch (e) { if (signal && signal.aborted) throw { code: 'cancelled' }; }
+    const s = svSSE(raw);
+    if (s.usage && s.usage.neurons != null) SRV.neurons += +s.usage.neurons || 0;
+    // 생각 끔이면 Nemotron의 답 글이 생각 칸으로 와요
+    if (!s.text.trim() && body.effort === 'none' && s.reasoning.trim()) { s.text = s.reasoning; s.reasoning = ''; }
+    if (!s.text.trim()) throw { cut: true, reasoning: s.reasoning, text: '이야기 서버의 답이 중간에 끊겼어요.' };
+    return { text: s.text.trim(), reasoning: s.reasoning };
+  }
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 429) throw { stop: true, text: '오늘 이야기 서버의 무료 한도를 다 썼어요. 내일 오전 9시 뒤에 다시 해 주세요.' };
+  if (r.status === 401 || r.status === 403) throw { text: '이야기 서버가 열쇠를 받아 주지 않았어요. 서버 주소와 열쇠를 다시 넣어 주세요.', auth: true };
+  if (!r.ok) throw { text: `이야기 서버 오류 (${r.status}): ${String(j.error || '').slice(0, 120)}` };
+  return { text: String(j.text || ''), reasoning: '' };
+}
+// 묻기 + 이어 생각하기: 끊기면 그때까지의 생각 글을 메모로 주고 생각을 켠 채 SV_KEEP번까지, 그래도 끊기면 생각 끔으로 메모대로
+async function svAsk(route, body, signal) {
+  let notes = '';
+  const add = t => { notes = (notes + '\n\n' + String(t || '')).trim().slice(-SV_NOTES).trim(); };
+  for (let k = 0; k <= SV_KEEP + 1; k++) {
+    const last = k === SV_KEEP + 1;
+    if (k && !notes) throw { text: '이야기 서버의 답이 끊겼고 이어 쓸 생각 글도 없어요.' };
+    try {
+      const x = await svPost(route, { ...body, ...(k ? { notes } : {}), ...(last ? { effort: 'none' } : {}) }, signal);
+      if (!svUseless(route, x.text)) return x;
+      if (last) throw { text: '이야기 서버가 쓸 수 있는 답을 주지 않았어요.' };
+      add(x.reasoning || x.text);
+    } catch (e) {
+      if (!e || !e.cut || last) throw e;
+      add(e.reasoning);
+    }
+  }
+}
+const svWordsOf = rows0 => rows0.map(r => [r.en, r.ko, r.pos]);
+const SV_FOREIGN = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]/;
+// 답의 묶음 읽기: 이 단어장 단어만, 한 묶음에 4~5개, 이야기(story)에 단어가 모두 들어간 것만 후보로.
+// 이야기 줄에는 앱이 {영어|뜻 말} 표시를 붙여요 (svRetag). rows: 영어 → {en, ko, pos}
+function svReadGroups(j, byLow, rows) {
+  const out = [], str = (v, n) => String(v == null ? '' : v).replace(/[{}|<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
+  for (const g of (j && Array.isArray(j.groups) ? j.groups : [])) {
+    const ws = [], seen = new Set();
+    for (const x of (g && Array.isArray(g.words) ? g.words : [])) {
+      const en = byLow[String((x && (x.word != null ? x.word : x)) || '').trim().toLowerCase()];
+      if (en && !seen.has(en)) { seen.add(en); ws.push(en); }
+    }
+    const scene = str(g && g.scene, 200), title = str(g && g.title, 24);
+    const story = (g && Array.isArray(g.story) ? g.story : []).filter(l => typeof l === 'string').map(l => str(l, MK_LINE_MAX)).filter(Boolean).slice(0, 10);
+    if (ws.length < 4 || ws.length > 5 || story.length < ws.length + 1) continue;
+    // 영어나 다른 나라 글자(한자·가나 등)가 섞인 이야기는 빼요 (20판 후보에 'sorriso'가 섞인 일이 있었어요)
+    if (story.some(l => SV_FOREIGN.test(l))) continue;
+    const lines = svRetag(ws.map(w => [w, rows[w].ko, rows[w].pos]), story);
+    if (!ws.every(w => lines.some(l => l.includes('{' + w + '|')))) continue;
+    out.push({ scene, title: title || scene.slice(0, 20), lines, words: ws });
+  }
+  return out;
+}
+const svKeyOf = g => g.words.map(w => w.toLowerCase()).sort().join(',');
+const svShuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+// 후보 묶음 모으기 (rounds번). 단어가 40개를 넘으면 40개씩 나눠 물어요 (서버 /group은 6~40개)
+async function svCollect(rounds) {
+  const nm = $('#mkname'); if (nm) MK.name = nm.value;
+  const rows0 = mkValidRows();
+  if (rows0.length < 6 || rows0.length > MK_MAX) { MK.err = rows0.length < 6 ? '이야기 서버로 묶으려면 단어가 6개 이상 필요해요.' : `${MK_MAX}단어까지만 만들 수 있어요.`; renderMake(); return; }
+  if (!svConf()) { SRV.form = true; renderMake(); return; }
+  const fresh = !SRV.rows || SRV.rows.map(r => r.en + '|' + r.ko).join('\n') !== rows0.map(r => r.en + '|' + r.ko).join('\n');
+  if (fresh) { SRV.cands = []; SRV.picked = new Set(); SRV.neurons = 0; }
+  SRV.rows = rows0; SRV.note = '';
+  const byLow = Object.create(null), rows = Object.create(null); for (const r of rows0) { byLow[r.en.toLowerCase()] = r.en; rows[r.en] = r; }
+  const ctl = MK.ctl = new AbortController();
+  MK.err = ''; MK.fail = false; MK.log = []; MK.step = 'making'; MK.sv = 'group'; renderMake();
+  const have = new Set(SRV.cands.map(svKeyOf));
+  try {
+    wakeHold('make');
+    for (let k = 0; k < rounds; k++) {
+      const li = mkLog(`이야기 후보 쓰는 중 (${k + 1}/${rounds})`);
+      try {
+        const list = svShuffle(svWordsOf(rows0)), parts = [];
+        const n = Math.ceil(list.length / 40); for (let i = 0; i < n; i++) parts.push(list.slice(Math.round(i * list.length / n), Math.round((i + 1) * list.length / n)));
+        let got = 0;
+        for (const part of parts) {
+          if (part.length < 6) continue;
+          const x = await svAsk('/group', { words: part, effort: 'medium', stream: true, size: 4, story: true }, ctl.signal);
+          for (const g of svReadGroups(svJSON(x.text), byLow, rows)) { const key = svKeyOf(g); if (!have.has(key)) { have.add(key); SRV.cands.push(g); got++; } }
+        }
+        mkLogSet(li, 'ok', `이야기 후보 ${k + 1}/${rounds}: 새 후보 ${got}개`);
+      } catch (e) {
+        if (e && (e.code === 'cancelled' || e.stop || e.auth || e.net)) { mkLogSet(li, 'warn', `이야기 후보 ${k + 1}/${rounds}: 멈췄어요`); throw e; }
+        mkLogSet(li, 'warn', `이야기 후보 ${k + 1}/${rounds}: 이번에는 받지 못했어요`);
+      }
+    }
+    if (!SRV.cands.length) throw { text: '이야기 서버가 쓸 수 있는 이야기 후보를 주지 않았어요. 잠시 뒤에 다시 해 주세요.' };
+    MK.step = 'srvpick';
+  } catch (e) {
+    const why = e && e.code === 'cancelled' ? '만들기를 멈췄어요.' : (e && e.text) || '이야기 서버에서 오류가 났어요.';
+    if (e && e.auth) SRV.form = true;
+    // 받은 후보가 있으면 그것으로 고르게 해요
+    if (SRV.cands.length && !(e && e.auth)) { MK.step = 'srvpick'; SRV.note = why + ' 지금까지 받은 후보를 보여 드려요.'; }
+    else { MK.step = 'review'; MK.err = why; }
+  } finally { wakeFree('make'); MK.sv = ''; }
+  if ($('#make').hidden && MK.step === 'srvpick') toast('이야기 후보가 준비됐어요. ‘새 단어장 만들기’에서 골라 주세요');
+  if (!$('#make').hidden) renderMake();
+}
+// 고른 묶음과 단어가 겹치는 후보는 함께 고를 수 없어요
+function svClash(i) {
+  const mine = new Set(SRV.cands[i].words);
+  for (const j of SRV.picked) if (j !== i && SRV.cands[j].words.some(w => mine.has(w))) return true;
+  return false;
+}
+function svCountText() {
+  const used = new Set(); for (const i of SRV.picked) SRV.cands[i].words.forEach(w => used.add(w));
+  const all = (SRV.rows || []).length;
+  return SRV.picked.size ? `고른 이야기 ${SRV.picked.size}편 · 단어 ${used.size}개 · 이야기 없이 넣는 단어 ${all - used.size}개` : '마음에 드는 이야기를 눌러서 골라 주세요';
+}
+// 이야기 줄을 화면 글로: {영어|뜻 말} → 뜻 말에 표시 + 영어 단어
+const svLineHTML = l => esc(l).replace(/\{([^{|}]+)\|([^{|}]+)\}/g, '<mark class="svmark">$2<small>$1</small></mark>');
+function svPickHTML() {
+  const cards = SRV.cands.map((g, i) => {
+    const on = SRV.picked.has(i), off = !on && svClash(i);
+    return `<button type="button" class="svcand${on ? ' on' : ''}${off ? ' off' : ''}" data-mk="svtog" data-i="${i}" aria-pressed="${on}"${off ? ' disabled' : ''}>
+      <b class="svscene">${on ? '✔ ' : ''}${esc(g.title)}</b>
+      <span class="svstory">${g.lines.map(l => `<span>${svLineHTML(l)}</span>`).join('')}</span>
+      ${off ? '<small class="svoff">고른 이야기와 단어가 겹쳐요</small>' : ''}</button>`;
+  }).join('');
+  return `${SRV.note ? `<p class="mknote">${esc(SRV.note)}</p>` : ''}
+    <p class="mksmall">이야기를 끝까지 읽고, <b>말이 되고 · 단어가 자연스럽게 쓰였고 · 문장이 앞뒤로 이어지는 이야기</b>만 눌러서 골라 주세요. 고른 이야기가 그대로 게임에 들어가요. 고르지 않은 단어는 이야기 없이 단어 미션으로 넣어요.</p>
+    <div class="svcands">${cards}</div>
+    <p class="mkcount" id="svcount">${esc(svCountText())}</p>
+    <button type="button" class="startbtn" data-mk="svmake"${SRV.picked.size ? '' : ' disabled'}>${ICON.play}고른 이야기로 게임 만들기</button>
+    <button type="button" class="btn" data-mk="svmore">후보 더 만들기 (1번 더)</button>
+    <button type="button" class="linkbtn" data-mk="svback">단어 고치러 돌아가기</button>
+    ${SRV.neurons ? `<p class="mksmall">오늘 무료 한도에서 지금까지 쓴 양: 약 ${Math.round(SRV.neurons).toLocaleString()} / 10,000</p>` : ''}`;
+}
+// 확인 화면의 이야기 서버 칸: 주소·열쇠를 넣지 않았으면 넣는 칸, 넣었으면 시작 단추
+function svReviewHTML() {
+  if (MK.redo) return '';
+  const c = svConf(), n = mkValidRows().length, ok = n >= 6 && n <= MK_MAX;
+  if (!c || SRV.form) return `<div class="mknote svbox"><b>이야기 서버로 만들기</b> (이야기를 읽고 직접 골라요)<br><small>서버 주소와 열쇠는 이 기기에만 저장해요. 서버로는 단어 글자(영어·뜻·품사)만 보내고, 사진은 보내지 않아요.</small>
+    <label class="mklab">서버 주소<input id="svapi" value="${esc(c ? c.api : '')}" placeholder="https://…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <label class="mklab">서버 열쇠<input id="svtok" type="password" value="" placeholder="${c ? '바꾸려면 새 열쇠를 넣어요' : '열쇠'}" autocomplete="off"></label>
+    <button type="button" class="btn" data-mk="svsave">이 기기에 저장</button>${c ? ' <button type="button" class="linkbtn" data-mk="svcancel">닫기</button>' : ''}</div>`;
+  return `<div class="mknote svbox"><b>이야기 서버로 만들기</b> (이야기를 읽고 직접 골라요)<br><small>서버가 단어 4개씩으로 이야기 후보를 ${SV_ROUNDS}번 써요 (한 번에 15분쯤 걸려요. 이 화면을 열어 두세요). 이야기를 읽고 마음에 드는 것만 고르면 그대로 게임에 들어가요. 서버로는 단어 글자만 보내요.</small><br>
+    <button type="button" class="btn good" data-mk="svgo"${ok ? '' : ' disabled'}>${ICON.play}이야기 후보 만들기</button>
+    ${SRV.cands.length && SRV.rows ? '<button type="button" class="btn" data-mk="svshow">받아 둔 후보 보기</button>' : ''}
+    <button type="button" class="linkbtn" data-mk="svedit">서버 주소·열쇠 바꾸기</button></div>`;
+}
+// 표시 붙이기: 서버 plain 꼴은 {영어|뜻} 표시 없이 와요. 표시가 없는 줄에서 aiMark로 뜻 자리를 찾아 붙여요 (가운데 줄 먼저, 한 줄에 단어 하나)
+function svRetag(words, lines) {
+  const TAG = /\{([^{|}]+)\|([^{|}]+)\}/g, out = lines.slice();
+  const pref = [...out.keys()].slice(1, -1).concat(out.length > 1 ? [0, out.length - 1] : [0]);
+  const need = words.filter(([en]) => !out.some(l => [...l.matchAll(TAG)].some(m => m[1].trim().toLowerCase() === en.toLowerCase())))
+    .map(([en, ko, pos]) => {
+      const lex = stLex(en, { en, ko, pos }, SF[0]), cand = [];
+      for (const i of pref) { if (/\{[^{|}]+\|[^{|}]+\}/.test(out[i])) continue; const m = aiMark(out[i], en, lex, ko); if (m) cand.push([i, m]); }
+      return { en, cand };
+    }).sort((a, b) => a.cand.length - b.cand.length);
+  let best = [], cur = [];
+  const used = new Set();
+  const go = k => {
+    if (cur.length + (need.length - k) <= best.length) return;
+    if (k === need.length) { best = cur.slice(); return; }
+    for (const [i, m] of need[k].cand) if (!used.has(i)) { used.add(i); cur.push([need[k].en, i, m]); go(k + 1); cur.pop(); used.delete(i); }
+    go(k + 1);
+  };
+  go(0);
+  for (const [, i, m] of best) out[i] = m;
+  return out;
+}
+// 고른 이야기로 단어장 만들기: 고른 후보의 이야기가 그대로 에피소드, 고르지 않은 단어는 이야기 없이 (서버를 더 부르지 않아요)
+async function svMake() {
+  const rows0 = SRV.rows || [], picks = [...SRV.picked].sort((a, b) => a - b).map(i => SRV.cands[i]);
+  if (!picks.length) return;
+  const rows = Object.create(null); for (const r of rows0) rows[r.en] = r;
+  const id = 'u' + Date.now().toString(36);
+  MK.err = ''; MK.fail = false; MK.saveNote = ''; MK.aiNote = ''; MK.aiDiag = null; MK.aiEnv = ''; mkPicN = 0;
+  const deck = { v: 1, id, name: mkCleanKo(MK.name) || `새 단어장 ${new Date().getMonth() + 1}/${new Date().getDate()}`, created: Date.now(), updated: Date.now(), source: MK.images.length ? 'photo' : 'text', words: {}, scenes: [], panels: {} };
+  const used = new Set();
+  let n = 0, done = 0;
+  const push = (title, ws, res) => {
+    const key = `${id}-e${++n}`, out = mkEpisode(key, title, ws, rows, res);
+    deck.scenes.push(out.scene); Object.assign(deck.words, out.words); deck.panels[key] = out.specs;
+  };
+  try {
+    for (const g of picks) {
+      const ws = g.words.filter(w => rows[w] && !used.has(w));
+      if (ws.length !== g.words.length) continue;
+      ws.forEach(w => used.add(w));
+      push(g.title, ws, { lines: g.lines, words: {} }); done++;
+    }
+    const rest = rows0.map(r => r.en).filter(w => !used.has(w));
+    mkChunk(rest).forEach((ws, i) => push(`단어 미션 ${i + 1}`, ws, null));
+    deck.scenes = deck.scenes.filter(sc => sc.words.length);
+    if (!deck.scenes.length) throw { code: 'empty_completion' };
+    const saved = await DeckStore.put(deck);
+    MK.aiNote = `고른 이야기 ${done}편이 들어갔어요.${rest.length ? ` 단어 ${rest.length}개는 이야기 없이 넣었어요.` : ''}`;
+    MK.saveNote = saved.cloud ? '내 Claude 계정에도 저장했어요. 다른 기기에서 이 앱을 열어도 보여요.' : saved.local ? '이 기기에 저장했어요.' : '저장 공간이 없어 이번 방문 동안만 쓸 수 있어요.';
+    MK.deck = deck; MK.step = 'done'; MK.images.forEach(im => URL.revokeObjectURL(im.url)); MK.images = []; MK.rows = []; MK.name = ''; MK.paste = ''; MK.note = '';
+    SRV.cands = []; SRV.picked = new Set(); SRV.rows = null;
+    Sound.play('project'); voiceWarm();
+  } catch (e) {
+    MK.step = 'srvpick'; SRV.note = (e && e.text) || mkErrText(e) || '만들지 못했어요.';
+  }
+  if (!$('#make').hidden) renderMake();
+}
+// 만들기 화면의 이야기 서버 단추들
+function svClick(a, b) {
+  if (a === 'svsave') {
+    const cur = svConf(), api = ($('#svapi') || {}).value, tok = ($('#svtok') || {}).value || (cur ? cur.token : '');
+    const nm = $('#mkname'); if (nm) MK.name = nm.value;
+    const err = svSave(api, tok);
+    if (err) { toast(err); return; }
+    SRV.form = false; MK.err = ''; toast('이 기기에 저장했어요'); renderMake();
+  }
+  else if (a === 'svedit' || a === 'svcancel') { const nm = $('#mkname'); if (nm) MK.name = nm.value; SRV.form = a === 'svedit'; renderMake(); }
+  else if (a === 'svgo') { if (MK.benchCtl) { toast('AI 진단 중이에요. 끝난 뒤에 해 주세요'); return; } svCollect(SV_ROUNDS); }
+  else if (a === 'svmore') svCollect(1);
+  else if (a === 'svshow') { MK.err = ''; MK.step = 'srvpick'; renderMake(); }
+  else if (a === 'svback') { MK.step = 'review'; renderMake(); }
+  else if (a === 'svtog') {
+    const i = +b.dataset.i; if (!SRV.cands[i]) return;
+    if (SRV.picked.has(i)) SRV.picked.delete(i); else if (!svClash(i)) SRV.picked.add(i);
+    const y = window.scrollY; renderMake(); window.scrollTo(0, y);
+  }
+  else if (a === 'svmake') svMake();
+}
 /* ================= 앱 동작 ================= */
 const STORE_KEY = 'day02-voca-mission-v1';
 const SAVE = { v: 2, dir: 'en', diff: 'normal', sound: true, narr: true, rate: 1, koVoice: '', enVoice: '', netVoice: false, best: {}, wrong: {}, seen: {}, lives: 3, bank: 0, done: 0 };
@@ -10374,8 +10680,8 @@ function renderStory() {
     <div class="sframe">${M.kind === 'boss' ? mosaicHTML() : '<div id="spanel"></div>'}</div>
     ${body}
     <div class="brief">
-      <div class="brief-row"><b>미션</b><span>${n}단어의 뜻을 직접 입력해 모두 맞히기. 뜻이 여러 개면 <b>모두</b> 써요.</span></div>
-      <div class="brief-row"><b>시간</b><span>단어마다 <strong class="briefsec">${DIFF[SAVE.diff].sec}초</strong>(뜻 하나 더 +<span class="briefx">${DIFF[SAVE.diff].extra}</span>초). ${M.kind === 'review' ? '' : '빨리 맞히면 남은 시간이 <b>모은 시간</b>에 쌓이고, 시간이 다 되면 모은 시간을 보너스로 써요.'}</span></div>
+      <div class="brief-row"><b>미션</b><span>${n}단어의 뜻을 직접 입력해 모두 맞히기. 뜻이 여러 개면 <b>모두</b> 써요. 그림 아래에 그 단어가 나온 이야기 문장이 <b>빈칸</b>으로 나와요.</span></div>
+      <div class="brief-row"><b>시간</b><span>단어마다 <strong class="briefsec">${DIFF[SAVE.diff].sec}초</strong>(뜻 하나 더 +<span class="briefx">${DIFF[SAVE.diff].extra}</span>초, 이야기 문장이 나오면 +${CZ_READ / 1000}초). ${M.kind === 'review' ? '' : '빨리 맞히면 남은 시간이 <b>모은 시간</b>에 쌓이고, 시간이 다 되면 모은 시간을 보너스로 써요.'}</span></div>
       <div class="brief-row"><b>하트</b><span>${M.kind === 'review' ? '시간이 다 되면' : '시간도 모은 시간도 다 쓰면'} 하트 1개가 깨져요. 틀리게 입력하면 2초가 줄어요. ‘몰라요’는 바로 답을 보고 넘어가요(하트는 그대로).</span></div>
       ${M.kind === 'review' ? '' : `<div class="brief-row"><b>목숨</b><span>하트 ${heartsFor(M.kind)}개를 모두 잃으면 <span class="warn">미션 실패</span> · 목숨 1개 감소 (남은 목숨 <span class="lives inline">${livesHTML()}</span>). 목숨을 다 잃으면 깬 에피소드가 모두 초기화돼요.</span></div>`}
       ${M.kind === 'review' ? '' : `<div class="brief-row"><b>모은 시간</b><span class="bankline">${ICON.clock}<b>${secTxt(SAVE.bank)}</b></span></div>`}
@@ -10759,6 +11065,7 @@ function renderPlayShell() {
     <div class="cardwrap" id="cardwrap">
       <div class="card" id="card">
         <div id="ppanel"></div>
+        <div class="czline" id="czline" hidden><p id="czp"></p></div>
         <div class="cbody" id="cbody">
           <div class="cmeta"><span class="pos" id="pos"></span><span class="cscene" id="cscene"></span><button type="button" class="chip" data-act="dir" id="dirchip"></button></div>
           <div class="q" id="q"></div>
@@ -10933,6 +11240,44 @@ function updateCounts() {
   const left = M.queue.length - (M.state === 'done' ? 1 : 0);
   $('#leftn').textContent = n <= 12 ? `남은 ${left}` : `맞힘 ${M.cleared.size}/${n}`;
 }
+// 단어 시험 자막 (2026-11-26 사용자 요청): 이야기에서 그 단어가 쓰인 줄을 그림 바로 아래에 이야기 영상 자막처럼 보여 줘요.
+// 맞힐 단어 자리는 빈칸 (문장 속 뜻을 보고 맞히면 시험이 아니니까). 같은 줄의 다른 단어는 뜻 말만 (영어는 빼요: 한→영 카드의 답이 보이지 않게).
+// 맞히면 빈칸에 '영어 + 뜻 말'이 채워져요. 이야기 없이 넣은 단어의 틀 줄("잊지 말아야 할 단어: …!")처럼 떠올릴 거리가 없는 줄은 보여 주지 않아요.
+const CZ_READ = 2000; // 자막을 읽을 시간 (카드 시간에 더해요)
+const CZ_FILLER = /^잊지 말아야 할 단어:/;
+function czLineOf(id) {
+  const w = WORDS[id], s = w && sceneOf(w.scene), tag = '{' + id + '|';
+  const line = s && (s.lines || []).find(l => l.includes(tag));
+  if (!line || CZ_FILLER.test(line)) return '';
+  // 빈칸 밖에 남는 글이 너무 짧으면(떠올릴 거리가 없으면) 보여 주지 않아요
+  const rest = line.replace(MARK, (_, k, t) => (k === id ? '' : t)).replace(/[\s!?.,~"'“”‘’…:;()\-]/g, '');
+  return rest.length >= 4 ? line : '';
+}
+function czHTML(id, fill) {
+  const line = czLineOf(id), key = esc(id);
+  if (!line) return '';
+  return esc(line).replace(MARK, (_, k, t) => k !== key ? t
+    : fill ? `<mark class="czfill ${fill}"><i>${esc(shortW(id))}</i>${t}</mark>`
+      : '<span class="czgap" role="img" aria-label="빈칸">?</span>');
+}
+// 그림 속 글자가 답을 알려 주면(기본 단어장 47개 가운데 17개: 말풍선 "추천합니다!", 도장 "참석" 같은) 푸는 동안 '?'로 가려요.
+// 맞히거나 답을 보면 원래 글자로 되돌려요. 장면 그림의 글자는 한 줄씩 <text>예요 (art kit의 tx)
+function czMaskArt(on) {
+  if (!PP || !PP.art) return;
+  for (const t of PP.art.querySelectorAll('text[data-cz]')) { t.textContent = t.dataset.cz; t.removeAttribute('data-cz'); t.classList.remove('czhide'); }
+  if (!on) return;
+  const vs = M.keys.flatMap(k => k.ok).filter(a => a && a.length >= 2);
+  if (!vs.length) return;
+  for (const t of PP.art.querySelectorAll('text')) {
+    const n = norm(t.textContent);
+    if (vs.some(a => n.includes(a))) { t.dataset.cz = t.textContent; t.textContent = '?'; t.classList.add('czhide'); }
+  }
+}
+function czShow(id, fill) {
+  const box = $('#czline'), p = $('#czp'); if (!box || !p) return;
+  const h = czHTML(id, fill);
+  box.hidden = !h; p.innerHTML = h;
+}
 const picHTML = w => `<p><span class="pp-lab">암기 팁</span>${esc(w.tip)}</p><div><span class="pp-lab">예문</span><p class="pp-en">${exHTML(w.ex)}</p><p class="pp-ko">${esc(w.exKo)}</p></div>`;
 function renderSlots() {
   const el = $('#slots'); if (!el) return;
@@ -10946,6 +11291,7 @@ function fillCard(id) {
   const w = WORDS[id], en = SAVE.dir === 'en';
   $('#pos').textContent = $('#pos2').textContent = POS[w.pos] || '';
   $('#cscene').textContent = sceneOf(w.scene).title;
+  czShow(id);
   const q = $('#q'); q.className = 'q' + (en ? '' : ' ko'); q.innerHTML = en ? esc(id) : mHTML(w.m);
   renderSlots();
   // 교재 뜻 전체(괄호·~ 등)가 칸에 다 안 보일 때만 아래에 따로 보여 줌
@@ -10984,13 +11330,14 @@ function showCard(animate) {
   const id = curId(), w = WORDS[id], card = $('#card');
   clearTimeout(M.clearT);
   M.full = false; M.state = M.active ? 'ask' : 'idle'; M.matched = new Set(); M.ot = false;
-  M.keys = keysFor(id); M.cardMs = cardTime(M.keys);
+  M.keys = keysFor(id); M.cardMs = cardTime(M.keys) + (czLineOf(id) ? CZ_READ : 0);
   if (M.shown) M.shown.add(id);
   card.classList.remove('ok', 'answer', 'in', 'shake');
   $('#ain').value = '';
   fillCard(id);
   setBar('ask');
   const changed = PP.setScene(w.scene);
+  czMaskArt(true);
   PP.clearFocus(); PP.showZoomBtn(false); PP.hideCaption();
   const h = PP.baseH();
   if (changed || !PP.h) PP.fullNow();
@@ -11152,6 +11499,7 @@ function success() {
   M.ot = false; $('#fuserow').classList.remove('bonus', 'hurry');
   persist();
   renderSlots();
+  czShow(id, 'ok'); czMaskArt(false);
   const card = $('#card'); card.classList.remove('ok'); void card.offsetWidth; card.classList.add('ok');
   Sound.play(M.combo >= 3 ? 'combo' : 'ok'); if (gain >= 300) setTimeout(() => Sound.play('coin'), 140);
   buzz(18); vignette('good');
@@ -11175,6 +11523,7 @@ function showAnswer() {
   M.state = 'answer'; M.timing = false; M.ot = false; fuseFreeze();
   $('#fuserow').classList.remove('bonus', 'hurry');
   renderSlots();
+  czShow(curId(), 'shown'); czMaskArt(false);
   $('#ans').hidden = false;
   $('#card').classList.add('answer');
   setBar('answer');

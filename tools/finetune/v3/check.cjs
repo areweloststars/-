@@ -73,11 +73,21 @@ const CHECK = ({ words, out, strict, PIC_BLOCK_SRC }) => {
     if (/[{}|]/.test(rest)) why.push(`${i + 1}줄: 짝 안 맞는 표시`);
     if ((i === 0 || i === lines.length - 1) && tags.length) why.push(`${i + 1}줄: 첫 줄·끝 줄에는 단어를 넣지 않아요`);
     if (tags.length > 1) why.push(`${i + 1}줄: 단어 표시 ${tags.length}개 (한 줄에 하나만)`);
-    for (const [, en, ko] of tags) {
-      const k = idx[en.trim().toLowerCase()];
+    for (const t of tags) {
+      const [, en, ko] = t, k = idx[en.trim().toLowerCase()];
       if (k == null) { why.push(`${i + 1}줄: 없는 단어 ${en.trim()}`); continue; }
       seen[k]++;
-      if (!aiMark(ko.trim(), words[k][0], lex[k], words[k][1])) why.push(`${i + 1}줄: '${ko.trim()}'은(는) ${words[k][1]}의 뜻이 아니에요`);
+      const said = ko.trim();
+      if (!aiMark(said, words[k][0], lex[k], words[k][1])) why.push(`${i + 1}줄: '${said}'은(는) ${words[k][1]}의 뜻이 아니에요`);
+      // 뜻 낱말만 찾으면 통과로 보던 깨진 꼴 (2026-11-04, 서버 Nemotron 답에서 많이 나옴)
+      // - 문장 끝 꼴 뒤에 말이 더 붙음: {permit|허락했어요} 주셨어요 · {schedule|일정했어요}를 · {solve|해결했어요}, 드레스를…
+      //   (움직임·꾸밈 말은 '요'로 끝나면, 이름 말은 '-어요·-아요·-에요' 꼴일 때만: 담요·요요는 이름이에요)
+      const vA = /^[va]$/.test(words[k][2]), final = vA ? /요$/.test(said) : /(어|아|여|에|예)요$/.test(said);
+      if (final && /^\s*,?\s*[가-힣]/.test(l.slice(t.index + t[0].length))) why.push(`${i + 1}줄: '${said}' 뒤에 말이 더 붙었어요 (문장 끝 꼴은 문장 끝에만)`);
+      // - 움직임·꾸밈 말을 받은 뜻 그대로(사전 꼴) 둠: {borrow|빌리다}. · {whisper|속삭이다} 라고 (건너려다·가려다는 괜찮아요)
+      if (vA && /다$/.test(words[k][1]) && said.endsWith(words[k][1])) why.push(`${i + 1}줄: '${said}'은(는) 사전 꼴이에요 ('-어요' 꼴로)`);
+      // - 같은 줄에 뜻을 또 씀: 계약을 {contract|계약했어요} · 사과를 {apologize|사과했어요}
+      if (aiMark(l.replace(TAG, ' '), words[k][0], lex[k], words[k][1])) why.push(`${i + 1}줄: '${words[k][1]}' 뜻을 같은 줄에 또 썼어요`);
     }
     const b = aiLineWhy(plain[i], tags.length ? tags[0][2] : '', { sent: 1, max: 140 });
     if (b) why.push(`${i + 1}줄: ${b}`);
@@ -106,4 +116,44 @@ const CHECK = ({ words, out, strict, PIC_BLOCK_SRC }) => {
 };
 const check = (p, words, out, strict = false) => p.json(`(${CHECK})(${JSON.stringify({ words, out, strict, PIC_BLOCK_SRC: PIC_BLOCK.source })})`);
 
-module.exports = { REPO, TEST_SETS, TRIES, prompt, answer, parse, check, bootPage };
+// 앱처럼 표시 붙이기 (2026-10-31, 이야기 서버): 이야기에 표시가 없는 단어는, 표시가 없는 줄에서 앱의 aiMark로 뜻 자리를 찾아
+// {영어|뜻 말}을 붙여요. 서버 JSON 꼴에서 AI가 뜻 말 칸을 문장과 다르게 적으면(예: 문장은 '거절했어요', 칸은 '거절하다') 표시가 빠지거든요.
+// 가운데 줄부터 찾고, 첫 줄·끝 줄은 마지막에 (거기서 찾으면 점검기가 '첫 줄·끝 줄' 규칙으로 잡아요). 게임에 붙일 때 앱도 이렇게 해요.
+const RETAG = ({ words, lines }) => {
+  const TAG = /\{([^{|}]+)\|([^{|}]+)\}/g, out = lines.slice();
+  const pref = [...out.keys()].slice(1, -1).concat(out.length > 1 ? [0, out.length - 1] : [0]);
+  // 표시가 없는 단어마다, 표시가 없는 줄 가운데 aiMark가 뜻 자리를 찾는 줄 (가운데 줄 먼저)
+  const need = words.filter(([en]) => !out.some(l => [...l.matchAll(TAG)].some(m => m[1].trim().toLowerCase() === en.toLowerCase())))
+    .map(([en, ko, pos]) => {
+      const lex = stLex(en, { en, ko, pos }, SF[0]), cand = [];
+      for (const i of pref) { if (/\{[^{|}]+\|[^{|}]+\}/.test(out[i])) continue; const m = aiMark(out[i], en, lex, ko); if (m) cand.push([i, m]); }
+      return { en, cand };
+    }).sort((a, b) => a.cand.length - b.cand.length);
+  // 한 줄에 단어 하나: 가장 많은 단어가 들어가는 짝을 찾아요 (후보가 적은 단어부터, 단어 10개·줄 14줄이라 다 찾아봐도 금방이에요)
+  let best = [], cur = [];
+  const used = new Set();
+  const go = k => {
+    if (cur.length + (need.length - k) <= best.length) return;
+    if (k === need.length) { best = cur.slice(); return; }
+    for (const [i, m] of need[k].cand) if (!used.has(i)) { used.add(i); cur.push([need[k].en, i, m]); go(k + 1); cur.pop(); used.delete(i); }
+    go(k + 1);
+  };
+  go(0);
+  for (const [, i, m] of best) out[i] = m;
+  return { lines: out, done: best.map(b => b[0]) };
+};
+const retag = (p, words, out) => {
+  const r = p.json(`(${RETAG})(${JSON.stringify({ words, lines: out.lines })})`);
+  // 그림 줄 앞에 영어 단어 대신 받은 뜻을 쓴 것 ('게으른: A lazy rabbit …', 서버 plain 꼴에서 5편 가운데 2편, 2026-11-04) → 그 뜻의 영어 단어로 바꿔요
+  const byKo = new Map(words.map(([en, ko]) => [ko.replace(/\s+/g, ''), en]));
+  const pics = out.pics.map(pc => {
+    if (pc.en) return pc;
+    const m = pc.text.match(/^([^:：]{1,20}?)\s*[:：]\s*(.+)$/), en = m && byKo.get(m[1].replace(/\s+/g, ''));
+    return en ? { en, text: m[2].trim() } : pc;
+  });
+  return { ...out, lines: r.lines, pics, retagged: r.done };
+};
+// 나눈 답을 다시 앱 꼴 글로
+const toText = out => ['제목: ' + out.title, '줄거리: ' + out.plan, '이야기:', ...out.lines, '그림:', ...out.pics.map(pc => (pc.en ? pc.en + ': ' : '') + pc.text)].join('\n');
+
+module.exports = { REPO, TEST_SETS, TRIES, prompt, answer, parse, check, retag, toText, bootPage };

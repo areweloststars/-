@@ -56,6 +56,7 @@ function renderMake() {
   else if (MK.step === 'review') body = mkReviewHTML();
   else if (MK.step === 'making') body = mkMakingHTML();
   else if (MK.step === 'done') body = mkDoneHTML();
+  else if (MK.step === 'srvpick') body = svPickHTML(); // 이야기 서버: 묶음 고르기 (10-server-make.js)
   el.innerHTML = head + (MK.err ? `<p class="mkerr" role="alert">${esc(MK.err)}</p>` : '') + body;
   if (MK.step === 'review') mkBindRows();
 }
@@ -100,6 +101,7 @@ function mkReviewHTML() {
     ${mkGateHTML()}
     <button type="button" class="startbtn" data-mk="make"${ok && !MK.aiWhy ? '' : ' disabled'}>${ICON.play}${MK.redo ? '이 단어장 이야기 새로 만들기' : 'AI 이야기로 게임 만들기'}</button>
     ${mkAiHTML()}
+    ${svReviewHTML()}
     <button type="button" class="linkbtn" data-mk="restart">처음으로</button>${buildLabel() ? `<p class="mksmall">${buildLabel()}</p>` : ''}`;
 }
 // 새 단어장은 이 기기의 이야기 AI가 이야기를 써야 만들어요: 누가 쓰는지와 필요한 것 (홈 카드·만들기 화면)
@@ -203,7 +205,7 @@ async function mkAiPrefetch() {
 }
 function mkMakingHTML() {
   const items = MK.log.map(l => `<li class="${l.state}"><span>${esc(l.text)}${l.state === 'run' ? '<i class="dotdot" aria-hidden="true"></i>' : ''}</span></li>`).join('');
-  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p><b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 다 만들 때까지 이 화면을 켜 두세요. 다른 앱을 열면 이야기 AI가 멈출 수 있어요.</small></p></div>
+  return `<div class="mkwait"><div class="spin" aria-hidden="true"></div><p>${MK.sv ? `<b>이야기 서버가 이야기 후보를 쓰고 있어요</b><br><small>한 번에 2~8분쯤 걸려요. 다 될 때까지 이 화면을 켜 두세요.</small>` : `<b>게임을 만들고 있어요</b><br><small>에피소드마다 30초~1분쯤 걸려요. 다 만들 때까지 이 화면을 켜 두세요. 다른 앱을 열면 이야기 AI가 멈출 수 있어요.</small>`}</p></div>
     <ol class="mklog">${items}</ol>
     <button type="button" class="btn" data-mk="stop">그만두기</button>`;
 }
