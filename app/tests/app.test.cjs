@@ -481,6 +481,60 @@ test('mission: the direction chip cannot reveal the answer, quitting into game o
   } finally { p.close(); }
 });
 
+test('mission: the story line shows under the picture with the word left blank, and fills in when answered', async () => {
+  const p = bootPage();
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  try {
+    p.run(`SAVE.dir = 'en'; openMission('scene', SCENES[0].key); startPlay();`);
+    await wait(1800);
+    assert.equal(p.json('M.state'), 'ask');
+    const id = p.json('curId()');
+    const line = p.json(`SCENES[0].lines.find(l => l.includes('{' + curId() + '|'))`);
+    const t = /\{[^|}]+\|([^}]+)\}/.exec(line.slice(line.indexOf('{' + id + '|')))[1];
+    assert.equal(p.run(`$('#czline').hidden`), false, '그림 아래에 이야기 문장');
+    const cz = p.run(`$('#czp').textContent`);
+    assert.ok(!cz.includes(t), '맞힐 뜻은 문장에 없음');
+    assert.ok(!cz.includes(id), '영어도 없음');
+    assert.equal(p.run(`!!$('#czp .czgap')`), true, '빈칸');
+    assert.equal(p.json('M.cardMs'), p.json('cardTime(M.keys)') + 2000, '문장을 읽을 2초');
+    // 맞히면 빈칸에 영어 + 뜻 말
+    p.run(`$('#ain').value = M.keys.map(k => k.t).join(' '); onType();`);
+    assert.equal(p.json('M.state'), 'done');
+    const filled = p.run(`$('#czp .czfill.ok') ? $('#czp .czfill.ok').textContent : ''`);
+    assert.ok(filled.includes(t) && filled.includes(id), filled);
+    // 같은 줄의 다른 단어는 뜻 말만 (한→영 카드의 답인 영어가 보이지 않게), 떠올릴 거리가 없는 틀 줄·짧은 줄은 보여 주지 않음 (일반 낱말)
+    const r = p.json(`(() => {
+      SCENES.push({ key: 'cz-test', title: 't', words: ['cat', 'run', 'book'], lines: ['{cat|고양이}가 공원에서 쉬지 않고 {run|달렸어요}.', '잊지 말아야 할 단어: {book|책}!'] });
+      WORDS.cat = { scene: 'cz-test' }; WORDS.run = { scene: 'cz-test' }; WORDS.book = { scene: 'cz-test' };
+      const out = { run: czHTML('run'), runOk: czHTML('run', 'ok'), book: czLineOf('book') };
+      SCENES.find(s => s.key === 'cz-test').lines[0] = '{run|달렸어요}!';
+      out.short = czLineOf('run');
+      SCENES.pop(); delete WORDS.cat; delete WORDS.run; delete WORDS.book;
+      return out;
+    })()`);
+    assert.match(r.run, /^고양이가 공원에서 쉬지 않고 <span class="czgap"[^>]*>\?<\/span>\.$/);
+    assert.doesNotMatch(r.run, /cat|달렸어요/);
+    assert.match(r.runOk, /<mark class="czfill ok"><i>run<\/i>달렸어요<\/mark>/);
+    assert.equal(r.book, '');
+    assert.equal(r.short, '');
+    // 그림 속 글자가 답을 알려 주면 푸는 동안 '?'로 가리고, 답을 보면 되돌려요 (기본 장면: 말풍선 "추천합니다!")
+    const art = p.json(`(() => {
+      const texts = () => [...PP.art.querySelectorAll('text')].map(t => t.textContent);
+      PP.setScene('dragon'); M.keys = keysFor('recommend');
+      const before = texts().filter(t => t.includes('추천'));
+      czMaskArt(true);
+      const masked = texts().filter(t => t.includes('추천')), q = texts().filter(t => t === '?').length;
+      czMaskArt(false);
+      return { before, masked, q, after: texts().filter(t => t.includes('추천')) };
+    })()`);
+    assert.ok(art.before.length >= 1, JSON.stringify(art));
+    assert.deepEqual(art.masked, []);
+    assert.ok(art.q >= art.before.length);
+    assert.deepEqual(art.after, art.before);
+    assert.deepEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
 test('deck runtime: a word listed in two episodes stays in the first one only', () => {
   const p = bootPage();
   try {

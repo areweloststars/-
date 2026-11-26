@@ -180,8 +180,8 @@ function renderStory() {
     <div class="sframe">${M.kind === 'boss' ? mosaicHTML() : '<div id="spanel"></div>'}</div>
     ${body}
     <div class="brief">
-      <div class="brief-row"><b>미션</b><span>${n}단어의 뜻을 직접 입력해 모두 맞히기. 뜻이 여러 개면 <b>모두</b> 써요.</span></div>
-      <div class="brief-row"><b>시간</b><span>단어마다 <strong class="briefsec">${DIFF[SAVE.diff].sec}초</strong>(뜻 하나 더 +<span class="briefx">${DIFF[SAVE.diff].extra}</span>초). ${M.kind === 'review' ? '' : '빨리 맞히면 남은 시간이 <b>모은 시간</b>에 쌓이고, 시간이 다 되면 모은 시간을 보너스로 써요.'}</span></div>
+      <div class="brief-row"><b>미션</b><span>${n}단어의 뜻을 직접 입력해 모두 맞히기. 뜻이 여러 개면 <b>모두</b> 써요. 그림 아래에 그 단어가 나온 이야기 문장이 <b>빈칸</b>으로 나와요.</span></div>
+      <div class="brief-row"><b>시간</b><span>단어마다 <strong class="briefsec">${DIFF[SAVE.diff].sec}초</strong>(뜻 하나 더 +<span class="briefx">${DIFF[SAVE.diff].extra}</span>초, 이야기 문장이 나오면 +${CZ_READ / 1000}초). ${M.kind === 'review' ? '' : '빨리 맞히면 남은 시간이 <b>모은 시간</b>에 쌓이고, 시간이 다 되면 모은 시간을 보너스로 써요.'}</span></div>
       <div class="brief-row"><b>하트</b><span>${M.kind === 'review' ? '시간이 다 되면' : '시간도 모은 시간도 다 쓰면'} 하트 1개가 깨져요. 틀리게 입력하면 2초가 줄어요. ‘몰라요’는 바로 답을 보고 넘어가요(하트는 그대로).</span></div>
       ${M.kind === 'review' ? '' : `<div class="brief-row"><b>목숨</b><span>하트 ${heartsFor(M.kind)}개를 모두 잃으면 <span class="warn">미션 실패</span> · 목숨 1개 감소 (남은 목숨 <span class="lives inline">${livesHTML()}</span>). 목숨을 다 잃으면 깬 에피소드가 모두 초기화돼요.</span></div>`}
       ${M.kind === 'review' ? '' : `<div class="brief-row"><b>모은 시간</b><span class="bankline">${ICON.clock}<b>${secTxt(SAVE.bank)}</b></span></div>`}
