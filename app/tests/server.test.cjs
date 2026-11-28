@@ -285,7 +285,7 @@ test('story server: PLAYGROUND.md (1) has the same rules as the server', async (
 
 test('story server: Qwen 3.8 27B is the default (2026-11-25, Nemotron retired), thinking medium, always room to think', async () => {
   const w = await load();
-  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 23 });
+  assert.deepEqual(await (await w.fetch(new Request('https://s.example/'), fakeEnv().env)).json(), { ok: true, v: 24 });
   const { env, calls } = fakeEnv();
   const j = await (await w.fetch(req({ words: WORDS }), env)).json();
   assert.equal(j.model, '@cf/qwen/qwen3.8-27b');
@@ -533,7 +533,7 @@ test('story server v20: /group story writes a whole story for each group', async
   assert.equal((await w.fetch(req({ words: DECK, effort: 'medium', size: 4, story: true }, { url }), env)).status, 200);
   assert.equal(sys(calls[0]), w._.grouper(4, true));
   assert.match(sys(calls[0]), /"title": "이야기 제목/);
-  assert.match(sys(calls[0]), /문장마다 바로 앞 문장에서 생긴 일이 까닭이 되어 일어나요/);
+  assert.match(sys(calls[0]), /다음 일은 앞 일 때문에 일어나요/);
   assert.ok(!w._.grouper(4).includes('"story"'));
   // size 4의 처음 묶기에만
   assert.equal((await w.fetch(req({ words: DECK, size: 6, story: true }, { url }), env)).status, 400);
@@ -569,6 +569,26 @@ test('story server v22: stream with gpt-oss is answered in one piece (JSON), not
   assert.ok(calls[0].input.instructions && calls[0].input.input, 'Responses 꼴');
 });
 
+// 24판 (2026-11-28): 사용자 판정 메모(11-27)로 고친 이야기 규칙 — 규칙 글에도 시험 단어를 쓰지 않아요
+test('story server v24: story rules — linking words only for real causes, one named person, fitting words, no needless lines', async () => {
+  const w = await load();
+  const g = w._.grouper(4, true);
+  assert.match(g, /까닭이 아닌 곳에 '그래서'나 '그 바람에'를 붙이면 어색해요/);
+  assert.match(g, /모든 문장을 잇는 말로 시작하지 않아요/);
+  assert.match(g, /이름이 있는 사람은 주인공 한 명뿐/);
+  assert.match(g, /뜻 낱말은 그 상황에 꼭 맞게/);
+  assert.match(g, /줄거리에 필요한 문장만/);
+  assert.match(g, /갑자기 풀리지 않아요/);
+  const check = w._.groupAsk(DECK, null, null, 4, false, true).split('답하기 전에')[1];
+  assert.match(check, /6\. 이름이 있는 사람은 주인공 한 명/);
+  const { TEST_SETS } = require('../../tools/finetune/v3/check.cjs');
+  const rules = g.slice(g.indexOf('story 쓰는 법'), g.indexOf('- 좋은 이야기'));
+  for (const [en, ko] of TEST_SETS.flat()) {
+    assert.ok(!new RegExp('\\b' + en + '\\b', 'i').test(rules), en);
+    assert.ok(!rules.includes(ko.replace(/다$/, '')), ko);
+  }
+});
+
 // 21판 (2026-11-19): 20판 후보가 일을 늘어놓기만 해서 — problem 먼저, 잇는 말, 다른 사람이 움직이게, 좋은 예·나쁜 예, 한국어만
 test('story server v21: /group story asks for a problem first and a cause-and-effect chain', () => {
   const w = require('node:module').createRequire(__filename);
@@ -576,7 +596,7 @@ test('story server v21: /group story asks for a problem first and a cause-and-ef
     const g = W._.grouper(4, true);
     assert.match(g, /"problem": "주인공이 바라는 것이나 생긴 문제 한 문장"/);
     assert.match(g, /그래서·그런데·그러자·하지만/);
-    assert.match(g, /다른 사람\(엄마·아빠·친구·선생님\)이 무엇을 하거나 말해서 다음 일이 생기게/);
+    assert.match(g, /필요하면 엄마·친구가 말하거나 도와서 다음 일이 생기게/);
     assert.match(g, /나쁜 이야기: .*늘어놓기만/);
     assert.match(g, /영어 단어나 다른 나라 글자를 문장에 섞지 않아요/);
     // 좋은 예·나쁜 예에 시험 단어(영어·뜻)를 쓰지 않아요
